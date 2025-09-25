@@ -150,6 +150,20 @@ static double evaluate_formula(const KolibriFormula *formula, const KolibriFormu
     return fitness;
 }
 
+static void apply_feedback_bonus(KolibriFormula *formula, double *fitness) {
+    if (!formula || !fitness) {
+        return;
+    }
+    double adjusted = *fitness + formula->feedback;
+    if (adjusted < 0.0) {
+        adjusted = 0.0;
+    }
+    if (adjusted > 1.0) {
+        adjusted = 1.0;
+    }
+    *fitness = adjusted;
+}
+
 static void mutate_gene(KolibriFormulaPool *pool, KolibriGene *gene) {
     if (!gene) {
         return;
@@ -197,6 +211,7 @@ void kf_pool_init(KolibriFormulaPool *pool, uint64_t seed) {
     for (size_t i = 0; i < pool->count; ++i) {
         gene_randomize(pool, &pool->formulas[i].gene);
         pool->formulas[i].fitness = 0.0;
+        pool->formulas[i].feedback = 0.0;
     }
 }
 
@@ -233,6 +248,8 @@ static void reproduce(KolibriFormulaPool *pool) {
                   &pool->formulas[parent_b_index].gene, &child);
         mutate_gene(pool, &child);
         gene_copy(&child, &pool->formulas[i].gene);
+        pool->formulas[i].fitness = 0.0;
+        pool->formulas[i].feedback = 0.0;
     }
 }
 
@@ -245,7 +262,9 @@ void kf_pool_tick(KolibriFormulaPool *pool, size_t generations) {
     }
     for (size_t g = 0; g < generations; ++g) {
         for (size_t i = 0; i < pool->count; ++i) {
-            pool->formulas[i].fitness = evaluate_formula(&pool->formulas[i], pool);
+            double fitness = evaluate_formula(&pool->formulas[i], pool);
+            apply_feedback_bonus(&pool->formulas[i], &fitness);
+            pool->formulas[i].fitness = fitness;
         }
         qsort(pool->formulas, pool->count, sizeof(KolibriFormula), compare_formulas);
         reproduce(pool);
@@ -313,4 +332,55 @@ int kf_formula_describe(const KolibriFormula *formula, char *buffer, size_t buff
         return -1;
     }
     return 0;
+}
+
+static void adjust_feedback(KolibriFormula *formula, double delta) {
+    if (!formula) {
+        return;
+    }
+    formula->feedback += delta;
+    if (formula->feedback > 1.0) {
+        formula->feedback = 1.0;
+    }
+    if (formula->feedback < -1.0) {
+        formula->feedback = -1.0;
+    }
+    formula->fitness += delta;
+    if (formula->fitness < 0.0) {
+        formula->fitness = 0.0;
+    }
+}
+
+int kf_pool_feedback(KolibriFormulaPool *pool, const KolibriGene *gene, double delta) {
+    if (!pool || !gene || pool->count == 0) {
+        return -1;
+    }
+    for (size_t i = 0; i < pool->count; ++i) {
+        if (pool->formulas[i].gene.length != gene->length) {
+            continue;
+        }
+        if (memcmp(pool->formulas[i].gene.digits, gene->digits, gene->length) != 0) {
+            continue;
+        }
+        adjust_feedback(&pool->formulas[i], delta);
+        size_t index = i;
+        if (delta > 0.0) {
+            while (index > 0 && pool->formulas[index].fitness > pool->formulas[index - 1].fitness) {
+                KolibriFormula tmp = pool->formulas[index - 1];
+                pool->formulas[index - 1] = pool->formulas[index];
+                pool->formulas[index] = tmp;
+                index--;
+            }
+        } else if (delta < 0.0) {
+            while (index + 1 < pool->count &&
+                   pool->formulas[index].fitness < pool->formulas[index + 1].fitness) {
+                KolibriFormula tmp = pool->formulas[index + 1];
+                pool->formulas[index + 1] = pool->formulas[index];
+                pool->formulas[index] = tmp;
+                index++;
+            }
+        }
+        return 0;
+    }
+    return -1;
 }

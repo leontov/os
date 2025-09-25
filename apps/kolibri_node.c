@@ -37,6 +37,10 @@ typedef struct {
     k_digit_stream memory;
     bool listener_ready;
     KolibriNetListener listener;
+    KolibriGene last_gene;
+    bool last_gene_valid;
+    int last_question;
+    int last_answer;
 } KolibriNode;
 
 static const unsigned char KOLIBRI_HMAC_KEY[] = "kolibri-secret-key";
@@ -178,6 +182,53 @@ static void node_store_text(KolibriNode *node, const char *text) {
             break;
         }
     }
+}
+
+static void node_reset_last_answer(KolibriNode *node) {
+    if (!node) {
+        return;
+    }
+    node->last_gene_valid = false;
+    node->last_question = 0;
+    node->last_answer = 0;
+    memset(&node->last_gene, 0, sizeof(node->last_gene));
+}
+
+static void node_apply_feedback(KolibriNode *node, double delta, const char *rating, const char *message) {
+    if (!node) {
+        return;
+    }
+    if (!node->last_gene_valid) {
+        printf("[Учитель] нет последнего ответа для оценки\n");
+        return;
+    }
+    if (kf_pool_feedback(&node->pool, &node->last_gene, delta) != 0) {
+        printf("[Учитель] текущий ген уже изменился, повторите запрос\n");
+        node_reset_last_answer(node);
+        return;
+    }
+    if (message) {
+        printf("%s\n", message);
+    }
+    char payload[128];
+    snprintf(payload, sizeof(payload), "rating=%s input=%d output=%d delta=%.3f",
+             rating ? rating : "unknown", node->last_question, node->last_answer, delta);
+    node_record_event(node, "USER_FEEDBACK", payload);
+    const KolibriFormula *best = kf_pool_best(&node->pool);
+    if (best) {
+        char description[128];
+        if (kf_formula_describe(best, description, sizeof(description)) == 0) {
+            printf("[Формулы] %s\n", description);
+        }
+    }
+}
+
+static void node_handle_good(KolibriNode *node) {
+    node_apply_feedback(node, 0.15, "good", "[Учитель] формула поощрена");
+}
+
+static void node_handle_bad(KolibriNode *node) {
+    node_apply_feedback(node, -0.25, "bad", "[Учитель] формула наказана");
 }
 
 static int node_open_genome(KolibriNode *node) {
@@ -324,6 +375,7 @@ static void node_handle_tick(KolibriNode *node, size_t generations) {
     kf_pool_tick(&node->pool, generations);
     printf("[Формулы] выполнено поколений: %zu\n", generations);
     node_record_event(node, "EVOLVE", "цикл выполнен");
+    node_reset_last_answer(node);
 }
 
 static void node_handle_teach(KolibriNode *node, const char *payload) {
@@ -382,6 +434,10 @@ static void node_handle_ask(KolibriNode *node, const char *payload) {
         return;
     }
     printf("[Ответ] f(%d) = %d\n", value, result);
+    node->last_gene = best->gene;
+    node->last_gene_valid = true;
+    node->last_question = value;
+    node->last_answer = result;
     char description[128];
     if (kf_formula_describe(best, description, sizeof(description)) == 0) {
         printf("[Пояснение] %s\n", description);
@@ -404,6 +460,8 @@ static void node_handle_verify(KolibriNode *node) {
 static void node_print_help(void) {
     printf(":teach a->b — добавить обучающий пример\n");
     printf(":ask x — вычислить значение лучшей формулы\n");
+    printf(":good — поощрить последнюю формулу за ответ\n");
+    printf(":bad — наказать последнюю формулу\n");
     printf(":tick [n] — выполнить n поколений (по умолчанию 1)\n");
     printf(":evolve [n] — форсировать дополнительную эволюцию\n");
     printf(":why — показать текущую формулу\n");
@@ -449,6 +507,14 @@ static void node_run(KolibriNode *node) {
             }
             if (strcmp(name, "ask") == 0) {
                 node_handle_ask(node, command);
+                continue;
+            }
+            if (strcmp(name, "good") == 0) {
+                node_handle_good(node);
+                continue;
+            }
+            if (strcmp(name, "bad") == 0) {
+                node_handle_bad(node);
                 continue;
             }
             if (strcmp(name, "tick") == 0) {
@@ -530,6 +596,7 @@ static void node_stop_listener(KolibriNode *node) {
 static int node_init(KolibriNode *node, const KolibriNodeOptions *options) {
     memset(node, 0, sizeof(*node));
     node->options = *options;
+    node_reset_last_answer(node);
     k_digit_stream_init(&node->memory, node->memory_buffer, sizeof(node->memory_buffer));
     kf_pool_init(&node->pool, node->options.seed);
     if (node_open_genome(node) != 0) {

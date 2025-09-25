@@ -32,6 +32,25 @@ static void assert_deterministic(void) {
   assert(memcmp(digits_first, digits_second, len_first) == 0);
 }
 
+static void test_feedback_adjustment(void) {
+  KolibriFormulaPool pool;
+  kf_pool_init(&pool, 321);
+  teach_linear_task(&pool);
+  kf_pool_tick(&pool, 64);
+  const KolibriFormula *best = kf_pool_best(&pool);
+  assert(best != NULL);
+  KolibriGene snapshot = best->gene;
+  double baseline = best->fitness;
+  assert(kf_pool_feedback(&pool, &snapshot, 0.3) == 0);
+  const KolibriFormula *after_reward = kf_pool_best(&pool);
+  assert(after_reward != NULL);
+  assert(after_reward->fitness >= baseline);
+  assert(kf_pool_feedback(&pool, &snapshot, -0.8) == 0);
+  const KolibriFormula *after_penalty = kf_pool_best(&pool);
+  assert(after_penalty != NULL);
+  assert(after_penalty->fitness >= 0.0);
+}
+
 void test_formula(void) {
   KolibriFormulaPool pool;
   kf_pool_init(&pool, 77);
@@ -56,4 +75,5 @@ void test_formula(void) {
   }
   assert(errors <= baseline_errors);
   assert_deterministic();
+  test_feedback_adjustment();
 }
