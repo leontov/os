@@ -1,3 +1,4 @@
+
 # Kolibri OS Prototype
 
 Новое видение будущего.
@@ -46,3 +47,7 @@ make test
 - [Kolibri OS](docs/kolibri_os.md)
 - [Веб-интерфейс и WASM-мост](docs/web_interface.md)
 - [Научная повестка](docs/research_agenda.md)
+=======
+# os
+
+
