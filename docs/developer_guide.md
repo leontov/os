@@ -30,7 +30,7 @@ Run `make`, `make test`, and `./kolibri.sh up` after source changes. Use `cmake 
 
 | Layer | Command | Notes |
 |-------|---------|-------|
-| Unit tests | `make test` | Покрывают decimal/genome/formula/net. |
+| Unit tests | `make test` | Покрывают decimal/genome/formula/net/script. |
 | Property tests | встроены в `tests/test_formula.c` | Используют случайные входы с фиксированным seed. |
 | Static analysis | `clang-tidy backend/src/*.c apps/kolibri_node.c -- -Ibackend/include` | Выполняется при изменении C-кода. |
 | Integration | `./kolibri.sh up` | Стартует два узла и проверяет обмен формулами. |

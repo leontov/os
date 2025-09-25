@@ -79,6 +79,7 @@ return лучшая найденная формула (или формулы)
 - **Fractal Induction** — отвечает за порождение новых формул и уточнение существующих на различных уровнях фрактальной иерархии памяти.
 - **Rule/Formula Engine** — исполняет формулы (правила) и собирает статистику об их работе, включая вычисление показателя полезности (фитнеса) каждой формулы.
 - **Chat/REPL** — русскоязычный интерфейс команд `:teach`, `:ask`, `:tick`, `:evolve`, `:why`, `:canvas`, `:sync`, `:verify`, который транслирует действия в цифровой геном и поддерживает распределённое обучение.
+- **KolibriScript Interpreter** — встроенный интерпретатор (`ks_execute_text`), исполняющий сценарии на русском языке с арифметикой, условиями и выводом без необходимости модификации C-ядра.
 - **Kolibri Chain (микро-блокчейн)** — журнал знаний: каждая формула снабжается криптографической подписью и записывается в цепочку блоков, что позволяет удостоверять авторство и обмениваться проверенными знаниями между узлами Kolibri.
 - **Canvas/PWA UI** — визуальный интерфейс пользователя, реализованный как прогрессивное веб-приложение с использованием Canvas-графики. Обеспечивает наглядное представление фрактальной памяти, графа формул и правил, а также интерактивное взаимодействие с системой, включая офлайн-режим.
 - **WASM-хостинг** — возможность компиляции ядра Kolibri из C в WebAssembly. Это позволяет запускать Kolibri напрямую в браузере или на статичных площадках (GitHub Pages и т.п.) без выделенного сервера.
@@ -215,6 +216,7 @@ Given a sequence such as 3, 9, 27, …, Kolibri converts the samples into decima
 - **Digit Pulse Transducer** converts raw input signals into decimal pulses.
 - **Fractal Induction** generates and refines formulas across the fractal hierarchy.
 - **Rule/Formula Engine** executes formulas, collects statistics, and computes fitness scores.
+- **KolibriScript Interpreter** executes Russian-language scripts (`ks_execute_text`) for conditional logic, arithmetic, and output control without modifying the C core.
 - **Kolibri Chain** acts as a micro-blockchain ledger for formula provenance and knowledge sharing.
 - **Canvas/PWA UI** visualizes fractal memory, formula graphs, and rules while supporting offline use.
 - **WASM hosting** compiles the C core to WebAssembly for browser-native execution.
@@ -335,6 +337,7 @@ return 最优公式（集合）
 - **Digit Pulse Transducer**：将输入信号转换为 0–9 脉冲。
 - **Fractal Induction**：在分形层次上生成与优化公式。
 - **Rule/Formula Engine**：执行公式并计算适应度。
+- **KolibriScript Interpreter**：通过 `ks_execute_text` 执行俄语脚本，实现条件、算术与输出控制而无需修改 C 核心。
 - **Kolibri Chain**：记录公式来源并在节点间共享知识的微型区块链。
 - **Canvas/PWA UI**：基于 Canvas 的渐进式 Web 应用，提供可视化与离线能力。
 - **WASM 托管**：将 C 核心编译为 WebAssembly，在浏览器原生运行。

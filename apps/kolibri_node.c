@@ -6,6 +6,7 @@
 #include "kolibri/formula.h"
 #include "kolibri/genome.h"
 #include "kolibri/net.h"
+#include "kolibri/script.h"
 
 #include <ctype.h>
 #include <inttypes.h>
@@ -401,6 +402,61 @@ static void node_handle_verify(KolibriNode *node) {
     }
 }
 
+static void node_handle_script(KolibriNode *node, const char *path) {
+    if (!path) {
+        printf("[Сценарий] требуется указать путь\n");
+        return;
+    }
+    while (*path && isspace((unsigned char)*path)) {
+        path++;
+    }
+    if (*path == '\0') {
+        printf("[Сценарий] требуется указать путь\n");
+        return;
+    }
+    FILE *fp = fopen(path, "rb");
+    if (!fp) {
+        printf("[Сценарий] не удалось открыть файл %s\n", path);
+        return;
+    }
+    if (fseek(fp, 0, SEEK_END) != 0) {
+        fclose(fp);
+        printf("[Сценарий] не удалось определить размер файла\n");
+        return;
+    }
+    long size = ftell(fp);
+    if (size < 0) {
+        fclose(fp);
+        printf("[Сценарий] не удалось определить размер файла\n");
+        return;
+    }
+    if (fseek(fp, 0, SEEK_SET) != 0) {
+        fclose(fp);
+        printf("[Сценарий] не удалось перемотать файл\n");
+        return;
+    }
+    char *buffer = (char *)malloc((size_t)size + 1U);
+    if (!buffer) {
+        fclose(fp);
+        printf("[Сценарий] не удалось выделить память\n");
+        return;
+    }
+    size_t read = fread(buffer, 1U, (size_t)size, fp);
+    fclose(fp);
+    buffer[read] = '\0';
+    KolibriScriptContext context;
+    ks_context_init(&context);
+    if (ks_execute_text(&context, buffer, stdout) != 0) {
+        printf("[Сценарий] ошибка: %s\n", ks_last_error(&context));
+    } else {
+        printf("[Сценарий] выполнен успешно\n");
+        if (node) {
+            node_record_event(node, "SCRIPT", "сценарий выполнен");
+        }
+    }
+    free(buffer);
+}
+
 static void node_print_help(void) {
     printf(":teach a->b — добавить обучающий пример\n");
     printf(":ask x — вычислить значение лучшей формулы\n");
@@ -410,6 +466,7 @@ static void node_print_help(void) {
     printf(":canvas — вывести канву памяти\n");
     printf(":sync — поделиться формулой с соседом\n");
     printf(":verify — проверить геном\n");
+    printf(":script path — выполнить сценарий KolibriScript\n");
     printf(":quit — завершить работу\n");
 }
 
@@ -487,6 +544,10 @@ static void node_run(KolibriNode *node) {
             }
             if (strcmp(name, "verify") == 0) {
                 node_handle_verify(node);
+                continue;
+            }
+            if (strcmp(name, "script") == 0) {
+                node_handle_script(node, command);
                 continue;
             }
             if (strcmp(name, "help") == 0) {

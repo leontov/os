@@ -26,6 +26,7 @@ make
 - `:canvas` — визуализировать фрактальную память цифровых импульсов.
 - `:sync` — отправить лучший ген соседу, если указан `--peer`.
 - `:verify` — проверить целостность файла `genome.dat` перед продолжением.
+- `:script путь` — выполнить KolibriScript и зафиксировать результат в геноме.
 - `:help` — краткий список команд, `:quit` — завершение работы узла.
 
 Каждая команда транслируется в десятичные импульсы и записывается в цифровой
@@ -59,5 +60,6 @@ make test
 - [Эволюция формул](docs/formula_evolution.md)
 - [Цифровой геном Kolibri](docs/genome_chain.md)
 - [Kolibri OS](docs/kolibri_os.md)
+- [KolibriScript](docs/kolibri_script.md)
 - [Веб-интерфейс и WASM-мост](docs/web_interface.md)
 - [Научная повестка](docs/research_agenda.md)
