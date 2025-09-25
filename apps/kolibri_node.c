@@ -21,6 +21,8 @@ typedef struct {
   bool peer_enabled;
   char peer_host[64];
   uint16_t peer_port;
+  bool verify_genome;
+  char genome_path[260];
 } KolibriNodeOptions;
 
 static void options_init(KolibriNodeOptions *options) {
@@ -31,6 +33,9 @@ static void options_init(KolibriNodeOptions *options) {
   options->peer_enabled = false;
   options->peer_host[0] = '\0';
   options->peer_port = 4050U;
+  options->verify_genome = false;
+  strncpy(options->genome_path, "genome.dat", sizeof(options->genome_path) - 1);
+  options->genome_path[sizeof(options->genome_path) - 1] = '\0';
 }
 
 static void parse_options(int argc, char **argv, KolibriNodeOptions *options) {
@@ -68,6 +73,17 @@ static void parse_options(int argc, char **argv, KolibriNodeOptions *options) {
       ++i;
       continue;
     }
+    if (strcmp(argv[i], "--genome") == 0 && i + 1 < argc) {
+      strncpy(options->genome_path, argv[i + 1],
+              sizeof(options->genome_path) - 1);
+      options->genome_path[sizeof(options->genome_path) - 1] = '\0';
+      ++i;
+      continue;
+    }
+    if (strcmp(argv[i], "--verify-genome") == 0) {
+      options->verify_genome = true;
+      continue;
+    }
   }
 }
 
@@ -88,22 +104,45 @@ static void demo_decimal_layer(void) {
   printf("[Decimal] '%s' -> %s -> '%s'\n", sample, encoded, decoded);
 }
 
-static void demo_genome(void) {
-  KolibriGenome genome;
+static int demo_genome(const KolibriNodeOptions *options) {
+  if (!options) {
+    return -1;
+  }
+
   const unsigned char key[] = "kolibri-secret-key";
-  if (kg_open(&genome, "genome.dat", key, sizeof(key) - 1) != 0) {
-    fprintf(stderr, "Unable to open genome.dat\n");
-    return;
+
+  if (options->verify_genome) {
+    int verify = kg_verify_file(options->genome_path, key, sizeof(key) - 1);
+    if (verify == 1) {
+      printf("[Genome] No existing ledger at %s, nothing to verify\n",
+             options->genome_path);
+    } else if (verify != 0) {
+      fprintf(stderr, "[Genome] Integrity check failed for %s\n",
+              options->genome_path);
+      return -1;
+    } else {
+      printf("[Genome] Verified %s\n", options->genome_path);
+    }
+  }
+
+  KolibriGenome genome;
+  if (kg_open(&genome, options->genome_path, key, sizeof(key) - 1) != 0) {
+    fprintf(stderr, "Unable to open %s\n", options->genome_path);
+    return -1;
   }
 
   ReasonBlock block;
   if (kg_append(&genome, "BOOT", "Kolibri node initialized", &block) == 0) {
-    printf("[Genome] Appended block #%" PRIu64 "\n", block.index);
+    printf("[Genome] Appended block #%" PRIu64 " to %s\n", block.index,
+           options->genome_path);
   } else {
     fprintf(stderr, "[Genome] Failed to append block\n");
+    kg_close(&genome);
+    return -1;
   }
 
   kg_close(&genome);
+  return 0;
 }
 
 static void demo_formula(uint64_t seed, KolibriFormulaPool *out_pool) {
@@ -148,7 +187,9 @@ int main(int argc, char **argv) {
   }
 
   demo_decimal_layer();
-  demo_genome();
+  if (demo_genome(&options) != 0) {
+    return 1;
+  }
   KolibriFormulaPool pool;
   demo_formula(options.seed, &pool);
 

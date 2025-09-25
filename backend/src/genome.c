@@ -188,3 +188,90 @@ int kg_append(KolibriGenome *ctx, const char *event_type, const char *payload,
 
   return 0;
 }
+
+int kg_verify_file(const char *path, const unsigned char *key,
+                   size_t key_len) {
+  if (!path || !key || key_len == 0 || key_len > KOLIBRI_HMAC_KEY_SIZE) {
+    return -1;
+  }
+
+  FILE *file = fopen(path, "rb");
+  if (!file) {
+    if (errno == ENOENT) {
+      return 1;
+    }
+    return -1;
+  }
+
+  unsigned char expected_prev[KOLIBRI_HASH_SIZE];
+  memset(expected_prev, 0, sizeof(expected_prev));
+  uint64_t expected_index = 0;
+
+  char line[1024];
+  while (fgets(line, sizeof(line), file)) {
+    ReasonBlock block;
+    memset(&block, 0, sizeof(block));
+
+    char prev_hash_hex[KOLIBRI_HASH_SIZE * 2 + 1];
+    char hmac_hex[KOLIBRI_HASH_SIZE * 2 + 1];
+    char event[KOLIBRI_EVENT_TYPE_SIZE];
+    char payload[KOLIBRI_PAYLOAD_SIZE];
+    unsigned long long index = 0ULL;
+    unsigned long long timestamp = 0ULL;
+
+    int matched = sscanf(line, "%llu,%llu,%64[^,],%64[^,],%31[^,],%255[^\n]",
+                         &index, &timestamp, prev_hash_hex, hmac_hex, event,
+                         payload);
+    if (matched != 6) {
+      fclose(file);
+      return -1;
+    }
+
+    block.index = (uint64_t)index;
+    block.timestamp = (uint64_t)timestamp;
+    strncpy(block.event_type, event, sizeof(block.event_type) - 1);
+    strncpy(block.payload, payload, sizeof(block.payload) - 1);
+
+    if (block.index != expected_index) {
+      fclose(file);
+      return -1;
+    }
+
+    if (hex_to_bytes(prev_hash_hex, block.prev_hash, KOLIBRI_HASH_SIZE) != 0 ||
+        hex_to_bytes(hmac_hex, block.hmac, KOLIBRI_HASH_SIZE) != 0) {
+      fclose(file);
+      return -1;
+    }
+
+    if (memcmp(block.prev_hash, expected_prev, KOLIBRI_HASH_SIZE) != 0) {
+      fclose(file);
+      return -1;
+    }
+
+    unsigned char buffer[sizeof(block.index) + sizeof(block.timestamp) +
+                         KOLIBRI_HASH_SIZE + sizeof(block.event_type) +
+                         sizeof(block.payload)];
+    size_t buffer_len = 0;
+    build_payload_buffer(&block, buffer, &buffer_len);
+
+    unsigned char computed[KOLIBRI_HASH_SIZE];
+    unsigned int hmac_len = 0;
+    unsigned char *result = HMAC(EVP_sha256(), key, (int)key_len, buffer,
+                                 buffer_len, computed, &hmac_len);
+    if (!result || hmac_len != KOLIBRI_HASH_SIZE) {
+      fclose(file);
+      return -1;
+    }
+
+    if (memcmp(computed, block.hmac, KOLIBRI_HASH_SIZE) != 0) {
+      fclose(file);
+      return -1;
+    }
+
+    memcpy(expected_prev, block.hmac, KOLIBRI_HASH_SIZE);
+    expected_index = block.index + 1;
+  }
+
+  fclose(file);
+  return 0;
+}
