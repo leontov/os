@@ -1,12 +1,11 @@
 #ifndef KOLIBRI_DECIMAL_H
 #define KOLIBRI_DECIMAL_H
-
 #include <stddef.h>
 #include <stdint.h>
-
 #ifdef __cplusplus
 extern "C" {
 #endif
+
 
 typedef struct {
     uint8_t *digits;
@@ -24,6 +23,7 @@ size_t k_digit_stream_remaining(const k_digit_stream *stream);
 
 int k_transduce_utf8(k_digit_stream *stream, const unsigned char *bytes, size_t len);
 int k_emit_utf8(const k_digit_stream *stream, unsigned char *out, size_t out_len, size_t *written);
+
 
 size_t k_encode_text_length(size_t input_len);
 size_t k_decode_text_length(size_t digits_len);

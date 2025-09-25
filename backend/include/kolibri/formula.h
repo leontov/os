@@ -4,6 +4,7 @@
 #include "kolibri/random.h"
 
 #include <stddef.h>
+
 #include <stdint.h>
 
 typedef struct {
@@ -35,5 +36,24 @@ int kf_formula_apply(const KolibriFormula *formula, int input, int *output);
 size_t kf_formula_digits(const KolibriFormula *formula, uint8_t *out, size_t out_len);
 int kf_formula_describe(const KolibriFormula *formula, char *buffer, size_t buffer_len);
 int kf_pool_feedback(KolibriFormulaPool *pool, const KolibriGene *gene, double delta);
+
+
+typedef struct {
+    int a;
+    int b;
+    double fitness;
+} KolibriFormula;
+
+typedef struct {
+    KolibriFormula formulas[16];
+    size_t count;
+    KolibriRng rng;
+} KolibriFormulaPool;
+
+void kf_pool_init(KolibriFormulaPool *pool, uint64_t seed);
+void kf_pool_tick(KolibriFormulaPool *pool, const int *inputs, const int *targets, size_t len);
+const KolibriFormula *kf_pool_best(const KolibriFormulaPool *pool);
+int kf_formula_apply(const KolibriFormula *formula, int input);
+
 
 #endif /* KOLIBRI_FORMULA_H */

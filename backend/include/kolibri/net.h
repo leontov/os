@@ -30,6 +30,8 @@ typedef struct {
             uint32_t node_id;
             uint8_t length;
             uint8_t digits[32];
+            int32_t a;
+            int32_t b;
             double fitness;
         } formula;
         struct {
