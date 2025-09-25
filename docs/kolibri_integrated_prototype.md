@@ -6,8 +6,12 @@
 
 ## Русская версия
 
-**Автор:** Кочуров Владислав Евгеньевич  
+**Автор:** Кочуров Владислав Евгеньевич
+**Дата:** 23 сентября 2025
+**Локация:** Амстердам, Нидерланды
 **Кодовые названия:** Kolibri Nano, NumeriFold
+
+*Примечание: документ синтезирован по доступным чатам 2025 года с ключевыми словами «Колибри», «Ковиан», «ОС», «научная работа». Полные выгрузки могут быть добавлены при предоставлении экспортов.*
 
 ### Аннотация
 
@@ -140,8 +144,12 @@ Kolibri демонстрирует новый взгляд на искусств
 
 ## English version
 
-**Author:** Vladislav E. Kochurov  
+**Author:** Vladislav E. Kochurov
+**Date:** 23 September 2025
+**Location:** Amsterdam, Netherlands
 **Codenames:** Kolibri Nano, NumeriFold
+
+*Note: This summary unifies the 2025 chat fragments tagged “Kolibri,” “Covian,” “OS/operating system,” and “scientific paper.” Full exported logs can be appended when the archive is available.*
 
 ### Abstract
 
@@ -256,8 +264,12 @@ Kolibri blends discrete fractal logic with evolutionary learning, offering a tra
 
 ## 中文版本
 
-**作者：** 科丘罗夫·弗拉季斯拉夫·叶夫根涅维奇（Vladislav E. Kochurov）  
+**作者：** 科丘罗夫·弗拉季斯拉夫·叶夫根涅维奇（Vladislav E. Kochurov）
+**日期：** 2025 年 9 月 23 日
+**地点：** 荷兰阿姆斯特丹
 **代号：** Kolibri Nano，NumeriFold
+
+*说明：本文整合了 2025 年聊天记录中与 “Kolibri”“Covian”“操作系统”“科研工作” 等关键词相关的片段。若提供完整导出，可进一步补充原始日志。*
 
 ### 摘要
 
