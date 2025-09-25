@@ -14,7 +14,6 @@
 - [decimal_cognition.md](decimal_cognition.md) — описание слоя десятичного кодирования и API `k_encode_text`/`k_decode_text`.
 - [formula_evolution.md](formula_evolution.md) — руководство по эволюции формул и работе пула `KolibriFormulaPool`.
 - [genome_chain.md](genome_chain.md) — спецификация цифрового генома и структуры `ReasonBlock`.
-- [kolibri_script.md](kolibri_script.md) — описание языка KolibriScript и встроенного интерпретатора.
 - [kolibri_os.md](kolibri_os.md) — документация минимальной Kolibri OS и сценариев загрузки.
 - [web_interface.md](web_interface.md) — детали PWA/Canvas-интерфейса и WebAssembly-моста.
 - [research_agenda.md](research_agenda.md) — планы экспериментов, метрики и научная повестка.
@@ -31,7 +30,6 @@ This directory aggregates every documentation artifact required for the Kolibri 
 - [decimal_cognition.md](decimal_cognition.md) — decimal cognition layer and the `k_encode_text`/`k_decode_text` APIs.
 - [formula_evolution.md](formula_evolution.md) — formula evolution handbook and `KolibriFormulaPool` lifecycle.
 - [genome_chain.md](genome_chain.md) — digital genome specification detailing the `ReasonBlock` structure.
-- [kolibri_script.md](kolibri_script.md) — KolibriScript language reference and interpreter overview.
 - [kolibri_os.md](kolibri_os.md) — minimal Kolibri OS boot process documentation.
 - [web_interface.md](web_interface.md) — PWA/Canvas UI and WebAssembly bridge documentation.
 - [research_agenda.md](research_agenda.md) — experimental plans, metrics, and research agenda.
@@ -48,7 +46,6 @@ This directory aggregates every documentation artifact required for the Kolibri 
 - [decimal_cognition.md](decimal_cognition.md) —— 十进制认知层与 `k_encode_text`/`k_decode_text` API 说明。
 - [formula_evolution.md](formula_evolution.md) —— 公式进化手册与 `KolibriFormulaPool` 生命周期。
 - [genome_chain.md](genome_chain.md) —— 数字基因组与 `ReasonBlock` 结构规范。
-- [kolibri_script.md](kolibri_script.md) —— KolibriScript 语言与解释器说明。
 - [kolibri_os.md](kolibri_os.md) —— 最小 Kolibri OS 启动流程文档。
 - [web_interface.md](web_interface.md) —— PWA/Canvas 界面与 WebAssembly 桥接说明。
 - [research_agenda.md](research_agenda.md) —— 实验计划、指标与研究议程。
