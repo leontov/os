@@ -1,4 +1,4 @@
-.PHONY: all build test clean kernel iso
+.PHONY: all build test clean kernel iso wasm check
 
 all: build/kolibri_node
 
@@ -21,3 +21,9 @@ kernel:
 	./scripts/build_iso.sh
 
 iso: kernel
+
+check: test iso wasm
+
+wasm:
+	./scripts/build_wasm.sh
+

@@ -66,21 +66,42 @@ HMAC-ключом, который используется для подписи
 геном и журнал в каталог `build/cluster`, а обнаружение и обмен генами
 выполняются через широковещательные приветствия и Kolibri Swarm Protocol.
 
-## Сборка Kolibri OS ISO
-
-Для генерации загрузочного образа необходимы `nasm`, `grub-mkrescue` и кросс-компилятор `i686-elf-gcc`. При наличии инструментов выполните:
+## Тесты и техническая готовность
 
 ```bash
-make iso
+make check
 ```
 
-Команда запустит скрипт `scripts/build_iso.sh`, соберёт микроядро, сформирует структуру каталога `build/iso` и создаст файл `build/kolibri.iso`, готовый к загрузке через GRUB или QEMU.
+Цель `check` последовательно выполняет юнит-тесты (`ctest`),
+собирает загрузочный образ Kolibri OS и генерирует WebAssembly-модуль
+`build/wasm/kolibri.wasm`, контролируя, чтобы его размер не превышал 1 МБ.
 
-## Тесты
+### Избирательные цели
 
 ```bash
-make test
+make test   # только C-тесты
+make iso    # только kolibri.iso
+make wasm   # только kolibri.wasm
 ```
+
+### Зависимости инструментов
+
+Для сборки ISO понадобятся `nasm`, `grub-mkrescue`, `xorriso` и либо
+кросс-компилятор `i686-elf-gcc`, либо системный `gcc` с поддержкой `-m32`.
+Пример для Debian/Ubuntu:
+
+```bash
+sudo apt-get update
+sudo apt-get install nasm grub-pc-bin xorriso gcc-multilib
+```
+
+Скрипт `scripts/build_iso.sh` автоматически проверяет доступность
+инструментов и завершится с подсказкой, если окружение настроено не полностью.
+
+Для генерации `kolibri.wasm` необходим Emscripten (`emcc`). Скрипт
+`scripts/build_wasm.sh` работает с установленным SDK (например, через
+`emsdk install latest && emsdk activate latest`) и формирует артефакт
+`build/wasm/kolibri.wasm`, а также файл с контрольной суммой.
 
 ## Документация
 
@@ -97,4 +118,5 @@ make test
 - [Веб-интерфейс и WASM-мост](docs/web_interface.md)
 - [Нейронный телескоп Kolibri](docs/neural_telescope.md)
 - [Язык KolibriScript](docs/kolibri_script.md)
+- [Релизные заметки](docs/release_notes.md)
 - [Научная повестка](docs/research_agenda.md)
