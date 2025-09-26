@@ -13,9 +13,43 @@ KONFLIKT_START = "<<<<<<<"
 KONFLIKT_DELIM = "======="
 KONFLIKT_END = ">>>>>>>"
 
+PAPKI_PREDPOCHTENIE_NASHE = (
+    ".github/workflows/",
+    "scripts/",
+)
 
-def razobrat_konflikt(lines: List[str]) -> List[str]:
-    """Объединяет конфликтные блоки, оставляя обе версии без маркеров."""
+PAPKI_PREDPOCHTENIE_IH = (
+    "backend/",
+    "apps/",
+    "tests/",
+    "docs/",
+)
+
+FAYLY_PREDPOCHTENIE_NASHE = (
+    "CMakeLists.txt",
+    "Makefile",
+    "kolibri.sh",
+    "boot/grub/grub.cfg",
+)
+
+
+def opredelit_strategiyu(path: Path) -> str:
+    """Возвращает стратегию слияния для указанного файла."""
+    normalizovannyj = str(path).replace("\\", "/")
+    for fayl in FAYLY_PREDPOCHTENIE_NASHE:
+        if normalizovannyj == fayl or normalizovannyj.endswith("/" + fayl):
+            return "ours"
+    for papka in PAPKI_PREDPOCHTENIE_NASHE:
+        if normalizovannyj.startswith(papka):
+            return "ours"
+    for papka in PAPKI_PREDPOCHTENIE_IH:
+        if normalizovannyj.startswith(papka):
+            return "theirs"
+    return "both"
+
+
+def razobrat_konflikt(lines: List[str], strategiya: str) -> List[str]:
+    """Объединяет конфликтные блоки согласно выбранной стратегии."""
     rezultat: List[str] = []
     ours: List[str] = []
     theirs: List[str] = []
@@ -30,10 +64,15 @@ def razobrat_konflikt(lines: List[str]) -> List[str]:
             sostoyanie = "theirs"
             continue
         if stroka.startswith(KONFLIKT_END):
-            rezultat.extend(ours)
-            if rezultat and rezultat[-1] != "\n":
-                rezultat.append("\n")
-            rezultat.extend(theirs)
+            if strategiya == "ours":
+                rezultat.extend(ours)
+            elif strategiya == "theirs":
+                rezultat.extend(theirs)
+            else:
+                rezultat.extend(ours)
+                if rezultat and rezultat[-1] != "\n":
+                    rezultat.append("\n")
+                rezultat.extend(theirs)
             sostoyanie = "normal"
             continue
         if sostoyanie == "ours":
@@ -49,11 +88,12 @@ def obrabotat_fajl(path: Path) -> Dict[str, object]:
     """Читает файл, устраняет конфликтные маркеры и возвращает отчёт."""
     soderzhimoe = path.read_text(encoding="utf-8")
     if KONFLIKT_START not in soderzhimoe:
-        return {"file": str(path), "status": "clean"}
+        return {"file": str(path), "status": "clean", "strategy": "skip"}
     stroki = soderzhimoe.splitlines(keepends=True)
-    novye = razobrat_konflikt(stroki)
+    strategiya = opredelit_strategiyu(path)
+    novye = razobrat_konflikt(stroki, strategiya)
     path.write_text("".join(novye), encoding="utf-8")
-    return {"file": str(path), "status": "resolved"}
+    return {"file": str(path), "status": "resolved", "strategy": strategiya}
 
 
 def nayti_fajly(root: Path) -> List[Path]:
