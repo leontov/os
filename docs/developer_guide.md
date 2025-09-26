@@ -16,13 +16,14 @@
 1. Установите зависимости компилятора C11 и `cmake` (при необходимости).
 2. Выполните `make` для генерации бинарников в `build/`.
 3. Для чистой сборки используйте `make clean`.
-4. Скрипт `./kolibri.sh up` выполняет последовательность: сборка, тесты, запуск локального роя.
+4. Скрипт `./kolibri.sh up` собирает бинарники и запускает одиночный узел для интерактивной проверки.
+5. Для множественных узлов используйте `./scripts/run_cluster.sh`, который формирует локальный рой и управляет временем жизни процесса.
 
 ### English
-Run `make`, `make test`, and `./kolibri.sh up` after source changes. Use `cmake --build build` for IDE-generated projects.
+Run `make`, `make test`, and `./kolibri.sh up` after source changes. Use `./scripts/run_cluster.sh` to launch multi-node swarms locally.
 
 ### 中文
-修改源码后依次执行 `make`、`make test` 与 `./kolibri.sh up`。若使用 IDE，可通过 `cmake --build build` 构建。
+修改源码后依次执行 `make`、`make test` 与 `./kolibri.sh up`。若需在本地启动多节点网络，可运行 `./scripts/run_cluster.sh`。
 
 ---
 
@@ -31,9 +32,9 @@ Run `make`, `make test`, and `./kolibri.sh up` after source changes. Use `cmake 
 | Layer | Command | Notes |
 |-------|---------|-------|
 | Unit tests | `make test` | Покрывают decimal/genome/formula/net. |
-| Property tests | встроены в `tests/test_formula.c` | Используют случайные входы с фиксированным seed. |
+| Property tests | встроены в `tests/test_decimal.c` и `tests/test_formula.c` | Используют случайные входы с фиксированным seed. |
 | Static analysis | `clang-tidy backend/src/*.c apps/kolibri_node.c -- -Ibackend/include` | Выполняется при изменении C-кода. |
-| Integration | `./kolibri.sh up` | Стартует два узла и проверяет обмен формулами. |
+| Integration | `./scripts/run_cluster.sh` | Разворачивает локальный рой и проверяет обмен формулами. |
 
 *Документационные изменения не требуют запуска тестов, однако в коммит-сообщении нужно явно указывать причину пропуска.*
 

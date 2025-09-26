@@ -7,8 +7,8 @@
 
 #include "kolibri/formula.h"
 
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -38,12 +38,18 @@ typedef struct {
     } data;
 } KolibriNetMessage;
 
-size_t kn_message_encode_hello(uint8_t *buffer, size_t buffer_len, uint32_t node_id);
-size_t kn_message_encode_formula(uint8_t *buffer, size_t buffer_len, uint32_t node_id, const KolibriFormula *formula);
-size_t kn_message_encode_ack(uint8_t *buffer, size_t buffer_len, uint8_t status);
-int kn_message_decode(const uint8_t *buffer, size_t buffer_len, KolibriNetMessage *out_message);
+size_t kn_message_encode_hello(uint8_t *buffer, size_t buffer_len,
+                               uint32_t node_id);
+size_t kn_message_encode_formula(uint8_t *buffer, size_t buffer_len,
+                                 uint32_t node_id,
+                                 const KolibriFormula *formula);
+size_t kn_message_encode_ack(uint8_t *buffer, size_t buffer_len,
+                             uint8_t status);
+int kn_message_decode(const uint8_t *buffer, size_t buffer_len,
+                      KolibriNetMessage *out_message);
 
-int kn_share_formula(const char *host, uint16_t port, uint32_t node_id, const KolibriFormula *formula);
+int kn_share_formula(const char *host, uint16_t port, uint32_t node_id,
+                     const KolibriFormula *formula);
 
 typedef struct {
     int socket_fd;
@@ -51,7 +57,8 @@ typedef struct {
 } KolibriNetListener;
 
 int kn_listener_start(KolibriNetListener *listener, uint16_t port);
-int kn_listener_poll(KolibriNetListener *listener, uint32_t timeout_ms, KolibriNetMessage *out_message);
+int kn_listener_poll(KolibriNetListener *listener, uint32_t timeout_ms,
+                     KolibriNetMessage *out_message);
 void kn_listener_close(KolibriNetListener *listener);
 
 #ifdef __cplusplus

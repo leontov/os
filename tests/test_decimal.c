@@ -1,4 +1,5 @@
 #include "kolibri/decimal.h"
+#include "kolibri/random.h"
 
 #include <assert.h>
 #include <stdint.h>
@@ -47,9 +48,32 @@ static void proverit_kodirovanie_teksta(void)
     assert(strcmp(text, raskodirovannyj) == 0);
 }
 
+static void proverit_sluchajnye_posledovatelnosti(void)
+{
+    KolibriRng generator;
+    k_rng_seed(&generator, 123456789ULL);
+    for (size_t iteraciya = 0; iteraciya < 128U; ++iteraciya) {
+        size_t dlina = (size_t)(k_rng_next(&generator) % 33U);
+        unsigned char vhod[64];
+        for (size_t indeks = 0; indeks < dlina; ++indeks) {
+            vhod[indeks] = (unsigned char)(k_rng_next(&generator) & 0xFFU);
+        }
+        uint8_t cifry[192];
+        kolibri_potok_cifr potok;
+        kolibri_potok_cifr_init(&potok, cifry, sizeof(cifry));
+        assert(kolibri_transducirovat_utf8(&potok, vhod, dlina) == 0);
+        unsigned char vyhod[64];
+        size_t zapisano = 0;
+        assert(kolibri_izluchit_utf8(&potok, vyhod, sizeof(vyhod), &zapisano) == 0);
+        assert(zapisano == dlina);
+        assert(memcmp(vyhod, vhod, dlina) == 0);
+    }
+}
+
 void test_decimal(void)
 {
     proverit_transduktor_obratimost();
     proverit_granicy_potoka();
     proverit_kodirovanie_teksta();
+    proverit_sluchajnye_posledovatelnosti();
 }
