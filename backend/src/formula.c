@@ -10,7 +10,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define KOLIBRI_FORMULA_CAPACITY (sizeof(((KolibriFormulaPool *)0)->formulas) / sizeof(KolibriFormula))
+#define KOLIBRI_FORMULA_CAPACITY                                               \
+    (sizeof(((KolibriFormulaPool *)0)->formulas) / sizeof(KolibriFormula))
 #define KOLIBRI_DIGIT_MAX 9U
 
 static uint8_t random_digit(KolibriFormulaPool *pool) {
@@ -44,12 +45,14 @@ static int decode_signed(const KolibriGene *gene, size_t offset, int *value) {
         return -1;
     }
     int sign = gene->digits[offset] % 2 == 0 ? 1 : -1;
-    int magnitude = (int)(gene->digits[offset + 1] * 10 + gene->digits[offset + 2]);
+    int magnitude =
+        (int)(gene->digits[offset + 1] * 10 + gene->digits[offset + 2]);
     *value = sign * magnitude;
     return 0;
 }
 
-static int decode_operation(const KolibriGene *gene, size_t offset, int *operation) {
+static int decode_operation(const KolibriGene *gene, size_t offset,
+                            int *operation) {
     if (!gene || !operation) {
         return -1;
     }
@@ -68,12 +71,14 @@ static int decode_bias(const KolibriGene *gene, size_t offset, int *bias) {
         return -1;
     }
     int sign = gene->digits[offset] % 2 == 0 ? 1 : -1;
-    int magnitude = (int)(gene->digits[offset + 1] * 10 + gene->digits[offset + 2]);
+    int magnitude =
+        (int)(gene->digits[offset + 1] * 10 + gene->digits[offset + 2]);
     *bias = sign * magnitude;
     return 0;
 }
 
-static int formula_predict(const KolibriFormula *formula, int input, int *output) {
+static int formula_predict(const KolibriFormula *formula, int input,
+                           int *output) {
     if (!formula || !output) {
         return -1;
     }
@@ -129,7 +134,8 @@ static double complexity_penalty(const KolibriGene *gene) {
     return penalty;
 }
 
-static double evaluate_formula(const KolibriFormula *formula, const KolibriFormulaPool *pool) {
+static double evaluate_formula(const KolibriFormula *formula,
+                               const KolibriFormulaPool *pool) {
     if (!formula || !pool || pool->examples == 0) {
         return 0.0;
     }
@@ -173,7 +179,8 @@ static void mutate_gene(KolibriFormulaPool *pool, KolibriGene *gene) {
     gene->digits[index] = delta;
 }
 
-static void crossover(KolibriFormulaPool *pool, const KolibriGene *parent_a, const KolibriGene *parent_b, KolibriGene *child) {
+static void crossover(KolibriFormulaPool *pool, const KolibriGene *parent_a,
+                      const KolibriGene *parent_b, KolibriGene *child) {
     (void)pool;
     if (!parent_a || !parent_b || !child) {
         return;
@@ -266,7 +273,8 @@ void kf_pool_tick(KolibriFormulaPool *pool, size_t generations) {
             apply_feedback_bonus(&pool->formulas[i], &fitness);
             pool->formulas[i].fitness = fitness;
         }
-        qsort(pool->formulas, pool->count, sizeof(KolibriFormula), compare_formulas);
+        qsort(pool->formulas, pool->count, sizeof(KolibriFormula),
+              compare_formulas);
         reproduce(pool);
     }
 }
@@ -282,7 +290,8 @@ int kf_formula_apply(const KolibriFormula *formula, int input, int *output) {
     return formula_predict(formula, input, output);
 }
 
-size_t kf_formula_digits(const KolibriFormula *formula, uint8_t *out, size_t out_len) {
+size_t kf_formula_digits(const KolibriFormula *formula, uint8_t *out,
+                         size_t out_len) {
     if (!formula || !out) {
         return 0;
     }
@@ -293,7 +302,8 @@ size_t kf_formula_digits(const KolibriFormula *formula, uint8_t *out, size_t out
     return formula->gene.length;
 }
 
-int kf_formula_describe(const KolibriFormula *formula, char *buffer, size_t buffer_len) {
+int kf_formula_describe(const KolibriFormula *formula, char *buffer,
+                        size_t buffer_len) {
     if (!formula || !buffer || buffer_len == 0) {
         return -1;
     }
@@ -325,9 +335,9 @@ int kf_formula_describe(const KolibriFormula *formula, char *buffer, size_t buff
         operation_name = "неизвестная";
         break;
     }
-    int written = snprintf(buffer, buffer_len,
-                           "тип=%s k=%d b=%d aux=%d фитнес=%.6f",
-                           operation_name, slope, bias, auxiliary, formula->fitness);
+    int written =
+        snprintf(buffer, buffer_len, "тип=%s k=%d b=%d aux=%d фитнес=%.6f",
+                 operation_name, slope, bias, auxiliary, formula->fitness);
     if (written < 0 || (size_t)written >= buffer_len) {
         return -1;
     }
@@ -351,7 +361,8 @@ static void adjust_feedback(KolibriFormula *formula, double delta) {
     }
 }
 
-int kf_pool_feedback(KolibriFormulaPool *pool, const KolibriGene *gene, double delta) {
+int kf_pool_feedback(KolibriFormulaPool *pool, const KolibriGene *gene,
+                     double delta) {
     if (!pool || !gene || pool->count == 0) {
         return -1;
     }
@@ -359,13 +370,15 @@ int kf_pool_feedback(KolibriFormulaPool *pool, const KolibriGene *gene, double d
         if (pool->formulas[i].gene.length != gene->length) {
             continue;
         }
-        if (memcmp(pool->formulas[i].gene.digits, gene->digits, gene->length) != 0) {
+        if (memcmp(pool->formulas[i].gene.digits, gene->digits, gene->length) !=
+            0) {
             continue;
         }
         adjust_feedback(&pool->formulas[i], delta);
         size_t index = i;
         if (delta > 0.0) {
-            while (index > 0 && pool->formulas[index].fitness > pool->formulas[index - 1].fitness) {
+            while (index > 0 && pool->formulas[index].fitness >
+                                    pool->formulas[index - 1].fitness) {
                 KolibriFormula tmp = pool->formulas[index - 1];
                 pool->formulas[index - 1] = pool->formulas[index];
                 pool->formulas[index] = tmp;
@@ -373,7 +386,8 @@ int kf_pool_feedback(KolibriFormulaPool *pool, const KolibriGene *gene, double d
             }
         } else if (delta < 0.0) {
             while (index + 1 < pool->count &&
-                   pool->formulas[index].fitness < pool->formulas[index + 1].fitness) {
+                   pool->formulas[index].fitness <
+                       pool->formulas[index + 1].fitness) {
                 KolibriFormula tmp = pool->formulas[index + 1];
                 pool->formulas[index + 1] = pool->formulas[index];
                 pool->formulas[index] = tmp;

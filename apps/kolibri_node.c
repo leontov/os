@@ -8,6 +8,7 @@
 #include "kolibri/random.h"
 #include "kolibri/roy.h"
 
+#include <arpa/inet.h>
 #include <ctype.h>
 #include <inttypes.h>
 #include <stdbool.h>
@@ -15,7 +16,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <arpa/inet.h>
 
 #define KOLIBRI_MEMORY_CAPACITY 8192U
 
@@ -58,7 +58,8 @@ static void options_init(KolibriNodeOptions *options) {
     options->peer_host[0] = '\0';
     options->peer_port = 4050U;
     options->verify_genome = false;
-    strncpy(options->genome_path, "genome.dat", sizeof(options->genome_path) - 1);
+    strncpy(options->genome_path, "genome.dat",
+            sizeof(options->genome_path) - 1);
     options->genome_path[sizeof(options->genome_path) - 1] = '\0';
 }
 
@@ -156,7 +157,8 @@ static bool parse_int32(const char *text, int *out_value) {
     return true;
 }
 
-static int node_record_event(KolibriNode *node, const char *event, const char *payload) {
+static int node_record_event(KolibriNode *node, const char *event,
+                             const char *payload) {
     if (!node || !node->genome_ready) {
         return -1;
     }
@@ -178,11 +180,13 @@ static void node_store_text(KolibriNode *node, const char *text) {
     if (dlina > 120U) {
         dlina = 120U;
     }
-    if (kolibri_transducirovat_utf8(&lokalnyj, (const unsigned char *)text, dlina) != 0) {
+    if (kolibri_transducirovat_utf8(&lokalnyj, (const unsigned char *)text,
+                                    dlina) != 0) {
         return;
     }
     for (size_t indeks = 0; indeks < lokalnyj.dlina; ++indeks) {
-        if (kolibri_potok_cifr_push(&node->pamyat_potok, lokalnyj.cifry[indeks]) != 0) {
+        if (kolibri_potok_cifr_push(&node->pamyat_potok,
+                                    lokalnyj.cifry[indeks]) != 0) {
             break;
         }
     }
@@ -198,7 +202,8 @@ static void node_reset_last_answer(KolibriNode *node) {
     memset(&node->last_gene, 0, sizeof(node->last_gene));
 }
 
-static void node_apply_feedback(KolibriNode *node, double delta, const char *rating, const char *message) {
+static void node_apply_feedback(KolibriNode *node, double delta,
+                                const char *rating, const char *message) {
     if (!node) {
         return;
     }
@@ -215,8 +220,10 @@ static void node_apply_feedback(KolibriNode *node, double delta, const char *rat
         printf("%s\n", message);
     }
     char payload[128];
-    snprintf(payload, sizeof(payload), "rating=%s input=%d output=%d delta=%.3f",
-             rating ? rating : "unknown", node->last_question, node->last_answer, delta);
+    snprintf(payload, sizeof(payload),
+             "rating=%s input=%d output=%d delta=%.3f",
+             rating ? rating : "unknown", node->last_question,
+             node->last_answer, delta);
     node_record_event(node, "USER_FEEDBACK", payload);
     const KolibriFormula *best = kf_pool_best(&node->pool);
     if (best) {
@@ -253,7 +260,8 @@ static int node_open_genome(KolibriNode *node) {
     }
     if (kg_open(&node->genome, node->options.genome_path, KOLIBRI_HMAC_KEY,
                 sizeof(KOLIBRI_HMAC_KEY) - 1U) != 0) {
-        fprintf(stderr, "[Геном] не удалось открыть %s\n", node->options.genome_path);
+        fprintf(stderr, "[Геном] не удалось открыть %s\n",
+                node->options.genome_path);
         return -1;
     }
     node->genome_ready = true;
@@ -284,8 +292,11 @@ static void node_print_canvas(const KolibriNode *node) {
     size_t glubina = 0;
     while (smeschenie < node->pamyat_potok.dlina) {
         printf("слой %zu: ", glubina);
-        for (size_t indeks = 0; indeks < 30 && smeschenie + indeks < node->pamyat_potok.dlina; ++indeks) {
-            printf("%u", (unsigned)node->pamyat_potok.cifry[smeschenie + indeks]);
+        for (size_t indeks = 0;
+             indeks < 30 && smeschenie + indeks < node->pamyat_potok.dlina;
+             ++indeks) {
+            printf("%u",
+                   (unsigned)node->pamyat_potok.cifry[smeschenie + indeks]);
             if ((indeks + 1U) % 10U == 0U) {
                 printf(" ");
             }
@@ -360,8 +371,8 @@ static void node_print_neighbors(KolibriNode *node) {
         return;
     }
     KolibriRoySosed zapis[16];
-    size_t chislo = kolibri_roy_spisok_sosedey(&node->roy, zapis,
-            sizeof(zapis) / sizeof(zapis[0]));
+    size_t chislo = kolibri_roy_spisok_sosedey(
+        &node->roy, zapis, sizeof(zapis) / sizeof(zapis[0]));
     if (chislo == 0U) {
         printf("[Рой] активные соседи отсутствуют\n");
         return;
@@ -370,8 +381,8 @@ static void node_print_neighbors(KolibriNode *node) {
     printf("== Соседи роя (%zu) ==\n", chislo);
     for (size_t indeks = 0U; indeks < chislo; ++indeks) {
         char adres[64];
-        if (!inet_ntop(AF_INET, &zapis[indeks].adres.sin_addr,
-                       adres, sizeof(adres))) {
+        if (!inet_ntop(AF_INET, &zapis[indeks].adres.sin_addr, adres,
+                       sizeof(adres))) {
             strncpy(adres, "<неизвестно>", sizeof(adres) - 1U);
             adres[sizeof(adres) - 1U] = '\0';
         }
@@ -389,15 +400,15 @@ static void node_poll_roy(KolibriNode *node) {
     KolibriRoySobytie sobytie;
     while (kolibri_roy_poluchit_sobytie(&node->roy, &sobytie) > 0) {
         char adres[64];
-        if (!inet_ntop(AF_INET, &sobytie.adres.sin_addr, adres, sizeof(adres))) {
+        if (!inet_ntop(AF_INET, &sobytie.adres.sin_addr, adres,
+                       sizeof(adres))) {
             strncpy(adres, "<неизвестно>", sizeof(adres) - 1U);
             adres[sizeof(adres) - 1U] = '\0';
         }
         switch (sobytie.tip) {
         case KOLIBRI_ROY_SOBYTIE_HELLO:
             printf("[Рой] приветствие от узла %u (%s:%u)\n",
-                   sobytie.identifikator, adres,
-                   ntohs(sobytie.adres.sin_port));
+                   sobytie.identifikator, adres, ntohs(sobytie.adres.sin_port));
             break;
         case KOLIBRI_ROY_SOBYTIE_FORMULA:
             printf("[Рой] ген от узла %u (%s:%u)\n", sobytie.identifikator,
@@ -599,7 +610,8 @@ static void node_run(KolibriNode *node) {
             if (strcmp(name, "tick") == 0) {
                 int generations = 1;
                 if (command[0] != '\0') {
-                    if (!parse_int32(command, &generations) || generations <= 0) {
+                    if (!parse_int32(command, &generations) ||
+                        generations <= 0) {
                         printf("[Формулы] ожидалось натуральное число\n");
                         continue;
                     }
@@ -610,7 +622,8 @@ static void node_run(KolibriNode *node) {
             if (strcmp(name, "evolve") == 0) {
                 int generations = 32;
                 if (command[0] != '\0') {
-                    if (!parse_int32(command, &generations) || generations <= 0) {
+                    if (!parse_int32(command, &generations) ||
+                        generations <= 0) {
                         printf("[Формулы] ожидалось натуральное число\n");
                         continue;
                     }
@@ -659,8 +672,8 @@ static int node_start_roy(KolibriNode *node) {
         return 0;
     }
     if (kolibri_roy_zapustit(&node->roy, node->options.node_id,
-            node->options.listen_port, KOLIBRI_HMAC_KEY,
-            sizeof(KOLIBRI_HMAC_KEY) - 1U) != 0) {
+                             node->options.listen_port, KOLIBRI_HMAC_KEY,
+                             sizeof(KOLIBRI_HMAC_KEY) - 1U) != 0) {
         fprintf(stderr, "[Рой] не удалось открыть UDP-порт %u\n",
                 node->options.listen_port);
         return -1;
@@ -691,7 +704,8 @@ static int node_init(KolibriNode *node, const KolibriNodeOptions *options) {
     memset(node, 0, sizeof(*node));
     node->options = *options;
     node_reset_last_answer(node);
-    kolibri_potok_cifr_init(&node->pamyat_potok, node->pamyat_bufer, sizeof(node->pamyat_bufer));
+    kolibri_potok_cifr_init(&node->pamyat_potok, node->pamyat_bufer,
+                            sizeof(node->pamyat_bufer));
     kf_pool_init(&node->pool, node->options.seed);
     k_rng_seed(&node->roy_rng, node->options.seed ^ 0x5A5A1234ULL);
     if (node_open_genome(node) != 0) {

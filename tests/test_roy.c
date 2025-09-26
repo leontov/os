@@ -1,5 +1,5 @@
-#include "kolibri/roy.h"
 #include "kolibri/formula.h"
+#include "kolibri/roy.h"
 
 #include <arpa/inet.h>
 #include <assert.h>
@@ -21,9 +21,9 @@ void test_roy(void) {
     KolibriRoy pervyj;
     KolibriRoy vtoroj;
     assert(kolibri_roy_zapustit(&pervyj, 1001U, 51200U, TEST_KEY,
-                sizeof(TEST_KEY) - 1U) == 0);
+                                sizeof(TEST_KEY) - 1U) == 0);
     assert(kolibri_roy_zapustit(&vtoroj, 2002U, 51201U, TEST_KEY,
-                sizeof(TEST_KEY) - 1U) == 0);
+                                sizeof(TEST_KEY) - 1U) == 0);
 
     struct sockaddr_in adres;
     memset(&adres, 0, sizeof(adres));
@@ -37,8 +37,8 @@ void test_roy(void) {
     usleep(200000);
 
     KolibriRoySosed perechen[4];
-    size_t chislo = kolibri_roy_spisok_sosedey(&pervyj, perechen,
-            sizeof(perechen) / sizeof(perechen[0]));
+    size_t chislo = kolibri_roy_spisok_sosedey(
+        &pervyj, perechen, sizeof(perechen) / sizeof(perechen[0]));
     assert(chislo > 0U);
 
     KolibriFormula formula;

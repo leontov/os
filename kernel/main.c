@@ -58,22 +58,19 @@ extern void isr_timer(void);
 extern void isr_keyboard(void);
 
 /* Выполняет запись байта в аппаратный порт. */
-static inline void zapisat_port8(uint16_t port, uint8_t znachenie)
-{
+static inline void zapisat_port8(uint16_t port, uint8_t znachenie) {
     __asm__ __volatile__("outb %0, %1" : : "a"(znachenie), "Nd"(port));
 }
 
 /* Считывает байт из аппаратного порта. */
-static inline uint8_t chtat_port8(uint16_t port)
-{
+static inline uint8_t chtat_port8(uint16_t port) {
     uint8_t rezultat;
     __asm__ __volatile__("inb %1, %0" : "=a"(rezultat) : "Nd"(port));
     return rezultat;
 }
 
 /* Очищает текстовый VGA-буфер. */
-static void vga_ochistit(void)
-{
+static void vga_ochistit(void) {
     for (size_t indeks = 0; indeks < VGA_SHIRINA * VGA_VYSOTA; ++indeks) {
         vga_okno[indeks] = (uint16_t)VGA_CVET << 8;
     }
@@ -81,8 +78,7 @@ static void vga_ochistit(void)
 }
 
 /* Выводит одиночный символ на экран. */
-static void vga_pechat_simvol(char simvol)
-{
+static void vga_pechat_simvol(char simvol) {
     if (simvol == '\n') {
         size_t stroka = vga_poziciya / VGA_SHIRINA;
         vga_poziciya = (stroka + 1U) * VGA_SHIRINA;
@@ -95,8 +91,7 @@ static void vga_pechat_simvol(char simvol)
 }
 
 /* Выводит строку, оканчивающуюся нулём. */
-static void vga_pechat_stroku(const char *stroka)
-{
+static void vga_pechat_stroku(const char *stroka) {
     if (!stroka) {
         return;
     }
@@ -107,8 +102,8 @@ static void vga_pechat_stroku(const char *stroka)
 
 /* Создаёт запись GDT с заданными параметрами. */
 static void zapolnit_gdt_zapis(struct gdt_zapis *zapis, uint32_t baza,
-                               uint32_t limit, uint8_t dostup, uint8_t granica)
-{
+                               uint32_t limit, uint8_t dostup,
+                               uint8_t granica) {
     zapis->limit_nizkij = (uint16_t)(limit & 0xFFFFU);
     zapis->baza_nizkaja = (uint16_t)(baza & 0xFFFFU);
     zapis->baza_seredina = (uint8_t)((baza >> 16U) & 0xFFU);
@@ -118,8 +113,7 @@ static void zapolnit_gdt_zapis(struct gdt_zapis *zapis, uint32_t baza,
 }
 
 /* Настраивает таблицу GDT и активирует новые селекторы. */
-static void nastroit_gdt(void)
-{
+static void nastroit_gdt(void) {
     struct gdt_registr reg;
     zapolnit_gdt_zapis(&gdt_tablica[0], 0U, 0U, 0U, 0U);
     zapolnit_gdt_zapis(&gdt_tablica[1], 0U, 0xFFFFFU, 0x9AU, 0xC0U);
@@ -144,8 +138,7 @@ static void nastroit_gdt(void)
 
 /* Создаёт запись IDT с указанным обработчиком. */
 static void zapolnit_idt_zapis(int nomer, uint32_t baza, uint16_t selektor,
-                               uint8_t flagi)
-{
+                               uint8_t flagi) {
     struct idt_zapis *zapis = &idt_tablica[nomer];
     zapis->baza_nizkaja = (uint16_t)(baza & 0xFFFFU);
     zapis->selektor = selektor;
@@ -155,8 +148,7 @@ static void zapolnit_idt_zapis(int nomer, uint32_t baza, uint16_t selektor,
 }
 
 /* Настраивает IDT и подключает обработчики таймера и клавиатуры. */
-static void nastroit_idt(void)
-{
+static void nastroit_idt(void) {
     for (int indeks = 0; indeks < 256; ++indeks) {
         zapolnit_idt_zapis(indeks, 0U, 0x08U, 0x8EU);
     }
@@ -170,8 +162,7 @@ static void nastroit_idt(void)
 }
 
 /* Отсылает сигнал End Of Interrupt контроллерам PIC. */
-static void poslati_eoi(uint8_t nomer_irq)
-{
+static void poslati_eoi(uint8_t nomer_irq) {
     if (nomer_irq >= 8U) {
         zapisat_port8(PIC2_PORT_KOMANDA, PIC_KOMANDA_EOI);
     }
@@ -179,8 +170,7 @@ static void poslati_eoi(uint8_t nomer_irq)
 }
 
 /* Перенастраивает PIC на векторы 32-47. */
-static void nastroit_pic(void)
-{
+static void nastroit_pic(void) {
     uint8_t mask1 = chtat_port8(PIC1_PORT_DANNYE);
     uint8_t mask2 = chtat_port8(PIC2_PORT_DANNYE);
 
@@ -198,8 +188,7 @@ static void nastroit_pic(void)
 }
 
 /* Настраивает программируемый таймер на частоту 100 Гц. */
-static void nastroit_pit(void)
-{
+static void nastroit_pit(void) {
     uint16_t delitel = 1193180U / 100U;
     zapisat_port8(PIT_PORT_KOMANDA, 0x36U);
     zapisat_port8(PIT_PORT_KANAL0, (uint8_t)(delitel & 0xFFU));
@@ -207,8 +196,7 @@ static void nastroit_pit(void)
 }
 
 /* Формирует шестнадцатеричную строку из байта. */
-static void preobrazovat_bajt_v_hex(uint8_t znachenie, char *vyhod)
-{
+static void preobrazovat_bajt_v_hex(uint8_t znachenie, char *vyhod) {
     const char *simvoly = "0123456789ABCDEF";
     vyhod[0] = simvoly[(znachenie >> 4U) & 0x0FU];
     vyhod[1] = simvoly[znachenie & 0x0FU];
@@ -216,8 +204,7 @@ static void preobrazovat_bajt_v_hex(uint8_t znachenie, char *vyhod)
 }
 
 /* Обработчик аппаратного таймера. */
-void obrabotat_tajmer(void)
-{
+void obrabotat_tajmer(void) {
     ++schetchik_tickov;
     if (schetchik_tickov % 100ULL == 0ULL) {
         vga_pechat_stroku("[TICK]\n");
@@ -226,8 +213,7 @@ void obrabotat_tajmer(void)
 }
 
 /* Обработчик прерывания клавиатуры PS/2. */
-void obrabotat_klaviaturu(void)
-{
+void obrabotat_klaviaturu(void) {
     uint8_t kod = chtat_port8(0x60U);
     char buf[3];
     preobrazovat_bajt_v_hex(kod, buf);
@@ -238,8 +224,7 @@ void obrabotat_klaviaturu(void)
 }
 
 /* Точка входа ядра Kolibri OS после загрузчика GRUB. */
-void kolibri_kernel_main(uint32_t multiboot_magic, uint32_t multiboot_info)
-{
+void kolibri_kernel_main(uint32_t multiboot_magic, uint32_t multiboot_info) {
     (void)multiboot_info;
     vga_ochistit();
     vga_pechat_stroku("Kolibri OS ядро запущено\n");

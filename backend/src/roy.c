@@ -44,12 +44,14 @@ static uint64_t kolibri_ntohll(uint64_t znachenie) {
 }
 
 /* Внутренний помощник для записи события в очередь. */
-static void kolibri_roy_postavit_sobytie(KolibriRoy *roy, const KolibriRoySobytie *sobytie) {
+static void kolibri_roy_postavit_sobytie(KolibriRoy *roy,
+                                         const KolibriRoySobytie *sobytie) {
 
     pthread_mutex_lock(&roy->ochered_zamek);
     if (roy->ochered_schetchik == KOLIBRI_ROY_MAX_OCHERED) {
         /* Переполнение очереди: перезаписываем самое старое событие. */
-        roy->ochered_golova = (roy->ochered_golova + 1U) % KOLIBRI_ROY_MAX_OCHERED;
+        roy->ochered_golova =
+            (roy->ochered_golova + 1U) % KOLIBRI_ROY_MAX_OCHERED;
         roy->ochered_schetchik--;
     }
     roy->ochered[roy->ochered_hvost] = *sobytie;
@@ -59,7 +61,8 @@ static void kolibri_roy_postavit_sobytie(KolibriRoy *roy, const KolibriRoySobyti
 }
 
 /* Сравнивает два HMAC и защищает от атак по времени. */
-static int kolibri_roy_sravnit_hmac(const unsigned char *levyj, const unsigned char *pravyj) {
+static int kolibri_roy_sravnit_hmac(const unsigned char *levyj,
+                                    const unsigned char *pravyj) {
 
     unsigned char rezultat = 0U;
     for (size_t indeks = 0; indeks < KOLIBRI_ROY_HMAC_SIZE; ++indeks) {
@@ -70,14 +73,15 @@ static int kolibri_roy_sravnit_hmac(const unsigned char *levyj, const unsigned c
 
 /* Обновляет или создаёт запись о соседе. */
 static void kolibri_roy_obnovit_soseda(KolibriRoy *roy, uint32_t identifikator,
-        const struct sockaddr_in *adres) {
+                                       const struct sockaddr_in *adres) {
 
     pthread_mutex_lock(&roy->zamek);
     size_t indeks = 0U;
     for (; indeks < roy->chislo_sosedey; ++indeks) {
         if (roy->sosedi[indeks].identifikator == identifikator ||
-                (roy->sosedi[indeks].adres.sin_addr.s_addr == adres->sin_addr.s_addr &&
-                 roy->sosedi[indeks].adres.sin_port == adres->sin_port)) {
+            (roy->sosedi[indeks].adres.sin_addr.s_addr ==
+                 adres->sin_addr.s_addr &&
+             roy->sosedi[indeks].adres.sin_port == adres->sin_port)) {
             roy->sosedi[indeks].identifikator = identifikator;
             roy->sosedi[indeks].adres = *adres;
             roy->sosedi[indeks].poslednij_otklik = time(NULL);
@@ -118,7 +122,8 @@ static void kolibri_roy_ochistit_sosedey(KolibriRoy *roy) {
 
 /* Формирует общий заголовок KSP-сообщения. */
 static size_t kolibri_roy_zapolnit_zagolovok(const KolibriRoy *roy, uint8_t tip,
-        uint8_t *buffer, size_t razmer, uint16_t payload) {
+                                             uint8_t *buffer, size_t razmer,
+                                             uint16_t payload) {
 
     if (!buffer || razmer < 12U) {
         return 0U;
@@ -141,14 +146,15 @@ static size_t kolibri_roy_zapolnit_zagolovok(const KolibriRoy *roy, uint8_t tip,
 }
 
 /* Вычисляет и присоединяет HMAC к концу пакета. */
-static size_t kolibri_roy_prisoedinit_hmac(const KolibriRoy *roy, uint8_t *buffer,
-        size_t tekushchaya_dlina) {
+static size_t kolibri_roy_prisoedinit_hmac(const KolibriRoy *roy,
+                                           uint8_t *buffer,
+                                           size_t tekushchaya_dlina) {
 
     unsigned int hmac_dlina = 0U;
     unsigned char hmac[KOLIBRI_ROY_HMAC_SIZE];
-    unsigned char *result = HMAC(EVP_sha256(), roy->klyuch,
-            (int)roy->dlina_klyucha, buffer, tekushchaya_dlina, hmac,
-            &hmac_dlina);
+    unsigned char *result =
+        HMAC(EVP_sha256(), roy->klyuch, (int)roy->dlina_klyucha, buffer,
+             tekushchaya_dlina, hmac, &hmac_dlina);
     if (!result || hmac_dlina < KOLIBRI_ROY_HMAC_SIZE) {
         return 0U;
     }
@@ -157,11 +163,12 @@ static size_t kolibri_roy_prisoedinit_hmac(const KolibriRoy *roy, uint8_t *buffe
 }
 
 /* Рассылает пакет по заданному адресу. */
-static int kolibri_roy_otpravit_paket(const KolibriRoy *roy, const struct sockaddr_in *adres,
-        const uint8_t *buffer, size_t dlina) {
+static int kolibri_roy_otpravit_paket(const KolibriRoy *roy,
+                                      const struct sockaddr_in *adres,
+                                      const uint8_t *buffer, size_t dlina) {
 
     ssize_t otpravleno = sendto(roy->soket, buffer, dlina, 0,
-            (const struct sockaddr *)adres, sizeof(*adres));
+                                (const struct sockaddr *)adres, sizeof(*adres));
     if (otpravleno < 0 || (size_t)otpravleno != dlina) {
         return -1;
     }
@@ -169,7 +176,8 @@ static int kolibri_roy_otpravit_paket(const KolibriRoy *roy, const struct sockad
 }
 
 /* Формирует широковещательный адрес. */
-static void kolibri_roy_shirokoveshchatel(struct sockaddr_in *adres, uint16_t port) {
+static void kolibri_roy_shirokoveshchatel(struct sockaddr_in *adres,
+                                          uint16_t port) {
 
     memset(adres, 0, sizeof(*adres));
     adres->sin_family = AF_INET;
@@ -178,11 +186,13 @@ static void kolibri_roy_shirokoveshchatel(struct sockaddr_in *adres, uint16_t po
 }
 
 /* Собирает и отправляет приветственное сообщение. */
-static int kolibri_roy_soobshchenie_privet(KolibriRoy *roy, const struct sockaddr_in *naznachenie) {
+static int
+kolibri_roy_soobshchenie_privet(KolibriRoy *roy,
+                                const struct sockaddr_in *naznachenie) {
 
     uint8_t paket[KOLIBRI_ROY_MAKSIMALNYJ_PAKET];
-    size_t zagolovok = kolibri_roy_zapolnit_zagolovok(roy, KOLIBRI_ROY_TYP_HELLO,
-            paket, sizeof(paket), 0U);
+    size_t zagolovok = kolibri_roy_zapolnit_zagolovok(
+        roy, KOLIBRI_ROY_TYP_HELLO, paket, sizeof(paket), 0U);
     if (zagolovok == 0U) {
         return -1;
     }
@@ -194,8 +204,10 @@ static int kolibri_roy_soobshchenie_privet(KolibriRoy *roy, const struct sockadd
 }
 
 /* Собирает и отправляет формулу. */
-static int kolibri_roy_soobshchenie_formula(KolibriRoy *roy,
-        const struct sockaddr_in *naznachenie, const KolibriFormula *formula) {
+static int
+kolibri_roy_soobshchenie_formula(KolibriRoy *roy,
+                                 const struct sockaddr_in *naznachenie,
+                                 const KolibriFormula *formula) {
 
     uint8_t paket[KOLIBRI_ROY_MAKSIMALNYJ_PAKET];
     uint8_t payload[64];
@@ -216,14 +228,15 @@ static int kolibri_roy_soobshchenie_formula(KolibriRoy *roy,
     memcpy(payload + offset, &kody, sizeof(kody));
     offset += sizeof(kody);
 
-    size_t zagolovok = kolibri_roy_zapolnit_zagolovok(roy, KOLIBRI_ROY_TYP_FORMULA,
-            paket, sizeof(paket), (uint16_t)offset);
-    if (zagolovok == 0U || zagolovok + offset + KOLIBRI_ROY_HMAC_SIZE > sizeof(paket)) {
+    size_t zagolovok = kolibri_roy_zapolnit_zagolovok(
+        roy, KOLIBRI_ROY_TYP_FORMULA, paket, sizeof(paket), (uint16_t)offset);
+    if (zagolovok == 0U ||
+        zagolovok + offset + KOLIBRI_ROY_HMAC_SIZE > sizeof(paket)) {
         return -1;
     }
     memcpy(paket + zagolovok, payload, offset);
-    size_t polnaja_dlina = kolibri_roy_prisoedinit_hmac(roy, paket,
-            zagolovok + offset);
+    size_t polnaja_dlina =
+        kolibri_roy_prisoedinit_hmac(roy, paket, zagolovok + offset);
     if (polnaja_dlina == 0U) {
         return -1;
     }
@@ -255,8 +268,9 @@ static void *kolibri_roy_potok(void *argument) {
             continue;
         }
         if (gotov > 0 && FD_ISSET(roy->soket, &nabor)) {
-            ssize_t prinyato = recvfrom(roy->soket, paket, sizeof(paket), 0,
-                    (struct sockaddr *)&otkuda, &otkuda_dlina);
+            ssize_t prinyato =
+                recvfrom(roy->soket, paket, sizeof(paket), 0,
+                         (struct sockaddr *)&otkuda, &otkuda_dlina);
             if (prinyato <= 0) {
                 continue;
             }
@@ -266,13 +280,13 @@ static void *kolibri_roy_potok(void *argument) {
             size_t dlina = (size_t)prinyato;
             unsigned char prisoyedennyj[KOLIBRI_ROY_HMAC_SIZE];
             memcpy(prisoyedennyj, paket + dlina - KOLIBRI_ROY_HMAC_SIZE,
-                    KOLIBRI_ROY_HMAC_SIZE);
+                   KOLIBRI_ROY_HMAC_SIZE);
             dlina -= KOLIBRI_ROY_HMAC_SIZE;
             unsigned int hmac_dlina = 0U;
             unsigned char rasschet[KOLIBRI_ROY_HMAC_SIZE];
-            unsigned char *result = HMAC(EVP_sha256(), roy->klyuch,
-                    (int)roy->dlina_klyucha, paket, dlina, rasschet,
-                    &hmac_dlina);
+            unsigned char *result =
+                HMAC(EVP_sha256(), roy->klyuch, (int)roy->dlina_klyucha, paket,
+                     dlina, rasschet, &hmac_dlina);
             if (!result || hmac_dlina < KOLIBRI_ROY_HMAC_SIZE) {
                 continue;
             }
@@ -318,7 +332,7 @@ static void *kolibri_roy_potok(void *argument) {
                 const uint8_t *dannye = paket + 14U;
                 uint8_t dlina_gena = dannye[0];
                 if (dlina_gena == 0U || dlina_gena > 32U ||
-                        payload < 1U + dlina_gena + sizeof(uint64_t)) {
+                    payload < 1U + dlina_gena + sizeof(uint64_t)) {
                     continue;
                 }
                 memcpy(sobytie.formula.gene.digits, dannye + 1U, dlina_gena);
@@ -333,7 +347,8 @@ static void *kolibri_roy_potok(void *argument) {
             }
         }
         time_t seichas = time(NULL);
-        if (seichas - roy->poslednij_privet >= (time_t)KOLIBRI_ROY_PRIVET_INTERVAL) {
+        if (seichas - roy->poslednij_privet >=
+            (time_t)KOLIBRI_ROY_PRIVET_INTERVAL) {
             struct sockaddr_in broadcast;
             kolibri_roy_shirokoveshchatel(&broadcast, roy->port);
             kolibri_roy_soobshchenie_privet(roy, &broadcast);
@@ -345,7 +360,7 @@ static void *kolibri_roy_potok(void *argument) {
 }
 
 int kolibri_roy_zapustit(KolibriRoy *roy, uint32_t identifikator, uint16_t port,
-        const unsigned char *klyuch, size_t dlina_klyucha) {
+                         const unsigned char *klyuch, size_t dlina_klyucha) {
 
     if (!roy || !klyuch || dlina_klyucha == 0U) {
         return -1;
@@ -353,8 +368,9 @@ int kolibri_roy_zapustit(KolibriRoy *roy, uint32_t identifikator, uint16_t port,
     memset(roy, 0, sizeof(*roy));
     roy->sobstvennyj_id = identifikator;
     roy->port = port;
-    roy->dlina_klyucha = dlina_klyucha > KOLIBRI_ROY_HMAC_SIZE ?
-        KOLIBRI_ROY_HMAC_SIZE : dlina_klyucha;
+    roy->dlina_klyucha = dlina_klyucha > KOLIBRI_ROY_HMAC_SIZE
+                             ? KOLIBRI_ROY_HMAC_SIZE
+                             : dlina_klyucha;
     memcpy(roy->klyuch, klyuch, roy->dlina_klyucha);
     pthread_mutex_init(&roy->zamek, NULL);
     pthread_mutex_init(&roy->ochered_zamek, NULL);
@@ -364,13 +380,13 @@ int kolibri_roy_zapustit(KolibriRoy *roy, uint32_t identifikator, uint16_t port,
     }
     int reuse = 1;
     if (setsockopt(roy->soket, SOL_SOCKET, SO_REUSEADDR, &reuse,
-                sizeof(reuse)) < 0) {
+                   sizeof(reuse)) < 0) {
         close(roy->soket);
         return -1;
     }
     int broadcast = 1;
     if (setsockopt(roy->soket, SOL_SOCKET, SO_BROADCAST, &broadcast,
-                sizeof(broadcast)) < 0) {
+                   sizeof(broadcast)) < 0) {
         close(roy->soket);
         return -1;
     }
@@ -434,13 +450,14 @@ int kolibri_roy_poluchit_sobytie(KolibriRoy *roy, KolibriRoySobytie *sobytie) {
 }
 
 size_t kolibri_roy_spisok_sosedey(KolibriRoy *roy, KolibriRoySosed *naznachenie,
-        size_t maksimalno) {
+                                  size_t maksimalno) {
 
     if (!roy || !naznachenie || maksimalno == 0U) {
         return 0U;
     }
     pthread_mutex_lock(&roy->zamek);
-    size_t kopiruem = roy->chislo_sosedey < maksimalno ? roy->chislo_sosedey : maksimalno;
+    size_t kopiruem =
+        roy->chislo_sosedey < maksimalno ? roy->chislo_sosedey : maksimalno;
     for (size_t indeks = 0U; indeks < kopiruem; ++indeks) {
         naznachenie[indeks] = roy->sosedi[indeks];
     }
@@ -460,7 +477,7 @@ int kolibri_roy_otpravit_privet(KolibriRoy *roy) {
 }
 
 int kolibri_roy_dobavit_soseda(KolibriRoy *roy, const struct sockaddr_in *adres,
-        uint32_t identifikator) {
+                               uint32_t identifikator) {
 
     if (!roy || !adres) {
         return -1;
@@ -470,7 +487,7 @@ int kolibri_roy_dobavit_soseda(KolibriRoy *roy, const struct sockaddr_in *adres,
 }
 
 int kolibri_roy_otpravit_sluchajnomu(KolibriRoy *roy, uint64_t sluchajnoe,
-        const KolibriFormula *formula) {
+                                     const KolibriFormula *formula) {
 
     if (!roy || !formula) {
         return -1;

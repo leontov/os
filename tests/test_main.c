@@ -5,8 +5,7 @@ void test_genome(void);
 void test_formula(void);
 void test_roy(void);
 
-int main(void)
-{
+int main(void) {
     test_decimal();
     test_genome();
     test_formula();

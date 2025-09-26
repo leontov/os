@@ -13,8 +13,7 @@ typedef struct {
 } RezhimProigrysha;
 
 /* Обратный вызов для проверки порядка блоков при воспроизведении. */
-static int kontrolnyj_posetitel(const ReasonBlock *blok, void *kontekst)
-{
+static int kontrolnyj_posetitel(const ReasonBlock *blok, void *kontekst) {
     RezhimProigrysha *sostoyanie = (RezhimProigrysha *)kontekst;
     sostoyanie->schetchik++;
     sostoyanie->poslednij_indeks = blok->index;
@@ -24,12 +23,12 @@ static int kontrolnyj_posetitel(const ReasonBlock *blok, void *kontekst)
     }
     strncpy(sostoyanie->poslednee_sobytie, tekst,
             sizeof(sostoyanie->poslednee_sobytie) - 1U);
-    sostoyanie->poslednee_sobytie[sizeof(sostoyanie->poslednee_sobytie) - 1U] = '\0';
+    sostoyanie->poslednee_sobytie[sizeof(sostoyanie->poslednee_sobytie) - 1U] =
+        '\0';
     return 0;
 }
 
-void test_genome(void)
-{
+void test_genome(void) {
     char shablon[] = "/tmp/kolibri_genomeXXXXXX";
     int fd = mkstemp(shablon);
     assert(fd != -1);
@@ -51,17 +50,17 @@ void test_genome(void)
 
     char vosstanovlennoe[KOLIBRI_PAYLOAD_SIZE];
     assert(kg_block_event_text(&blok2, vosstanovlennoe,
-                sizeof(vosstanovlennoe)) == 0);
+                               sizeof(vosstanovlennoe)) == 0);
     assert(strcmp(vosstanovlennoe, "ASK") == 0);
     assert(kg_block_payload_text(&blok1, vosstanovlennoe,
-                sizeof(vosstanovlennoe)) == 0);
+                                 sizeof(vosstanovlennoe)) == 0);
     assert(strcmp(vosstanovlennoe, "payload1") == 0);
 
     kg_close(&genome);
 
     RezhimProigrysha sostoyanie = {0U, 0U, {0}};
     kod = kg_replay(shablon, klyuch, sizeof(klyuch) - 1U, kontrolnyj_posetitel,
-            &sostoyanie);
+                    &sostoyanie);
     assert(kod == 0);
     assert(sostoyanie.schetchik == 2U);
     assert(sostoyanie.poslednij_indeks == blok2.index);
@@ -80,11 +79,11 @@ void test_genome(void)
 
     assert(kg_verify_file(shablon, klyuch, sizeof(klyuch) - 1U) == -1);
     assert(kg_replay(shablon, klyuch, sizeof(klyuch) - 1U, kontrolnyj_posetitel,
-            &sostoyanie) == -1);
+                     &sostoyanie) == -1);
 
     remove(shablon);
 
     assert(kg_verify_file(shablon, klyuch, sizeof(klyuch) - 1U) == 1);
     assert(kg_replay(shablon, klyuch, sizeof(klyuch) - 1U, kontrolnyj_posetitel,
-            &sostoyanie) == 1);
+                     &sostoyanie) == 1);
 }

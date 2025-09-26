@@ -5,8 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-static void obuchit_linejnuju_zadachu(KolibriFormulaPool *pool)
-{
+static void obuchit_linejnuju_zadachu(KolibriFormulaPool *pool) {
     for (int indeks = 0; indeks < 4; ++indeks) {
         int vhod = indeks;
         int cel = 2 * indeks + 1;
@@ -14,8 +13,7 @@ static void obuchit_linejnuju_zadachu(KolibriFormulaPool *pool)
     }
 }
 
-static void proverit_determinizm(void)
-{
+static void proverit_determinizm(void) {
     KolibriFormulaPool pervyj;
     KolibriFormulaPool vtoroj;
     kf_pool_init(&pervyj, 2025U);
@@ -28,14 +26,15 @@ static void proverit_determinizm(void)
     const KolibriFormula *luchshaja_vtoraja = kf_pool_best(&vtoroj);
     uint8_t cifry_pervye[32];
     uint8_t cifry_vtorye[32];
-    size_t dlina_pervaya = kf_formula_digits(luchshaja_pervaja, cifry_pervye, sizeof(cifry_pervye));
-    size_t dlina_vtoraya = kf_formula_digits(luchshaja_vtoraja, cifry_vtorye, sizeof(cifry_vtorye));
+    size_t dlina_pervaya = kf_formula_digits(luchshaja_pervaja, cifry_pervye,
+                                             sizeof(cifry_pervye));
+    size_t dlina_vtoraya = kf_formula_digits(luchshaja_vtoraja, cifry_vtorye,
+                                             sizeof(cifry_vtorye));
     assert(dlina_pervaya == dlina_vtoraya);
     assert(memcmp(cifry_pervye, cifry_vtorye, dlina_pervaya) == 0);
 }
 
-static void proverit_podkreplenie(void)
-{
+static void proverit_podkreplenie(void) {
     KolibriFormulaPool pool;
     kf_pool_init(&pool, 321U);
     obuchit_linejnuju_zadachu(&pool);
@@ -54,8 +53,7 @@ static void proverit_podkreplenie(void)
     assert(posle_shtrafa->fitness >= 0.0);
 }
 
-void test_formula(void)
-{
+void test_formula(void) {
     KolibriFormulaPool pool;
     kf_pool_init(&pool, 77U);
     obuchit_linejnuju_zadachu(&pool);
