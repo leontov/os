@@ -22,6 +22,7 @@ target_include_directories(kolibri_core
 )
 
 find_package(OpenSSL REQUIRED)
+find_package(Threads REQUIRED)
 
 target_link_libraries(kolibri_core PRIVATE OpenSSL::Crypto)
 
@@ -38,6 +39,6 @@ if(KOLIBRI_ENABLE_TESTS)
         tests/test_formula.c
         tests/test_net.c
     )
-    target_link_libraries(kolibri_tests PRIVATE kolibri_core)
+    target_link_libraries(kolibri_tests PRIVATE kolibri_core Threads::Threads)
     add_test(NAME kolibri_tests COMMAND kolibri_tests)
 endif()
