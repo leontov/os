@@ -16,14 +16,14 @@
 1. Установите зависимости компилятора C11 и `cmake` (при необходимости).
 2. Выполните `make` для генерации бинарников в `build/`.
 3. Для чистой сборки используйте `make clean`.
-4. Скрипт `./kolibri.sh up` собирает бинарники и запускает одиночный узел для интерактивной проверки.
-5. Для множественных узлов используйте `./scripts/run_cluster.sh`, который формирует локальный рой и управляет временем жизни процесса.
+4. Скрипт `./kolibri.sh up` собирает бинарники, генерирует при необходимости файл `root.key` с HMAC-ключом и запускает одиночный узел для интерактивной проверки.
+5. Для множественных узлов используйте `./scripts/run_cluster.sh`, который формирует локальный рой, создаёт общий ключ `swarm.key` и управляет временем жизни процесса.
 
 ### English
-Run `make`, `make test`, and `./kolibri.sh up` after source changes. Use `./scripts/run_cluster.sh` to launch multi-node swarms locally.
+Run `make`, `make test`, and `./kolibri.sh up` after source changes. The helper script will generate `root.key` (HMAC key) automatically. Use `./scripts/run_cluster.sh` to launch multi-node swarms locally; it creates a shared `swarm.key` for the cluster.
 
 ### 中文
-修改源码后依次执行 `make`、`make test` 与 `./kolibri.sh up`。若需在本地启动多节点网络，可运行 `./scripts/run_cluster.sh`。
+修改源码后依次执行 `make`、`make test` 与 `./kolibri.sh up`，脚本会自动生成 `root.key` HMAC 密钥。若需在本地启动多节点网络，可运行 `./scripts/run_cluster.sh`，它会为集群创建共享的 `swarm.key`。
 
 ---
 

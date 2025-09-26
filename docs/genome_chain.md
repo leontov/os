@@ -50,6 +50,15 @@
 - `int kg_block_payload_text(const ReasonBlock *block, char *buffer, size_t buffer_len);`
   - Декодирует полезную нагрузку (до 256 байт) обратно в UTF-8.
 
+- **RU:** Узел Kolibri считывает HMAC-ключ из файла, путь к которому задаётся
+  параметром `--hmac-key` (по умолчанию `root.key`). Файл создаётся локально и
+  не хранится в репозитории.
+- **EN:** The Kolibri node reads its HMAC key from a file provided via the
+  `--hmac-key` option (default `root.key`). The file is generated locally and is
+  never versioned.
+- **ZH:** Kolibri 节点通过 `--hmac-key` 参数指定的文件读取 HMAC 密钥（默认
+  为 `root.key`），该文件在本地生成，不随代码仓库存储。
+
 ---
 
 ## 4. HMAC Calculation / Расчёт HMAC / HMAC 计算

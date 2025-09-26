@@ -59,8 +59,35 @@ build_dir="$root_dir/build"
 cluster_dir="$build_dir/cluster"
 mkdir -p "$cluster_dir"
 
+key_path="$cluster_dir/swarm.key"
+
+sozdat_klyuch() {
+    if command -v openssl >/dev/null 2>&1; then
+        openssl rand -hex 32
+        return
+    fi
+    if command -v hexdump >/dev/null 2>&1; then
+        hexdump -ve '1/1 "%02x"' -n 32 /dev/urandom
+        return
+    fi
+    python3 - <<'PY'
+import secrets
+print(secrets.token_hex(32))
+PY
+}
+
+obespechit_klyuch() {
+    if [ -f "$key_path" ]; then
+        return
+    fi
+    echo "[Рой] генерируем новый ключ кластера: $key_path"
+    sozdat_klyuch >"$key_path"
+}
+
 cmake -S "$root_dir" -B "$build_dir" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON >/dev/null
 cmake --build "$build_dir" >/dev/null
+
+obespechit_klyuch
 
 declare -a pids=()
 
@@ -85,7 +112,7 @@ for ((indeks = 0; indeks < kolichestvo; ++indeks)); do
     geneticheskij="$cluster_dir/genome_${nomer}.dat"
     zhurnal="$cluster_dir/node_${nomer}.log"
     seed=$((bazovoe_zerno + nomer))
-    komanda=("$build_dir/kolibri_node" "--node-id" "$nomer" "--listen" "$port" "--genome" "$geneticheskij" "--seed" "$seed" "--verify-genome")
+    komanda=("$build_dir/kolibri_node" "--node-id" "$nomer" "--listen" "$port" "--genome" "$geneticheskij" "--seed" "$seed" "--verify-genome" "--hmac-key" "$key_path")
     if [ "$kolichestvo" -gt 1 ]; then
         komanda+=("--peer" "127.0.0.1:${port_soseda}")
     fi
