@@ -19,12 +19,13 @@
 4. Для чистой сборки используйте `make clean`.
 5. `./kolibri.sh up` соберёт проект, при необходимости создаст `root.key` и поднимет одиночный узел.
 6. `./scripts/run_cluster.sh` разворачивает локальный рой, генерирует общий ключ `swarm.key` и управляет временем жизни процессов.
+7. `./scripts/run_all.sh` выполняет полный цикл: сборку, тесты, артефакты ISO/WASM и короткий запуск роя.
 
 ### English
-Install `cmake`, `nasm`, `grub-mkrescue`, `xorriso`, a compiler with `-m32` support (e.g. `gcc-multilib`), and Emscripten. Run `make` followed by `make check` to execute `ctest`, build the ISO image, and produce `build/wasm/kolibri.wasm` under the 1 MB budget. Use `make clean` for a fresh build. `./kolibri.sh up` starts a single node (creating `root.key` automatically), and `./scripts/run_cluster.sh` spins up a local swarm with a shared `swarm.key`.
+Install `cmake`, `nasm`, `grub-mkrescue`, `xorriso`, a compiler with `-m32` support (e.g. `gcc-multilib`), and Emscripten. Run `make` followed by `make check` to execute `ctest`, build the ISO image, and produce `build/wasm/kolibri.wasm` under the 1 MB budget. Use `make clean` for a fresh build. `./kolibri.sh up` starts a single node (creating `root.key` automatically), `./scripts/run_cluster.sh` spins up a local swarm with a shared `swarm.key`, and `./scripts/run_all.sh` chains all stages including a short swarm run.
 
 ### 中文
-请安装 `cmake`、`nasm`、`grub-mkrescue`、`xorriso`、支持 `-m32` 的编译器（例如 `gcc-multilib`）以及 Emscripten。运行 `make` 后执行 `make check`，依次完成 `ctest`、ISO 构建及 `build/wasm/kolibri.wasm` 生成（并保证尺寸 <1MB）。如需全新编译可使用 `make clean`。脚本 `./kolibri.sh up` 会创建 `root.key` 并启动单节点，`./scripts/run_cluster.sh` 可部署本地蜂群并生成共享的 `swarm.key`。
+请安装 `cmake`、`nasm`、`grub-mkrescue`、`xorriso`、支持 `-m32` 的编译器（例如 `gcc-multilib`）以及 Emscripten。运行 `make` 后执行 `make check`，依次完成 `ctest`、ISO 构建及 `build/wasm/kolibri.wasm` 生成（并保证尺寸 <1MB）。如需全新编译可使用 `make clean`。脚本 `./kolibri.sh up` 会创建 `root.key` 并启动单节点，`./scripts/run_cluster.sh` 可部署本地蜂群并生成共享的 `swarm.key`，`./scripts/run_all.sh` 则会串联全部流程并短暂运行蜂群。
 
 ---
 
@@ -37,6 +38,7 @@ Install `cmake`, `nasm`, `grub-mkrescue`, `xorriso`, a compiler with `-m32` supp
 | Property tests | встроены в `tests/test_decimal.c` и `tests/test_formula.c` | Используют случайные входы с фиксированным seed. |
 | Static analysis | `clang-tidy backend/src/*.c apps/kolibri_node.c -- -Ibackend/include` | Выполняется при изменении C-кода. |
 | Integration | `./scripts/run_cluster.sh` | Разворачивает локальный рой и проверяет обмен формулами. |
+| Full pipeline | `./scripts/run_all.sh` | Запускает сборку, тесты, артефакты и короткий прогон роя. |
 
 *Документационные изменения не требуют запуска тестов, однако в коммит-сообщении нужно явно указывать причину пропуска.*
 
