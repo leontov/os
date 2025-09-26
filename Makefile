@@ -1,4 +1,4 @@
-.PHONY: all build test clean
+.PHONY: all build test clean kernel iso
 
 all: build/kolibri_node
 
@@ -16,3 +16,8 @@ clean:
 test: build/kolibri_node
 	cmake --build build --target kolibri_tests
 	ctest --test-dir build --output-on-failure
+
+kernel:
+	./scripts/build_iso.sh
+
+iso: kernel
