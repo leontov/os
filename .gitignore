@@ -1,0 +1,8 @@
+/build/
+*.o
+*.a
+*.log
+*.dat
+root.key
+compile_commands.json
+.DS_Store
