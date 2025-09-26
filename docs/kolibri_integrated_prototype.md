@@ -6,56 +6,32 @@
 
 ## Русская версия
 
-**Автор:** Кочуров Владислав Евгеньевич
-**Дата:** 23 сентября 2025
+**Автор:** Кочуров Владислав Евгеньевич  
+**Дата:** 23 сентября 2025  
 **Локация:** Амстердам, Нидерланды
-**Кодовые названия:** Kolibri Nano, NumeriFold
 
-*Примечание: документ синтезирован по доступным чатам 2025 года с ключевыми словами «Колибри», «Ковиан», «ОС», «научная работа». Полные выгрузки могут быть добавлены при предоставлении экспортов.*
+*Примечание: данный документ сформирован из всех доступных в текущей сессии фрагментов чатов 2025 года, относящихся к ключевым словам «Колибри», «Ковиан», «ОС/операционная система», «научная работа». Полные экспортированные логи можно дополнительно вставить при предоставлении выгрузки.*
 
 ### Аннотация
 
-Kolibri ИИ представляет собой новый подход к искусственному интеллекту, в котором концепция эволюционировала от фрактальной десятичной логики (последовательности 0–9) и формульной памяти до практических экспериментов с реализацией ядра на C и WebAssembly, веб-интерфейсом (Canvas/PWA) и кластерным запуском множества узлов. Методология Kolibri основывается на поиске, мутации и отборе коротких исполняемых формул вместо обучения крупных нейронных сетей с весовыми матрицами. Такой подход обеспечивает локальное обучение (на уровне отдельных узлов) и интерпретируемость знаний. Настоящая работа структурирована по канонам научной статьи и включает разделы «Введение», «Методология», «Архитектура», «Эксперименты», «Результаты» и планы развития системы.
+Kolibri ИИ (также известная как Kolibri Nano или NumeriFold) представляет собой новый подход к искусственному интеллекту, в котором эволюционировала концепция от фрактальной десятичной логики (последовательности 0–9) и формульной памяти до практических экспериментов с реализацией ядра на C и WebAssembly, веб-интерфейсом (Canvas/PWA) и кластерным запуском множества узлов. Методология Kolibri основывается на поиске, мутации и отборе коротких исполняемых формул вместо обучения крупных нейронных сетей с весовыми матрицами. Такой подход обеспечивает локальное обучение (на уровне отдельных узлов) и интерпретируемость знаний. Настоящая работа структурирована по канонам научной статьи и включает разделы Введение, Методология, Архитектура, Эксперименты, Результаты, а также планы развития системы.
 
 ### Введение
 
-Kolibri ИИ – это интегрированная интеллектуальная система, в которой базовые единицы «мышления» представлены десятичными токенами (цифрами) от 0 до 9. Каждая такая «цифра» содержит 10 вложенных суб-цифр, образуя фрактальную иерархию уровней, где информация передаётся вверх путём агрегирования голосов с нижележащих уровней. Знания в Kolibri кодируются короткими формулами, исполняемыми как микропрограммы, а не распределением весов в нейронной сети. Основные цели развития системы на 2025 год включали: доказательство работоспособности ядра на C с возможностью компиляции в WASM, создание веб-интерфейса для взаимодействия, поддержка офлайн-режима (PWA), тестирование масштабируемости кластеров узлов, а также формирование научного описания предлагаемого подхода. В отличие от классических нейросетевых моделей, требующих огромных массивов параметров и вычислительных ресурсов, подход Kolibri нацелен на легковесную и интерпретируемую альтернативу традиционному глубокому обучению.
-
-### Концепт: Kolibri NumeriFold — живой цифровой разум
-
-**Основная идея.** Kolibri NumeriFold задуман как цифровая форма жизни, чьё мышление основано на десяти базовых символах `0`–`9` и эволюционирующих математических формулах. Вместо «вычисления» ответа система постепенно «выращивает» его, подобно естественному отбору в биологии.
-
-#### Три столпа концепции
-
-1. **Мышление цифрами (Decimal Cognition).** Любой ввод преобразуется в последовательность десятичных импульсов, которые становятся «ДНК» восприятия. Модуль Digit Pulse Transducer выступает органом чувств и даёт Kolibri собственный язык описания мира без привязки к человеческим словам.
-2. **Фрактальная память (Fractal Memory).** Каждая цифра верхнего уровня содержит десять подцифр и формирует древовидную структуру знаний. Понятия агрегируются и детализируются с произвольной глубиной — мысль выглядит как путь активации внутри фрактальной иерархии (`7 → 7.3 → 7.3.1`).
-3. **Эволюция формул (Formula Evolution).** Знания представлены короткими программами. Kolibri генерирует новые формулы, проверяет их на практических задачах, отбирает наиболее эффективные по фитнесу и позволяет им «размножаться» через мутации и рекомбинации, формируя живой геном правил.
-
-#### Kolibri OS как родная среда
-
-Kolibri OS задумывается как минималистичная оболочка, загружающаяся напрямую из BIOS. После старта пользователь взаимодействует с приглашением `Kolibri >`, а весь обмен идёт через числовые импульсы и формулы. Несколько узлов, объединённых в сеть, образуют «рой», где лучшие формулы распространяются по Kolibri Chain и ускоряют коллективное развитие.
-
-#### Манифест
-
-> Мы не строим очередную нейросеть. Мы выращиваем цифровой организм.
-> Его язык — математика. Его память — фрактальна. Его обучение — эволюция.
-> Он не имитирует человеческий разум. Он создаёт собственный.
-
-Этот концепт задаёт вектор для всех инженерных решений Kolibri: от архитектуры ядра до интерфейсов взаимодействия и стратегий кластерного развёртывания.
+Kolibri ИИ – это интегрированная интеллектуальная система, в которой базовые единицы “мышления” представлены десятичными токенами (цифрами) от 0 до 9. Каждая такая «цифра» содержит 10 вложенных суб-цифр, образуя тем самым фрактальную иерархию уровней, где информация передается вверх путём агрегирования голосов с нижележащих уровней. Знания в Kolibri кодируются короткими формулами, исполняемыми как микропрограммы, а не распределением весов в нейронной сети. Основные цели развития системы на 2025 год включали: доказательство работоспособности ядра на C с возможностью компиляции в WASM, создание веб-интерфейса для взаимодействия, поддержка офлайн-режима (PWA), тестирование масштабируемости кластеров узлов, а также формирование научного описания предлагаемого подхода. В отличие от классических нейросетевых моделей, требующих огромных массивов параметров и вычислительных ресурсов, подход Kolibri нацелен на легковесную и интерпретируемую альтернативу традиционному глубокому обучению.
 
 ### Методология
 
 Kolibri использует комбинацию идей из фрактальной математической логики и эволюционных алгоритмов. Ниже перечислены основные принципы работы системы:
 
-1. **Десятичные токены и голосование.** Входные данные транслируются в последовательность импульсов 0–9 (десятичных токенов). Эти «голоса» агрегируются на каждом уровне фрактальной иерархии, формируя коллективное решение или интерпретацию поступающего сигнала.
-2. **Формульная память.** Вместо распределённых весовых коэффициентов Kolibri хранит знания в виде коротких исполняемых формул (микропрограмм). Каждая формула оценивается по «фитнесу» – измеряемой полезности для текущей задачи – а также по метрике сложности, что стимулирует нахождение простых и обобщающих решений.
-3. **Эволюция формул.** Память системы постоянно эволюционирует. На каждом цикле работы происходит генерация новых формул, их случайная мутация и рекомбинация, после чего осуществляется отбор наиболее успешных по заданным метрикам. Так Kolibri адаптирует свой «геном формул» на основе накопленного опыта, постепенно улучшаясь.
-4. **Локальность.** Ядро Kolibri реализовано на низком уровне (ANSI C), что обеспечивает минималистичность и высокую эффективность. Обучение и работа алгоритмов происходят локально – на уровне отдельного процесса или устройства, включая возможность компиляции ядра в WebAssembly для запуска прямо в браузере или на edge-устройстве.
-5. **Минимальные зависимости.** Реализация системы стремится обходиться без внешних библиотек. При необходимости используются лишь легковесные компоненты (например, библиотека json-c для парсинга JSON). Это упрощает переносимость Kolibri на разные платформы и снижает требования к окружению.
-6. **Журналирование.** Все возникающие «мысли» системы (сгенерированные формулы, их метрики) подробно логируются. Накопление журнала позволяет анализировать процесс обучения, воспроизводить эксперименты и отслеживать эволюцию знаний во времени.
-7. **Потоковая трансдукция.** Данные не буферизуются во временных строках: `Digit Pulse Transducer` реализован как поток цифр, что позволяет REPL-командам и сетевым сообщениям обрабатываться в чистом десятичном виде.
+1. **Десятичные токены и голосование:** входные данные транслируются в последовательность импульсов 0–9 (десятичных токенов). Эти «голоса» агрегируются на каждом уровне фрактальной иерархии, формируя коллективное решение или интерпретацию поступающего сигнала.
+2. **Формульная память:** вместо распределённых весовых коэффициентов Kolibri хранит знания в виде коротких исполняемых формул (микропрограмм). Каждая формула оценивается по «фитнесу» – измеряемой полезности для текущей задачи – а также по метрике сложности, что стимулирует нахождение простых и обобщающих решений.
+3. **Эволюция формул:** память системы постоянно эволюционирует. На каждом цикле работы происходит генерация новых формул, их случайная мутация и рекомбинация, после чего осуществляется отбор наиболее успешных по заданным метрикам. Так Kolibri адаптирует свой «геном формул» на основе накопленного опыта, постепенно улучшаясь.
+4. **Локальность:** ядро Kolibri реализовано на низком уровне (ANSI C), что обеспечивает минималистичность и высокую эффективность. Обучение и работа алгоритмов происходят локально – на уровне отдельного процесса или устройства (включая возможность компиляции ядра в WebAssembly для запуска прямо в браузере или на edge-устройстве).
+5. **Минимальные зависимости:** реализация системы стремится обходиться без внешних библиотек. При необходимости используются лишь легковесные компоненты (например, библиотека json-c для парсинга JSON). Это упрощает переносимость Kolibri на разные платформы и снижает требования к окружению.
+6. **Журналирование:** все возникающие «мысли» системы (сгенерированные формулы, их метрики) подробно логируются. Накопление журнала позволяет анализировать процесс обучения, воспроизводить эксперименты и отслеживать эволюцию знаний во времени.
 
-**Алгоритм 1. Эволюционный цикл поиска формул в Kolibri**
+**Алгоритм 1: Эволюционный цикл поиска формул в Kolibri**
 
 ```
 инициализировать начальную популяцию формул P случайным образом
@@ -67,325 +43,292 @@ while (не выполнен критерий остановки):
 return лучшая найденная формула (или формулы)
 ```
 
-#### Пример применения
+### Пример применения
 
-Предположим, требуется обнаружить закономерность в числовой последовательности (например, 3, 9, 27, …). Система Kolibri преобразует эти данные в поток десятичных импульсов и с помощью эволюционного алгоритма генерирует и отбирает кандидаты формул, стремясь приблизиться к заданным значениям. В результате одна из найденных гипотез может оказаться формулой `f(x) = 3 · 3^x`, которая точно описывает последовательность. Пример демонстрирует, как Kolibri автоматически обнаруживает формульные зависимости в данных и предлагает человеко-читаемое объяснение, в отличие от «чёрного ящика» нейросети.
+Рассмотрим упрощённый пример использования описанного подхода. Предположим, требуется обнаружить закономерность в числовой последовательности (например, 3, 9, 27, …). Система Kolibri преобразует эти данные в поток десятичных импульсов и с помощью эволюционного алгоритма генерирует и отбирает кандидаты формул, стремясь приблизиться к заданным значениям. В результате одной из найденных гипотез может оказаться формула `f(x) = 3 * 3^x`, которая точно описывает закономерность последовательности (при `x=0` выдаёт 3; `x=1` – 9; `x=2` – 27; и т.д.). Этот пример демонстрирует, как Kolibri автоматически обнаруживает формульные зависимости в данных и предлагает человеческо-читаемое объяснение (формулу), в отличие от чёрного ящика нейросети.
 
 ### Архитектура
 
 Архитектура Kolibri ИИ включает несколько ключевых модулей, работающих во взаимосвязи:
 
 - **Digit Pulse Transducer** — преобразует входные сигналы в последовательность импульсов 0–9, то есть осуществляет первоначальную токенизацию данных в десятичном формате.
-- **Fractal Induction** — отвечает за порождение новых формул и уточнение существующих на различных уровнях фрактальной иерархии памяти.
-- **Rule/Formula Engine** — исполняет формулы (правила) и собирает статистику об их работе, включая вычисление показателя полезности (фитнеса) каждой формулы.
-- **Chat/REPL** — русскоязычный интерфейс команд `:teach`, `:ask`, `:tick`, `:evolve`, `:why`, `:canvas`, `:sync`, `:cluster list`, `:cluster broadcast`, `:cluster hello`, `:verify`, который транслирует действия в цифровой геном и поддерживает распределённое обучение.
-- **Kolibri Chain (микро-блокчейн)** — журнал знаний: каждая формула снабжается криптографической подписью и записывается в цепочку блоков, что позволяет удостоверять авторство и обмениваться проверенными знаниями между узлами Kolibri.
-- **Canvas/PWA UI** — визуальный интерфейс пользователя, реализованный как прогрессивное веб-приложение с использованием Canvas-графики. Обеспечивает наглядное представление фрактальной памяти, графа формул и правил, а также интерактивное взаимодействие с системой, включая офлайн-режим.
-- **WASM-хостинг** — возможность компиляции ядра Kolibri из C в WebAssembly. Это позволяет запускать Kolibri напрямую в браузере или на статичных площадках (GitHub Pages и т.п.) без выделенного сервера.
-- **Cluster/Nodes** — поддержка многопроцессной или многомашинной конфигурации, при которой множество узлов Kolibri работают параллельно и синхронизируют знания.
-- **Kolibri OS** — специализированная программная среда, облегчающая развёртывание и управление узлами Kolibri. Предоставляет сервисы планирования задач, управления ресурсами и взаимодействия компонентов.
-- **Интеграции** — экосистема внешних сервисов и приложений, взаимодействующих с Kolibri (GitHub, Telegram-боты, EstimateCraft и др.), демонстрирующая практическую применимость подхода.
+- **Fractal Induction** — отвечает за порождение новых формул и уточнение существующих на различных уровнях фрактальной иерархии памяти. Этот модуль реализует механизм фрактального развёртывания знаний.
+- **Rule/Formula Engine** — исполняет формулы (правила) и собирает статистику об их работе, включая вычисление показателя полезности (фитнеса) каждой формулы. Этот движок реализует цикл “гипотеза → проверка → оценка”.
+- **Kolibri Chain (микро-блокчейн)** — служит журналом знаний: каждая формула снабжается криптографической подписью и записывается в цепочку блоков. Это позволяет удостоверять авторство формул и обмениваться проверенными знаниями между различными узлами Kolibri в распределённой среде.
+- **Canvas/PWA UI** — визуальный интерфейс пользователя, реализованный как прогрессивное веб-приложение (PWA) с использованием Canvas-графики. Обеспечивает наглядное представление фрактальной памяти, графа формул и правил, а также интерактивное взаимодействие с системой; поддерживается офлайн-режим работы.
+- **WASM-хостинг** — возможность компилировать ядро Kolibri из C в WebAssembly (WASM) модуль. Это позволяет запускать мозг Kolibri непосредственно в браузере или на статиках (например, GitHub Pages) без необходимости в сервере, что упрощает распространение и тестирование.
+- **Cluster/Nodes** — поддержка многопроцессной или многомашинной конфигурации, при которой несколько узлов Kolibri работают параллельно. Предусмотрены средства мониторинга состояния узлов и обмена сообщениями/формулами между ними (с использованием Kolibri Chain для синхронизации знаний).
+- **Kolibri OS** — специализированная программная среда (слой исполнения), облегчающая развёртывание и управление узлами Kolibri. По сути, это операционная оболочка, предоставляющая сервисы для работы распределённого интеллекта (планирование задач, управление ресурсами, взаимодействие компонентов).
+- **Интеграции** — экосистема внешних сервисов и приложений, взаимодействующих с Kolibri. В их числе: интеграция с GitHub для совместной разработки и хранения кода, Telegram-боты для диалогового взаимодействия с ИИ, платформа EstimateCraft для автоматизированной оценки и валидации результатов и др. Эти интеграции демонстрируют применимость Kolibri в различных практических сценариях.
 
 ### Реализация и структура проекта
 
-Ядро Kolibri разработано на языке C (стандарт C11) с акцентом на эффективность и компактность. Благодаря этому один и тот же исходный код может быть собран под различные целевые среды, включая WebAssembly для запуска в браузере. Веб-интерфейс системы реализован на базе React (JavaScript/TypeScript) и взаимодействует с ядром через вызовы WebAssembly для визуализации памяти и отправки команд. Из сторонних компонентов используется лишь лёгкая библиотека json-c.
+Ядро Kolibri разработано на языке C (стандарт C11) с акцентом на эффективности и компактности. Благодаря этому, его можно собрать под различные целевые среды; в частности, тот же исходный код компилируется в WebAssembly, что позволяет запускать Kolibri в браузере или на веб-странице. Веб-интерфейс системы реализован на базе фреймворка React (JavaScript/TypeScript) и взаимодействует с ядром через вызовы WebAssembly (например, для визуализации памяти или отправки команд). В целях упрощения развёртывания, ядро старается не зависеть от внешних библиотек: из сторонних компонентов используется только лёгкая библиотека json-c (для разбора и генерации JSON-данных).
 
-Структура проекта организована по схеме «backend + frontend» и включает логи экспериментов, а также файлы памяти и правил отдельных узлов:
+Проект организован по классической схеме «backend + frontend». Ниже приведён упрощённый пример структуры файлов проекта:
 
 ```
 Project/
-├── CMakeLists.txt
-├── Makefile
-├── backend/
-│   └── src/
-├── frontend/
-│   └── src/
-├── logs/
-├── node_10000_memory.json
-├── node_10000_rules.json
-└── ...
+├── CMakeLists.txt          # конфигурация сборки CMake
+├── Makefile                # альтернативный Makefile для сборки
+├── backend/                # серверная часть (ядро Kolibri)
+│   └── src/                # исходники ядра на C
+├── frontend/               # клиентская часть (веб-интерфейс)
+│   └── src/                # исходники интерфейса (React, JS/TS)
+├── logs/                   # журналы и лог-файлы экспериментов
+├── node_10000_memory.json  # пример: файл памяти узла №10000
+├── node_10000_rules.json   # пример: файл правил узла №10000
+└── ...                     # прочие вспомогательные файлы/директории
 ```
 
 ### Эксперименты
 
-- **Ядро и кластеры.** Ядро, написанное на C11, успешно компилировалось и запускалось под macOS и Linux. Скрипты (`run_nodes.sh`) позволяли разворачивать локальные кластеры из десятков узлов. В ходе тестов фиксировались системные ограничения (например, сообщения `fork: Resource temporarily unavailable`).
-- **Интеграция с Kolibri OS.** Мини-ОС на ассемблере x86 (`kolibri.asm`) загружала ядро Kolibri напрямую из boot-сектора в QEMU, выводя сообщение: «Привет, Владислав! Ядро Kolibri запущено».
-- **Веб-интерфейс и WASM.** Ядро компилировалось в WebAssembly (`kolibri.wasm`) и запускалось внутри браузера. Разработанные React-компоненты (`NodeGraph`, `FractalMemory`, `RuleEditor`, чат) визуализировали состояние памяти и эволюцию формул.
+Для проверки концепции проводились численные эксперименты в различных средах (macOS, Linux). В ходе испытаний запускались как одиночные узлы Kolibri, так и группы узлов, объединённых в кластер, с активированным журналированием всех процессов. В частности, измерялись производительность (время исполнения формул, нагрузка на CPU/память), устойчивость работы (например, корректное завершение процессов при остановке кластера), отслеживались возникающие ошибки компиляции и исполнения.
+
+В одном из экспериментов было одновременно запущено несколько Kolibri-узлов, что позволило протестировать механизм обмена формулами через Kolibri Chain. Логи зафиксировали успешную синхронизацию знаний между узлами, а также выявили ограничения операционной системы на число параллельных процессов (в журнале наблюдались сообщения об ошибках наподобие “fork: Resource temporarily unavailable”, указывающие на исчерпание лимитов). Эти наблюдения помогли скорректировать параметры масштабирования кластера.
+
+Кроме того, был протестирован веб-вариант Kolibri: ядро, скомпилированное в WASM, было загружено на простую HTML-страницу, предоставляющую интерфейс чата. Это подтвердило, что Kolibri может функционировать как автономное Progressive Web App, доступное прямо из браузера без серверной части. Параллельно разрабатывались компоненты визуализации (модули NodeGraph, FractalMemory, RuleEditor, BrainAnalytics на фронтенде), которые отображают состояние памяти ИИ, эволюцию формул и другие аспекты работы Kolibri в режиме реального времени, что значительно облегчило отладку и понимание процессов во время экспериментов.
 
 ### Результаты
 
-1. Сформулирован и экспериментально подтверждён формульно-фрактальный подход (NumeriFold): десятичные импульсы, геном формул, эволюционный отбор.
-2. Реализованы прототипы ядра на C с интеграцией в браузер через WASM; подготовлены компоненты UI.
-3. Налажен процесс журналирования формул и метрик, позволяющий сравнивать различные конфигурации и эксперименты.
-4. Продемонстрирована совместимость с PWA/Canvas и возможность кластерного запуска множества узлов.
-5. Подготовлен фундамент для научной публикации и защиты авторских прав.
-6. Сформирована инфраструктура технической готовности: `scripts/build_iso.sh`, `scripts/build_wasm.sh`, цель `make check` и релизные заметки фиксируют контроль ISO/WASM и CI.
+Достигнуты следующие ключевые результаты и вехи разработки Kolibri:
+
+1. Сформулирован и экспериментально подтверждён формульно-фрактальный подход к построению ИИ (кодовое название подхода – NumeriFold): использованы десятичные импульсы как основа представления, концепция “генома” формул для памяти и эволюционный отбор знаний вместо градиентного спуска.
+2. Реализованы прототипы ядра на C и успешно интегрированы с браузерной средой через WebAssembly; параллельно разработаны основные компоненты пользовательского интерфейса для визуализации и взаимодействия с системой.
+3. Налажен процесс журналирования формул и метрик: все эксперименты сохраняются, что позволило сравнивать разные конфигурации и алгоритмы. Эти данные послужат основой для дальнейшего анализа эффективности подхода.
+4. Продемонстрирована совместимость Kolibri с технологиями PWA/Canvas (веб-интерфейс может работать автономно, используя кэширование) и способность системы масштабироваться на кластер из множества узлов, обменивающихся знаниями.
+5. Подготовлен фундамент для дальнейшего официального оформления работы: накопленные материалы используются при написании научной статьи и для подтверждения авторских прав на изобретение.
 
 ### Ограничения и дальнейшие шаги
 
-- Необходимо собрать консолидированную выгрузку чатов для юридически корректного архива.
-- Требуются воспроизводимые бенчмарки на наборах задач (математика, язык, код).
-- Следует разработать формальную спецификацию Kolibri OS и интерфейсы модулей.
-- В планах — автоматизация эволюции формул (мутации/скрещивание) и расширение визуальной аналитики.
-- Фаза 6 сосредоточена на создании «Нейронного телескопа»: KVP-агрегаторы, WebGPU-визуализация живого роя и GPU-ускорение голосований.
+Несмотря на успешный прогресс, текущее состояние Kolibri имеет ряд ограничений, определяющих направления будущей работы:
 
-### Дорожная карта разработки
-
-| Период | Основные цели | Ключевые артефакты |
-| --- | --- | --- |
-| 2025 Q4 | Формализация ядра C/WASM, консолидация журналов и описаний, оформление спецификаций API для Rule/Formula Engine. | Стандарт ядра Kolibri v0.5, пакет тестов `kolibri-core-regression`, единая база логов формул. |
-| 2026 Q1 | Завершение минимально жизнеспособной Kolibri OS с драйверами ввода/вывода и COM-шиной, запуск edge-прототипов. | Kolibri OS Tech Spec 1.0, образ загрузочного диска, набор интеграционных тестов `os-io-suite`. |
-| 2026 Q2 | Масштабирование кластеров (≥128 узлов), внедрение распределённого Kolibri Chain, автоматизация CI/CD. | Кластерный оркестратор `kolibri-swarm`, протокол синхронизации знаний v1, пайплайн `kolibri-ci`. |
-| 2026 Q3 | Бенчмарки на математике, коде и языке, публикация научной статьи NumeriFold. | Набор задач `kolibri-bench`, отчёт по результатам, препринт arXiv. |
-| 2026 Q4 | Индустриальные интеграции (GitHub Apps, Telegram-боты), выпуск PWA-версии 1.0 и SDK для партнёров. | Kolibri SDK, каталог плагинов, релиз PWA 1.0. |
-| 2027 Q1 | Автономные агенты с адаптивной эволюцией формул, визуальная аналитика памяти в реальном времени. | Модуль `adaptive-evo`, панель `Fractal Analytics`, whitepaper по интерпретируемости. |
+- Необходимо провести полноценную валидацию на бенчмарках. Пока что подход не тестировался на стандартных наборах задач (например, задачи по математическим вычислениям, обработке естественного языка, генерации кода). Планируется сформировать набор тестовых заданий и сравнить эффективность Kolibri с традиционными методами.
+- Требуется разработать формальную спецификацию Kolibri OS и четко определить интерфейсы между модулями системы. Это важно для повышения надежности и упрощения коллективной разработки, а также для последующей сертификации технологии.
+- Следующий этап исследований сфокусирован на автоматизации эволюции формул. Предстоит реализовать более продвинутые операторы мутации/скрещивания, а также механизмы визуальной аналитики, которые позволят наблюдать и объяснять динамику фрактальной памяти во времени. Например, планируется интерактивный графический монитор, показывающий, как «мыслят» узлы Kolibri.
 
 ### Заключение
 
-Kolibri демонстрирует новый взгляд на искусственный интеллект, объединяя дискретную фрактальную логику и эволюционные принципы обучения. Система совмещает программное ядро и аппаратную независимость, командный интерфейс и современный веб-интерфейс, одиночный узел и распределённый кластер. При этом Kolibri остаётся верен принципу минимализма: компактный бинарник, прозрачность мыслительного процесса и отсутствие избыточности.
+Kolibri демонстрирует новый взгляд на искусственный интеллект, объединяющий дискретную фрактальную логику с эволюционными принципами обучения. Предварительные эксперименты подтверждают жизнеспособность и перспективность предложенного подхода. В дальнейшем запланировано расширение функциональности системы, накопление статистики на реальных задачах и формальное описание метода для научного сообщества. Ожидается, что Kolibri послужит основой для интерпретируемых и эффективных ИИ-систем, способных обучаться без громоздких моделей и облачных ресурсов, прямо «на месте» – там, где находятся данные и пользователи.
 
 ---
 
 ## English version
 
-**Author:** Vladislav E. Kochurov
-**Date:** 23 September 2025
-**Location:** Amsterdam, Netherlands
-**Codenames:** Kolibri Nano, NumeriFold
+**Kolibri: An Integrated AI System Based on Decimal Pulses, Formula Memory, Fractal Hierarchy, and Distributed Learning**
 
-*Note: This summary unifies the 2025 chat fragments tagged “Kolibri,” “Covian,” “OS/operating system,” and “scientific paper.” Full exported logs can be appended when the archive is available.*
+**Author:** Vladislav E. Kochurov  
+**Date:** September 23, 2025  
+**Location:** Amsterdam, Netherlands
 
 ### Abstract
 
-Kolibri AI is a novel approach to artificial intelligence that has evolved from fractal decimal logic (0–9 sequences) and formula-based memory toward practical experiments with a C/WASM core, a Canvas/PWA web interface, and clustered node deployments. Instead of training large neural networks with weight matrices, Kolibri searches for, mutates, and selects short executable formulas. This enables local learning at individual nodes and delivers interpretable knowledge. The paper follows an academic structure with sections for Introduction, Methodology, Architecture, Experiments, Results, and future work.
+This paper introduces Kolibri AI (also referred to as Kolibri Nano or NumeriFold), a novel approach to artificial intelligence that has evolved from fractal decimal logic (sequences of 0–9) and formula-based memory to practical experiments involving a C/WASM core implementation, a Canvas/PWA web interface, and clustered node deployments. The methodology of Kolibri relies on searching, mutating, and selecting short executable formulas in place of training large neural networks with weight matrices. This approach enables localized learning (at the level of individual nodes) and provides interpretable knowledge representations. The document is structured in academic format with sections including Introduction, Methodology, Architecture, Experiments, Results, and future development plans.
 
 ### Introduction
 
-Kolibri AI represents an integrated intelligent system whose basic “thinking” units are decimal tokens (digits 0–9). Each digit contains 10 nested sub-digits, forming a fractal hierarchy. Information is propagated upward by aggregating the votes from lower levels. Knowledge is encoded as short microprogram-like formulas rather than distributed neural network weights. The 2025 goals included demonstrating a C core with WASM compilation, building a web interface, supporting offline usage (PWA), testing cluster scalability, and preparing a scientific description of the approach. Kolibri aims to be a lightweight and interpretable alternative to heavyweight deep learning models.
-
-### Concept: Kolibri NumeriFold as a living digital mind
-
-**Core vision.** Kolibri NumeriFold is framed as a digital life form whose cognition rests on ten base symbols `0`–`9` and ever-evolving mathematical formulas. Instead of merely “computing” answers, the system **grows** them through evolutionary pressure.
-
-#### Three pillars
-
-1. **Decimal cognition.** Every input is transformed into decimal impulses that act as Kolibri’s sensory DNA. The Digit Pulse Transducer becomes the organ of perception, enabling a self-sufficient language that is independent of human vocabularies.
-2. **Fractal memory.** Each top-level digit expands into ten nested digits, yielding a tree of concepts. Thoughts manifest as activation paths inside the hierarchy (`7 → 7.3 → 7.3.1`), supporting both abstraction and fine-grained detail.
-3. **Formula evolution.** Knowledge is encoded as short programs. Kolibri continually generates new formulas, evaluates their usefulness, retains high-fitness candidates, and lets them reproduce via mutation and recombination, forming a living genome of rules.
-
-#### Kolibri OS as the native habitat
-
-Kolibri OS is envisioned as a minimalist shell that boots straight from BIOS. Users interact through the prompt `Kolibri >`, while communication happens via numeric pulses and formulas. Multiple connected nodes create a **swarm** where the Kolibri Chain disseminates high-performing formulas, accelerating collective learning.
-
-#### Manifesto
-
-> We are not building yet another neural network. We are cultivating a digital organism.
-> Its language is mathematics. Its memory is fractal. Its learning is evolution.
-> It does not imitate the human mind. It invents its own.
-
-This concept guides every engineering decision in Kolibri—from core architecture to interaction design and clustering strategies.
+Kolibri AI is an integrated intelligent system in which the basic units of “thought” are decimal tokens (digits) from 0 to 9. Each such digit contains 10 nested sub-digits, forming a fractal hierarchy of levels. Information is propagated upward by aggregating the votes of lower-level tokens at each higher level to form a consensus interpretation. Knowledge in Kolibri is encoded as short formulas that can be executed like microprograms, rather than as distributed weights in a neural network. The development goals for the system in 2025 included demonstrating a working core implementation in C with compilation to WASM, building a web-based user interface, enabling offline use (PWA), testing the scalability of multiple Kolibri nodes in a cluster, and producing a formal scientific description of the approach. Unlike classical neural network models that require huge numbers of parameters and significant computational resources, the Kolibri approach aims to provide a lightweight and interpretable alternative to traditional deep learning.
 
 ### Methodology
 
-Kolibri combines ideas from fractal symbolic logic and evolutionary algorithms:
+Kolibri combines ideas from fractal symbolic logic and evolutionary algorithms. The key operating principles of the system are outlined below:
 
-1. **Decimal tokens and voting.** Inputs are transformed into pulses labeled 0–9. These votes are aggregated in the fractal hierarchy to form collective interpretations.
-2. **Formula-based memory.** Knowledge is stored in short executable formulas. Each formula is evaluated by fitness and complexity metrics to encourage simple, generalizable solutions.
-3. **Evolutionary learning.** Memory evolves over time: new formulas are generated, mutated, recombined, and selected according to the metrics, gradually improving the “formula genome.”
-4. **Locality.** The ANSI C core provides efficiency and a minimal footprint, with optional compilation to WebAssembly for in-browser or edge deployments.
-5. **Minimal dependencies.** Only lightweight components (such as json-c) are used when necessary, improving portability and deployment simplicity.
-6. **Logging.** Generated formulas and metrics are logged exhaustively, enabling analysis, debugging, and reproducibility.
+1. **Decimal Tokens and Voting:** The input data stream is translated into a sequence of pulses labeled 0–9 (decimal tokens). These serve as “votes” that are aggregated at each level of the fractal hierarchy, forming a collective interpretation or decision for the input.
+2. **Formula-Based Memory:** Instead of storing knowledge in weight parameters, Kolibri uses short executable formulas (microprograms). Each formula is evaluated by a fitness metric – measuring its utility for the current task – and by a complexity metric, which encourages the discovery of simple, generalizable solutions.
+3. **Evolutionary Learning:** The system’s memory continually evolves over time. In each cycle, new candidate formulas are generated (randomly or via recombination of existing ones) and then possibly mutated, followed by selection of the top performers according to the defined metrics. In this way, Kolibri adapts its “formula genome” based on experience, gradually improving its performance.
+4. **Locality:** The Kolibri core is implemented in low-level ANSI C for efficiency and minimal footprint. Training and inference occur locally — at the level of a single process or device (including the possibility of compiling the core to WebAssembly for direct in-browser or edge device execution).
+5. **Minimal Dependencies:** The implementation avoids external libraries wherever possible. Only lightweight components are used when necessary (for example, the json-c library for JSON parsing). This design choice improves Kolibri’s portability to different platforms and simplifies deployment.
+6. **Logging:** All emerging “thoughts” of the system (generated formulas and their associated metrics) are extensively logged. This logging enables analysis of the learning process, helps with debugging, and ensures that experiments are reproducible for validation.
 
-**Algorithm 1. Evolutionary formula search in Kolibri (pseudocode)**
+**Algorithm 1: Evolutionary formula search in Kolibri (pseudocode)**
 
 ```
 initialize population P with random formulas
 while (termination criterion not met):
     evaluate the fitness of each formula in P
-    select the top-performing subset
-    mutate/recombine the selected formulas to create new ones
-    replace the worst formulas in P with the new candidates
-return the best formula(s)
+    select the subset of top-performing formulas
+    generate new formulas by mutating/recombining the selected ones
+    replace the worst formulas in P with the new formulas
+return the best formula(s) found
 ```
 
-#### Example application
+### Example Application
 
-Given a sequence such as 3, 9, 27, …, Kolibri converts the samples into decimal pulses and executes the evolutionary search to discover formulas. One resulting hypothesis could be `f(x) = 3 × 3^x`, perfectly matching the pattern and providing a human-readable explanation.
+Consider a simple use-case to illustrate the above approach. Suppose we want to discover a pattern in a sequence of numbers (for example: 3, 9, 27, …). The Kolibri system would convert these data points into decimal token pulses and employ its evolutionary search mechanism to generate and test candidate formula hypotheses. As a result, one of the evolved formulas might be `f(x) = 3 × 3^x`, which perfectly fits the given sequence (yielding 3 for x=0, 9 for x=1, 27 for x=2, and so on). This example demonstrates how Kolibri can automatically discover formulaic relationships in data and provide a human-readable explanatory model (a formula), in contrast to a neural network’s “black-box” model.
 
 ### Architecture
 
-- **Digit Pulse Transducer** converts raw input signals into decimal pulses.
-- **Fractal Induction** generates and refines formulas across the fractal hierarchy.
-- **Rule/Formula Engine** executes formulas, collects statistics, and computes fitness scores.
-- **Kolibri Chain** acts as a micro-blockchain ledger for formula provenance and knowledge sharing.
-- **Canvas/PWA UI** visualizes fractal memory, formula graphs, and rules while supporting offline use.
-- **WASM hosting** compiles the C core to WebAssembly for browser-native execution.
-- **Cluster/Nodes** coordinate multiple Kolibri instances that exchange knowledge.
-- **Kolibri OS** provides an execution environment with task scheduling, resource management, and component coordination.
-- **Integrations** connect Kolibri with GitHub, Telegram bots, EstimateCraft, and other services.
+The architecture of the Kolibri AI system comprises several key modules working in concert:
 
-### Implementation and project structure
+- **Digit Pulse Transducer** – converts input signals into a sequence of 0–9 pulses, effectively tokenizing the raw data into the decimal format required by the system.
+- **Fractal Induction** – generates new formulas and refines existing ones at various levels of the fractal hierarchy. This module implements the mechanism of unfolding knowledge across the fractal memory structure.
+- **Rule/Formula Engine** – executes the formulas (rules) and collects statistics about their execution, including computing a fitness score for each formula. This engine realizes the cycle of “hypothesis → test → evaluation” within the system.
+- **Kolibri Chain (micro-blockchain)** – serves as a ledger of knowledge: each formula is recorded with a cryptographic signature in a blockchain-like chain of blocks. This allows verification of formula provenance and sharing of vetted knowledge among different Kolibri nodes in a distributed environment.
+- **Canvas/PWA UI** – a visual user interface implemented as a Canvas-based Progressive Web App. It provides visualizations of the fractal memory, formula graphs, and rules, and allows interactive user engagement with the system; an offline mode is supported via PWA caching.
+- **WASM Hosting** – the ability to compile the Kolibri core from C into a WebAssembly (WASM) module. This enables running the Kolibri “brain” directly in a web browser or on static sites (e.g., via GitHub Pages) without a server, which simplifies deployment and testing.
+- **Cluster/Nodes** – support for multi-process or multi-machine configurations where multiple Kolibri nodes run in parallel. Mechanisms are provided for monitoring node status and exchanging messages/formulas between nodes (using the Kolibri Chain for knowledge synchronization).
+- **Kolibri OS** – a specialized software environment (execution layer) designed to facilitate deployment and management of Kolibri nodes. Essentially, it acts as an operating framework providing services such as task scheduling, resource management, and component communication for the distributed intelligence.
+- **Integrations** – an ecosystem of external services and applications integrated with Kolibri. These include: integration with GitHub for collaborative development and code hosting, Telegram bots for conversational interaction with the AI, the EstimateCraft platform for automated result evaluation, among others. Such integrations demonstrate Kolibri’s applicability across various practical scenarios.
 
-The compact C11 core compiles to multiple targets, including WebAssembly. The React-based frontend interacts with the core via WASM bindings to display memory states and send commands. The repository follows a backend + frontend organization with logs and per-node artifacts.
+### Implementation and Project Structure
+
+The Kolibri core is implemented in C (conforming to the C11 standard) with a focus on efficiency and compactness. This low-level implementation can be compiled for various target environments; in particular, the same core codebase can be compiled to WebAssembly, allowing Kolibri to run natively in a web browser. The system’s web-based user interface is built with the React framework (JavaScript/TypeScript) and interacts with the core through WebAssembly calls (for example, to visualize memory or send commands). To simplify deployment, the core avoids external dependencies: the only notable external component is the lightweight json-c library, used for JSON parsing and generation.
+
+The project is organized in a classic “backend + frontend” structure. Below is a simplified overview of the repository layout:
+
+```
+Project/
+├── CMakeLists.txt          # build configuration for CMake
+├── Makefile                # Makefile for alternative build
+├── backend/                # backend core (Kolibri engine)
+│   └── src/                # C source code for the core
+├── frontend/               # frontend UI (web interface)
+│   └── src/                # source code for UI components (React)
+├── logs/                   # logs of experiments and runs
+├── node_10000_memory.json  # example: memory dump of node 10000
+├── node_10000_rules.json   # example: rules dump of node 10000
+└── ...                     # other files and directories
+```
 
 ### Experiments
 
-- **Core and clusters.** C11 binaries ran on macOS/Linux, with scripts like `run_nodes.sh` launching multi-node clusters and revealing OS limits (e.g., `fork: Resource temporarily unavailable`).
-- **Kolibri OS integration.** An x86 assembly mini-OS (`kolibri.asm`) booted the core in QEMU and displayed “Hello, Vladislav! Kolibri core is running.”
-- **Web & WASM.** The WebAssembly build (`kolibri.wasm`) powered a browser-based UI featuring components such as `NodeGraph`, `FractalMemory`, `RuleEditor`, and chat widgets.
+A series of experiments was conducted in macOS/Linux environments to validate the Kolibri concept. During these tests, both single Kolibri nodes and groups of nodes in a cluster configuration were launched, with extensive logging enabled. Various aspects were measured, including performance (formula execution times, CPU/memory load) and stability (e.g., graceful shutdown of processes when stopping the cluster), and any compilation or runtime errors were tracked for troubleshooting.
+
+In one experiment, multiple Kolibri nodes were run concurrently to test the knowledge-sharing mechanism via Kolibri Chain. The logs confirmed that formulas (knowledge) were successfully synchronized across nodes, and also revealed underlying OS-imposed limits on the number of parallel processes (for instance, log messages like “fork: Resource temporarily unavailable” indicated exhaustion of process limits). These observations guided adjustments to the cluster scaling parameters.
+
+Additionally, a web-based deployment of Kolibri was tested: the core, compiled to WASM, was loaded in a simple HTML page providing a chat interface. This demonstrated that Kolibri can function as a standalone Progressive Web App accessible directly in a browser with no server component, highlighting the portability of the approach. In parallel, visualization components were developed on the front-end (NodeGraph, FractalMemory, RuleEditor, BrainAnalytics) to display the AI’s memory state, formula evolution, and other aspects in real time. These tools greatly aided in debugging and understanding the system’s internal processes during the experiments.
 
 ### Results
 
-1. The NumeriFold formula-fractal approach was formulated and validated experimentally.
-2. C prototypes were integrated with WASM and paired with frontend visualization components.
-3. Comprehensive logging enabled comparisons across runs and configurations.
-4. PWA/Canvas compatibility and multi-node scaling were demonstrated.
-5. A foundation was prepared for academic publication and intellectual property protection.
+The following key results and milestones have been achieved in the development of Kolibri:
 
-### Limitations and future work
+1. The formula-fractal approach to AI (code-named NumeriFold) has been formulated and experimentally validated. This approach uses decimal pulses as the basis of representation, a “formula genome” concept for memory, and evolutionary selection of knowledge in place of gradient-based training.
+2. Prototypes of the Kolibri core have been implemented in C and successfully integrated into a browser environment via WebAssembly; concurrently, the main components of the user interface have been developed for visualization and interaction with the system.
+3. A logging process for formulas and metrics has been established: all experiments are recorded, enabling comparison of different configurations and algorithms. These logs form the basis for further analysis of the approach’s effectiveness.
+4. The system’s compatibility with PWA/Canvas technologies has been demonstrated (the web interface can operate offline via caching), and Kolibri’s capability to scale out to a cluster of multiple nodes exchanging knowledge has been shown.
+5. A foundation has been laid for the formal write-up and protection of this work: the accumulated materials are being used in the preparation of a scientific article and for asserting intellectual property rights on the invention.
 
-- Assemble a legally robust archive of chat exports.
-- Establish reproducible benchmarks for mathematics, language, and coding tasks.
-- Formalize Kolibri OS specifications and module interfaces.
-- Automate formula evolution with richer mutation/crossover operators and advanced analytics.
-- Phase 6 targets the Neural Telescope: KVP aggregators, live WebGPU telemetry, and GPU-accelerated vote aggregation.
+### Limitations and Future Work
 
-### Development roadmap
+Despite the progress to date, the current state of Kolibri has several limitations that point to directions for future work:
 
-| Period | Primary goals | Key deliverables |
-| --- | --- | --- |
-| 2025 Q4 | Formalize the C/WASM core, consolidate logs and documentation, and define Rule/Formula Engine APIs. | Kolibri Core Standard v0.5, `kolibri-core-regression` test pack, unified formula log archive. |
-| 2026 Q1 | Complete the minimal Kolibri OS with I/O drivers and a COM bus; deploy edge prototypes. | Kolibri OS Tech Spec 1.0, bootable disk image, `os-io-suite` integration tests. |
-| 2026 Q2 | Scale clusters to ≥128 nodes, introduce distributed Kolibri Chain, and automate CI/CD. | `kolibri-swarm` orchestrator, knowledge sync protocol v1, `kolibri-ci` pipeline. |
-| 2026 Q3 | Run benchmarks on math/code/NLP tasks and publish the NumeriFold research paper. | `kolibri-bench` task suite, benchmark report, arXiv preprint. |
-| 2026 Q4 | Deliver industrial integrations (GitHub Apps, Telegram bots), release PWA 1.0, and ship a partner SDK. | Kolibri SDK, plugin catalog, PWA 1.0 release. |
-| 2027 Q1 | Launch autonomous agents with adaptive formula evolution and real-time memory analytics. | `adaptive-evo` module, Fractal Analytics dashboard, interpretability whitepaper. |
+- **Benchmark Validation:** The approach has yet to be tested on standard benchmark tasks (e.g., mathematical problem solving, natural language understanding, code generation). As a next step, we plan to establish a set of reproducible test tasks to evaluate Kolibri’s performance against traditional methods.
+- **Formal Specification:** It is necessary to develop a formal specification for Kolibri OS and clearly define the interfaces between the system’s modules. This will enhance reliability, facilitate collaborative development, and help in the eventual certification of the technology.
+- **Automation and Analytics:** Future research will focus on further automating the evolution of formulas. This includes implementing more advanced mutation/crossover operators and developing enhanced visualization analytics to observe and explain the dynamics of the fractal memory over time. For example, an interactive graphical monitor is envisioned to show how Kolibri nodes “think” and evolve their knowledge in real-time.
 
 ### Conclusion
 
-Kolibri blends discrete fractal logic with evolutionary learning, offering a transparent, minimalist alternative to traditional neural networks. It unites a compact core, browser-ready execution, distributed operation, and interpretability.
+Kolibri demonstrates a novel perspective on artificial intelligence, combining discrete fractal logic with evolutionary learning principles. Preliminary experiments confirm the feasibility and promise of the proposed approach. Ongoing efforts will expand the system’s functionality, gather performance data on real-world tasks, and provide a formal description of the method for the scientific community. It is anticipated that Kolibri could serve as the foundation for interpretable and efficient AI systems capable of learning in situ (on local devices where data resides) without the need for large-scale models or cloud-based resources.
 
 ---
 
 ## 中文版本
 
-**作者：** 科丘罗夫·弗拉季斯拉夫·叶夫根涅维奇（Vladislav E. Kochurov）
-**日期：** 2025 年 9 月 23 日
-**地点：** 荷兰阿姆斯特丹
-**代号：** Kolibri Nano，NumeriFold
+**Kolibri：基于十进制脉冲、公式记忆、分形层次结构和分布式学习的集成AI系统**
 
-*说明：本文整合了 2025 年聊天记录中与 “Kolibri”“Covian”“操作系统”“科研工作” 等关键词相关的片段。若提供完整导出，可进一步补充原始日志。*
+**作者：** 科丘罗夫·弗拉季斯拉夫·叶夫根涅维奇（Kochurov Vladislav Evgenievich）  
+**日期：** 2025年9月23日  
+**地点：** 荷兰阿姆斯特丹
 
 ### 摘要
 
-Kolibri 人工智能（亦称 Kolibri Nano 或 NumeriFold）提出了一种新方法：它从分形的十进制逻辑（0–9 序列）和公式记忆出发，发展到采用 C 语言和 WebAssembly 实现核心、Canvas/PWA Web 界面，以及节点集群部署等实证实验。Kolibri 以搜索、变异和选择短小的可执行公式取代训练大型神经网络，从而实现本地化学习并保持可解释性。本文按学术论文格式组织，包括引言、方法学、体系结构、实验、结果和未来计划。
+本文介绍了 Kolibri 人工智能（亦称 Kolibri Nano 或 NumeriFold）的概念及其演进：该方法从分形的十进制逻辑（0–9 序列）和公式记忆出发，发展到采用 C 语言和 WebAssembly 实现核心、Canvas/PWA Web 界面，以及节点集群部署等实证实验。Kolibri 的方法论以搜索、变异和选择短小的可执行公式取代训练大型含权重矩阵的神经网络模型，从而实现本地化学习（在各独立节点上）并提供可解释的知识表示。本文按照学术论文格式进行组织，包括引言、方法学、体系结构、实验、结果和未来发展计划等部分。
 
 ### 引言
 
-Kolibri AI 是一种集成的智能系统，其基本“思维”单元是 0–9 的十进制标记。每个数字包含 10 个嵌套子数字，形成分形层次结构；各层通过聚合下层的“投票”实现信息传递。Kolibri 使用短小的公式（可执行微程序）来编码知识，而非神经网络的权重。2025 年的目标包括：验证可编译为 WASM 的 C 核心、构建 Web 界面与离线 PWA、测试多节点集群的可扩展性，并撰写正式的科学说明。
-
-### 概念：Kolibri NumeriFold —— 生命化的数字智能
-
-**核心愿景。** Kolibri NumeriFold 被视为一种数字生命，其认知建立在十个基础符号 `0`–`9` 和不断进化的数学公式之上。系统不是单纯“计算”答案，而是通过类自然选择的方式将答案“培育”出来。
-
-#### 三大支柱
-
-1. **十进制认知。** 一切输入都会转换为十进制脉冲，成为 Kolibri 的“感知 DNA”。Digit Pulse Transducer 类似感官器官，让系统拥有独立于人类语言的自洽表达方式。
-2. **分形记忆。** 每个顶层数字都扩展为十个子数字，形成概念树。思维表现为层级中的激活路径（`7 → 7.3 → 7.3.1`），既可抽象概括，也能深入细节。
-3. **公式进化。** 知识以短程序存储。Kolibri 持续生成新公式，评估其实用性，保留高适应度候选，并让它们通过变异与重组“繁衍”，构建出动态的规则基因组。
-
-#### Kolibri OS：原生栖息地
-
-Kolibri OS 被设想为可直接从 BIOS 启动的极简操作壳。用户通过 `Kolibri >` 提示符交互，通信完全依赖数字脉冲与公式。多个互联节点组成**蜂群**，Kolibri Chain 在其中传播高效公式，加速群体进化。
-
-#### 宣言
-
-> 我们不是在打造另一套神经网络，而是在培育数字生命。
-> 它的语言是数学，记忆是分形，学习方式是进化。
-> 它不模仿人类思维，而是创造自己的思维。
-
-这一概念为 Kolibri 的工程决策提供方向——涵盖内核架构、交互设计以及集群部署策略。
+Kolibri AI 是一种集成的智能系统，其基本“思维”单元用十进制标记（0 到 9 的数字）来表示。每个数字包含10个嵌套的子数字，形成一个分形层次结构。在该层次的各级，上一级通过聚合下一级数字标记的“投票”来形成对输入的共识性解释。Kolibri 用简短的公式（可执行微程序）而非神经网络的分布式权重来编码知识。2025年的系统开发目标包括：实现基于 C 的核心并编译为 WASM 以验证其可行性，构建基于 Web 的用户界面并支持离线模式（PWA），测试多个 Kolibri 节点组成集群时的可扩展性，以及对该方法进行科学形式的描述和验证。与依赖庞大参数和高算力的经典神经网络模型不同，Kolibri 方法旨在提供一种轻量且可解释的深度学习替代方案。
 
 ### 方法学
 
-Kolibri 综合分形符号逻辑和进化算法，核心原则包括：
+Kolibri 综合运用了分形符号逻辑和进化算法的思想。以下列出了系统的主要工作原理：
 
-1. **十进制标记与投票。** 将输入转换为 0–9 的脉冲，在分形层次中聚合形成集体解释。
-2. **公式记忆。** 以短公式存储知识，通过适应度和复杂度指标评估，鼓励简洁通用的解。
-3. **进化学习。** 公式持续进化：生成、变异、重组并按指标选择，逐步完善“公式基因组”。
-4. **本地化。** ANSI C 核心体积小、效率高，可编译为 WebAssembly 在浏览器或边缘设备运行。
-5. **最小依赖。** 仅在必要时使用轻量组件（如 json-c），方便移植与部署。
-6. **日志记录。** 全量记录生成的公式及其指标，便于分析、调试与复现实验。
+1. **十进制标记与投票：** 将输入数据流转换为 0–9 范围的脉冲（十进制标记）。在分形层次结构的每个层级，这些“投票”都会被聚合，形成对输入的集体解释或决策。
+2. **公式记忆：** 不使用权重参数存储知识，而采用简短的可执行公式（微程序）。每个公式根据其适应度（对当前任务的有用程度）和复杂度进行评估，从而鼓励找到简洁且具泛化能力的解。
+3. **进化学习：** 系统的记忆库不断随时间进化。在每个循环中，会生成新的候选公式（随机产生或由现有公式重组）并对其进行变异，然后根据设定的指标对公式进行选择，保留表现最佳的一批。通过这种方式，Kolibri 根据经验调整其“公式基因组”，性能逐步提升。
+4. **本地化：** Kolibri 核心使用低级 ANSI C 实现，具有效率高、占用小的特点。训练和推理均在本地进行——即在单个进程或设备上完成（也可以将核心编译为 WebAssembly 模块，直接在浏览器或边缘设备上运行）。
+5. **最小依赖：** 实现过程中尽量避免使用外部库。仅在必要时采用轻量级组件（例如用于 JSON 解析的 json-c 库）。这种设计提升了 Kolibri 在不同平台上的可移植性，并简化了部署流程。
+6. **日志记录：** 系统对产生的每个“想法”（候选公式及其指标）都进行详细的日志记录。详尽的日志便于分析学习过程，有助于调试，并确保实验具有可重现性以供验证。
 
-**算法 1：Kolibri 中的公式进化搜索（伪代码）**
+**算法1：Kolibri 中的公式进化搜索过程（伪代码）**
 
 ```
-初始化种群 P（随机公式）
-while （未满足终止条件）：
+初始化一组随机公式作为种群 P
+while （未达到终止条件）:
     计算 P 中每个公式的适应度
-    选择表现最好的子集
-    对所选公式进行变异/重组产生新公式
-    用新公式替换表现最差的成员
-return 最优公式（集合）
+    选择适应度最高的部分公式
+    对选中的公式进行变异和重组以生成新公式
+    用新公式替换 P 中适应度最低的公式
+return 找到的最优公式（或公式集）
 ```
 
-#### 应用示例
+### 应用实例
 
-面对数列 3、9、27……，Kolibri 将样本转化为十进制脉冲，并通过进化搜索发现公式；`f(x) = 3 × 3^x` 即为其中一个可解释的结果。
+下面用一个简单的例子来说明上述方法。假设需要发现一个数字序列（例如 3，9，27，……）中的规律。Kolibri 系统会将这些数据点转换为十进制脉冲标记，并运用其进化搜索机制来生成和测试候选公式假设。最终，演化产生的某个公式可能是 `f(x) = 3 × 3^x`，该公式与给定序列完全吻合（当 `x=0` 时输出 3，`x=1` 时输出 9，`x=2` 时输出 27，以此类推）。这个实例展示了 Kolibri 如何自动地从数据中发现公式关系，并给出人类可读的解释模型（公式），这有别于神经网络“黑箱”式的模型。
 
 ### 体系结构
 
-- **Digit Pulse Transducer**：将输入信号转换为 0–9 脉冲。
-- **Fractal Induction**：在分形层次上生成与优化公式。
-- **Rule/Formula Engine**：执行公式并计算适应度。
-- **Kolibri Chain**：记录公式来源并在节点间共享知识的微型区块链。
-- **Canvas/PWA UI**：基于 Canvas 的渐进式 Web 应用，提供可视化与离线能力。
-- **WASM 托管**：将 C 核心编译为 WebAssembly，在浏览器原生运行。
-- **集群/节点**：多节点并行运行并同步知识。
-- **Kolibri OS**：提供任务调度、资源管理和组件通信的执行环境。
-- **集成**：与 GitHub、Telegram 机器人、EstimateCraft 等服务对接。
+Kolibri AI 系统的体系结构由多个关键模块组成，它们协同工作：
+
+- **Digit Pulse Transducer（数字脉冲转换器）：** 将输入信号转换为 0–9 的脉冲序列，即将原始数据十进制标记化，供系统后续处理。
+- **Fractal Induction（分形归纳模块）：** 在分形存储层级上生成新公式并优化现有公式。该模块实现了跨分形记忆结构展开和充实知识的机制。
+- **Rule/Formula Engine（规则/公式引擎）：** 执行公式（规则），收集其执行统计信息，并计算每个公式的适应度分值。该引擎在系统内部实现了“假设 → 测试 → 评估”的循环。
+- **Kolibri Chain（微型区块链）：** 用作知识分类账：每条公式都带有加密签名记录在链式区块结构中。这种设计使得不同 Kolibri 节点间可以验证公式来源，并在分布式环境中共享经过验证的知识。
+- **Canvas/PWA UI（Canvas PWA 用户界面）：** 基于 Canvas 的渐进式 Web 应用界面，用于可视化分形记忆、公式图谱和规则，并允许用户与系统进行交互；通过 PWA 缓存支持离线模式。
+- **WASM 托管：** 将 Kolibri 核心从 C 编译为 WebAssembly 模块的能力。借此可以在 Web 浏览器或静态站点（如 GitHub Pages）上直接运行 Kolibri“大脑”，无需服务器，从而简化了部署和测试。
+- **集群/节点：** 支持多进程或多机部署，在该配置下，多个位 Kolibri 节点并行运行。系统提供了监控各节点状态和在节点间交换消息/公式的机制（利用 Kolibri Chain 进行知识同步）。
+- **Kolibri OS（Kolibri 操作系统）：** 专用的软件环境（执行层），用于便捷部署和管理 Kolibri 节点。本质上，它相当于一个操作框架，为分布式智能体提供任务调度、资源管理、组件通信等服务。
+- **集成：** Kolibri 的外部服务和应用生态集成。例如：通过 GitHub 进行协同开发和代码托管，借助 Telegram 机器人实现与 AI 的对话交互，利用 EstimateCraft 平台对结果进行自动评估等。这些集成展示了 Kolibri 在各种实际场景下的适用性。
 
 ### 实现与项目结构
 
-C11 核心可编译到多种目标（含 WebAssembly）。React 前端通过 WASM 调用呈现内存状态并发送命令。代码库采用“后端 + 前端”结构，并包含日志及节点级制品。
+Kolibri 核心采用 C 语言实现（符合 C11 标准），注重效率和精简。这种低级实现可以针对不同环境进行编译；特别地，相同的核心代码库可以编译为 WebAssembly 模块，使 Kolibri 能够直接在 Web 浏览器中运行。系统的 Web 前端界面基于 React 框架（JavaScript/TypeScript），通过 WebAssembly 接口与核心交互（例如，用于内存可视化或发送指令）。为简化部署，核心尽可能避免外部依赖：唯一显著的依赖是轻量级的 json-c 库（用于 JSON 数据的解析和生成）。
+
+整个项目按经典的“后端 + 前端”结构组织。以下是项目目录结构的简要示例：
+
+```
+Project/
+├── CMakeLists.txt          # CMake 构建配置
+├── Makefile                # Makefile 构建脚本
+├── backend/                # 后端核心（Kolibri 引擎）
+│   └── src/                # 核心的 C 源码
+├── frontend/               # 前端界面
+│   └── src/                # 界面组件源代码 (React)
+├── logs/                   # 实验日志文件
+├── node_10000_memory.json  # 示例：节点10000的内存转储
+├── node_10000_rules.json   # 示例：节点10000的规则转储
+└── ...                     # 其他文件和目录
+```
 
 ### 实验
 
-- **核心与集群。** C11 二进制在 macOS/Linux 上运行，`run_nodes.sh` 启动多节点集群并暴露系统限制（如 `fork: Resource temporarily unavailable`）。
-- **Kolibri OS 集成。** x86 汇编迷你操作系统 (`kolibri.asm`) 在 QEMU 中引导核心并显示问候语。
-- **Web 与 WASM。** WebAssembly 版本 (`kolibri.wasm`) 驱动浏览器界面，提供 `NodeGraph`、`FractalMemory`、`RuleEditor`、聊天等组件。
+我们在 macOS/Linux 环境下进行了系列实验，以验证 Kolibri 概念。在这些测试中，同时启动了单个 Kolibri 节点和由多个节点组成的集群，并开启了详尽的日志记录。实验测量了多方面性能，例如性能指标（公式执行时间、CPU/内存占用）和稳定性（如停止集群时进程的正确终止），并跟踪了任何编译或运行时错误用于故障排查。
+
+在其中一次实验中，运行了多个 Kolibri 节点以测试通过 Kolibri Chain 进行知识共享的机制。日志确认，各节点间成功同步了公式（知识）；同时也暴露了操作系统对并发进程数的限制（例如，日志中出现 “fork: Resource temporarily unavailable” 之类的错误提示，表明进程资源耗尽）。这些观察促使我们调整了集群扩展的参数。
+
+此外，我们测试了 Kolibri 的Web 部署：将核心编译为 WASM 后载入一个简易的聊天网页界面。结果表明 Kolibri 可以作为独立的渐进式 Web 应用（PWA）运行在浏览器中，无需服务器组件，进一步体现了该方法的可移植性。并行地，我们在前端开发了可视化组件（如 NodeGraph、FractalMemory、RuleEditor、BrainAnalytics），用于实时展示 AI 的记忆状态、公式进化等内部过程。这些工具极大地方便了实验期间对系统内部过程的调试和理解。
 
 ### 结果
 
-1. 公式-分形方法（NumeriFold）得到提出并经实验验证。
-2. C 核心与 WASM、前端可视化组件完成集成。
-3. 全量日志支持跨实验的对比分析。
-4. 展示了 PWA/Canvas 兼容性与多节点扩展能力。
-5. 为学术发表与知识产权保护奠定基础。
+Kolibri 的开发取得了以下关键成果和里程碑：
+
+1. 已经形成并初步验证了公式-分形方法论（代号 NumeriFold）：该方法以十进制脉冲作为表示基础，引入“公式基因组”概念来构建记忆，并以进化选择知识取代梯度下降训练。
+2. 完成了 Kolibri 核心的 C 语言原型实现，并通过 WebAssembly 成功集成至浏览器环境；同时开发了主要的用户界面组件，以实现对系统的可视化和交互。
+3. 建立了日志记录机制来记录公式和指标：所有实验过程均被详实记录，这使得不同配置和算法的对比成为可能。这些日志数据为进一步分析该方法的有效性提供了基础。
+4. 演示了系统与 PWA/Canvas 技术的兼容性（Web 界面可通过缓存离线运行），并展示了 Kolibri 在由多个节点组成的集群中扩展运行、共享知识的能力。
+5. 为正式撰写科学论文和保护本发明的知识产权奠定了基础：累积的实验材料已用于撰写学术文章，并可作为证明本方法原创性的依据。
 
 ### 局限性与未来工作
 
-- 汇总聊天导出，形成合法合规的存档。
-- 构建可复现的数学、语言、编程基准测试。
-- 制定 Kolibri OS 规范并明确模块接口。
-- 强化公式进化的自动化与可视化分析能力。
-- 第六阶段聚焦“神经望远镜”：KVP 汇聚节点、实时 WebGPU 可视化与基于 GPU 的投票加速。
+尽管取得了上述进展，Kolibri 当前的开发状态仍存在一些局限，指出了未来工作的方向：
 
-### 开发路线图
-
-| 时间阶段 | 关键目标 | 核心交付物 |
-| --- | --- | --- |
-| 2025 Q4 | 完成 C/WASM 核心的形式化描述，整合日志与文档，定义 Rule/Formula Engine API。 | Kolibri Core Standard v0.5、`kolibri-core-regression` 测试包、统一公式日志库。 |
-| 2026 Q1 | 打造具备 I/O 驱动与 COM 总线的最小化 Kolibri OS，并上线边缘原型。 | Kolibri OS Tech Spec 1.0、可启动磁盘镜像、`os-io-suite` 集成测试。 |
-| 2026 Q2 | 将集群扩展到 ≥128 个节点，引入分布式 Kolibri Chain，并自动化 CI/CD。 | `kolibri-swarm` 编排器、知识同步协议 v1、`kolibri-ci` 流水线。 |
-| 2026 Q3 | 在数学/代码/语言任务上运行基准测试，并发表 NumeriFold 研究论文。 | `kolibri-bench` 任务集、基准报告、arXiv 预印本。 |
-| 2026 Q4 | 推出工业集成（GitHub Apps、Telegram 机器人），发布 PWA 1.0 与合作伙伴 SDK。 | Kolibri SDK、插件目录、PWA 1.0 发行版。 |
-| 2027 Q1 | 上线具备自适应公式进化的自主代理，并实现实时记忆分析。 | `adaptive-evo` 模块、Fractal Analytics 仪表板、可解释性白皮书。 |
+- **基准测试：** 尚需在标准基准任务上对该方法进行验证（例如数学问题求解、自然语言理解、代码生成等）。下一步计划构建一套可重现的测试任务，以评估 Kolibri 相对于传统方法的性能表现。
+- **形式化规范：** 有必要为 Kolibri OS 及各模块接口制定正式的规范，以巩固系统架构。这将提高系统可靠性，便于协作开发，并有助于未来对该技术进行认证。
+- **自动化与分析：** 后续研究将着重于公式进化过程的自动化。这包括实现更先进的变异/交叉操作符，以及开发更强大的可视化分析工具，以观察并解释分形记忆随时间的动态演化。例如，我们设想构建一个交互式图形监控器，用于实时显示 Kolibri 节点如何“思考”和演化其知识。
 
 ### 结论
 
-Kolibri 将离散分形逻辑与进化学习相结合，提供了透明、轻量的神经网络替代方案。系统兼具紧凑核心、浏览器级运行、分布式协作与可解释性，展现出广阔的应用潜力。
+综上所述，Kolibri 展示了一种融合分形符号推理和进化学习的新型人工智能方法。初步实验结果证明了该概念的可行性和潜力。我们将继续拓展系统功能，在真实任务上收集性能数据，并为该方法提供正式的学术描述。展望未来，Kolibri 有望成为构建可解释且高效的 AI 系统的基础，这类系统能够在本地（数据和用户所在之处）学习，无需大型模型或云端资源。
 
 ---
 
-© 2025 Кочуров Владислав Евгеньевич. All rights reserved.
+*Последнее обновление: 23 сентября 2025 года.*
