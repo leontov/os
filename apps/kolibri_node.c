@@ -5,6 +5,7 @@
 #include "kolibri/decimal.h"
 #include "kolibri/formula.h"
 #include "kolibri/genome.h"
+#include "kolibri/script.h"
 #include "kolibri/random.h"
 #include "kolibri/roy.h"
 
@@ -617,6 +618,37 @@ static void node_handle_cluster(KolibriNode *node, const char *payload) {
     printf("[Рой] неизвестная подкоманда %s\n", payload);
 }
 
+static void node_handle_script(KolibriNode *node, const char *payload) {
+    if (!payload || payload[0] == '\0') {
+        printf("[Скрипт] укажите путь к сценарию\n");
+        return;
+    }
+    char path[260];
+    strncpy(path, payload, sizeof(path) - 1U);
+    path[sizeof(path) - 1U] = '\0';
+    trim_spaces(path);
+    if (path[0] == '\0') {
+        printf("[Скрипт] укажите путь к сценарию\n");
+        return;
+    }
+    KolibriScript skript;
+    if (ks_init(&skript, &node->pool,
+                node->genome_ready ? &node->genome : NULL) != 0) {
+        printf("[Скрипт] не удалось инициализировать интерпретатор\n");
+        return;
+    }
+    ks_set_output(&skript, stdout);
+    if (ks_load_file(&skript, path) != 0) {
+        printf("[Скрипт] не удалось прочитать %s\n", path);
+        ks_free(&skript);
+        return;
+    }
+    if (ks_execute(&skript) != 0) {
+        printf("[Скрипт] выполнение завершилось с ошибкой\n");
+    }
+    ks_free(&skript);
+}
+
 static void node_print_help(void) {
     printf(":teach a->b — добавить обучающий пример\n");
     printf(":ask x — вычислить значение лучшей формулы\n");
@@ -631,6 +663,7 @@ static void node_print_help(void) {
     printf(":cluster broadcast — разослать формулу всем\n");
     printf(":cluster hello — отправить широковещательное приветствие\n");
     printf(":verify — проверить геном\n");
+    printf(":script путь.ks — выполнить KolibriScript\n");
     printf(":quit — завершить работу\n");
 }
 
@@ -722,6 +755,10 @@ static void node_run(KolibriNode *node) {
             }
             if (strcmp(name, "verify") == 0) {
                 node_handle_verify(node);
+                continue;
+            }
+            if (strcmp(name, "script") == 0) {
+                node_handle_script(node, command);
                 continue;
             }
             if (strcmp(name, "help") == 0) {

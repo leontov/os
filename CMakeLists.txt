@@ -13,6 +13,7 @@ add_library(kolibri_core
     backend/src/random.c
     backend/src/formula.c
     backend/src/roy.c
+    backend/src/script.c
 )
 
 target_include_directories(kolibri_core
@@ -38,6 +39,7 @@ if(KOLIBRI_ENABLE_TESTS)
         tests/test_genome.c
         tests/test_formula.c
         tests/test_roy.c
+        tests/test_script.c
     )
     target_link_libraries(kolibri_tests PRIVATE kolibri_core Threads::Threads)
     add_test(NAME kolibri_tests COMMAND kolibri_tests)

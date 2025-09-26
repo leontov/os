@@ -12,8 +12,9 @@ Kolibri — это модульная система, в которой кажд
 2. **Formula Evolution** (`backend/src/formula.c`) — эволюционный пул формул, управляющий «геномом» знаний.
 3. **Digital Genome** (`backend/src/genome.c`) — криптографический журнал ReasonBlock, фиксирующий события и формулы.
 4. **Swarm Networking** (`backend/src/roy.c`) — UDP-протокол Kolibri Swarm с HMAC и широковещательным обнаружением соседей.
-5. **Kolibri Node CLI** (`apps/kolibri_node.c`) — оболочка, которая объединяет все подсистемы и предоставляет REPL/daemon режим.
-6. **Тесты** (`tests/`) — регрессионный каркас, обеспечивающий воспроизводимость.
+5. **KolibriScript Interpreter** (`backend/src/script.c`) — исполняет русскоязычные сценарии, трансформируя их в десятичные импульсы.
+6. **Kolibri Node CLI** (`apps/kolibri_node.c`) — оболочка, которая объединяет все подсистемы и предоставляет REPL/daemon режим.
+7. **Тесты** (`tests/`) — регрессионный каркас, обеспечивающий воспроизводимость.
 
 ### English
 Kolibri is a modular system implemented in pure C with predictable boundaries between subsystems. The major layers are identical to the list above with focus on deterministic APIs and minimal dependencies.
@@ -47,7 +48,8 @@ Kolibri 采用纯 C 模块化实现，子系统之间通过稳定接口协作。
 
 ### Application Layer
 - **Колибри-узел:** аргументы командной строки (`--seed`, `--node-id`, `--listen`, `--peer`), REPL-команды (`:good`, `:bad`, `:why`, `:canvas`, `:sync`, `:verify`).
-- **Скрипты:** `kolibri.sh` автоматизирует сборку, запуск тестов, старт кластера.
+- **KolibriScript:** `backend/include/kolibri/script.h`, `backend/src/script.c`, тест `tests/test_script.c`; команда REPL `:script` исполняет русскоязычный сценарий и логирует действия в геном.
+- **Скрипты оркестрации:** `kolibri.sh` автоматизирует сборку, запуск тестов, старт кластера.
 
 ---
 
