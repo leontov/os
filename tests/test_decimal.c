@@ -6,7 +6,7 @@
 
 static void proverit_transduktor_obratimost(void)
 {
-    const unsigned char dannye[] = {0u, 1u, 2u, 10u, 99u, 128u, 255u};
+    const unsigned char dannye[] = {0U, 1U, 2U, 10U, 99U, 128U, 255U};
     uint8_t bufer[64];
     kolibri_potok_cifr potok;
     kolibri_potok_cifr_init(&potok, bufer, sizeof(bufer));

@@ -37,6 +37,12 @@
   - **EN:** Returns `0` on success, `1` when the ledger file is missing, and `-1`
     when integrity validation fails.
   - **ZH:** 验证成功返回 `0`，文件不存在返回 `1`，若校验失败则返回 `-1`。
+- `int kg_replay(const char *path, const unsigned char *key, size_t key_len, KolibriGenomeVisitor visitor, void *context);`
+  - **RU:** Последовательно воспроизводит блоки и вызывает обратный вызов для каждого.
+    Возвращает `0` при успехе, `1` если файл отсутствует, `-1` при нарушении цепочки.
+  - **EN:** Streams every block through a callback (`visitor`). Returns `0` on success,
+    `1` when the ledger is missing, `-1` on integrity errors.
+  - **ZH:** 逐块回放并调用回调处理器；成功返回 `0`，缺少文件返回 `1`，完整性错误返回 `-1`。
 
 ---
 
