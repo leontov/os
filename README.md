@@ -89,4 +89,5 @@ make test
 - [Цифровой геном Kolibri](docs/genome_chain.md)
 - [Kolibri OS](docs/kolibri_os.md)
 - [Веб-интерфейс и WASM-мост](docs/web_interface.md)
+- [Нейронный телескоп Kolibri](docs/neural_telescope.md)
 - [Научная повестка](docs/research_agenda.md)

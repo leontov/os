@@ -126,6 +126,7 @@ Project/
 - Требуются воспроизводимые бенчмарки на наборах задач (математика, язык, код).
 - Следует разработать формальную спецификацию Kolibri OS и интерфейсы модулей.
 - В планах — автоматизация эволюции формул (мутации/скрещивание) и расширение визуальной аналитики.
+- Фаза 6 сосредоточена на создании «Нейронного телескопа»: KVP-агрегаторы, WebGPU-визуализация живого роя и GPU-ускорение голосований.
 
 ### Дорожная карта разработки
 
@@ -246,6 +247,7 @@ The compact C11 core compiles to multiple targets, including WebAssembly. The Re
 - Establish reproducible benchmarks for mathematics, language, and coding tasks.
 - Formalize Kolibri OS specifications and module interfaces.
 - Automate formula evolution with richer mutation/crossover operators and advanced analytics.
+- Phase 6 targets the Neural Telescope: KVP aggregators, live WebGPU telemetry, and GPU-accelerated vote aggregation.
 
 ### Development roadmap
 
@@ -366,6 +368,7 @@ C11 核心可编译到多种目标（含 WebAssembly）。React 前端通过 WAS
 - 构建可复现的数学、语言、编程基准测试。
 - 制定 Kolibri OS 规范并明确模块接口。
 - 强化公式进化的自动化与可视化分析能力。
+- 第六阶段聚焦“神经望远镜”：KVP 汇聚节点、实时 WebGPU 可视化与基于 GPU 的投票加速。
 
 ### 开发路线图
 

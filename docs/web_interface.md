@@ -118,3 +118,16 @@ export async function createKolibriCore() {
 
 В рамках Закона Множественности и Автономности мы сохраняем WebAssembly как «мозг» браузерной версии Kolibri. WebGPU добавляется как «ускоренное сердце» визуализаций там, где требуется массовый параллелизм, а JavaScript остаётся «лицом» и мостом к пользователю. Такая связка обеспечивает минимализм, прозрачность и воспроизводимость, соответствующие фундаментальным законам экосистемы.
 
+
+---
+
+## 10. Neural Telescope Layer / Слой «Нейронного телескопа» / “神经望远镜”层
+
+- **EN:** WebGPU replaces mock simulations with a live feed. KVP delta streams arrive over WebSockets, patch GPU buffers, and keep ≥1M swarm particles in sync at 60 FPS. Filtering, zoom, and timeline scrubbing operate on the live dataset without pausing ingestion.
+- **RU:** WebGPU полностью исключает псевдо-симуляции: поток дельт KVP приходит по WebSocket, патчит GPU-буферы и синхронизирует ≥1 млн частиц роя при 60 FPS. Фильтрация, зум и прокрутка временной шкалы работают поверх живых данных без остановки приёма.
+- **ZH:** WebGPU 用实时数据取代任何模拟：KVP 增量通过 WebSocket 到达，更新 GPU 缓冲区，使 ≥100 万粒子在 60 FPS 下保持同步。过滤、缩放与时间轴拖动都在实时数据上执行，无需暂停数据流。
+
+- **EN:** Compute pipelines such as `vote_aggregator.wgsl` expose GPU acceleration to the WASM core via the `uskorit_golosovanie_cherez_gpu` export. Critical digit-fold reductions move off the CPU, cutting response latency for swarm consensus.
+- **RU:** Вычислительные конвейеры, например `vote_aggregator.wgsl`, открывают ускорение GPU для WASM-ядра через экспорт `uskorit_golosovanie_cherez_gpu`. Ключевые десятичные свёртки уходят с CPU, снижая задержку консенсуса роя.
+- **ZH:** 计算管线（如 `vote_aggregator.wgsl`）通过 `uskorit_golosovanie_cherez_gpu` 导出向 WASM 内核提供 GPU 加速。关键的十进制归并从 CPU 转移到 GPU，显著降低群体一致性的延迟。
+
