@@ -1,0 +1,147 @@
+"""PyTest-набор для KolibriSim: проверка цифрового мышления и роя."""
+
+from __future__ import annotations
+
+from pathlib import Path
+import sys
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+import pytest
+
+from core.kolibri_sim import (
+    KolibriSim,
+    dec_hash,
+    dolzhen_zapustit_repl,
+    obnovit_soak_state,
+    preobrazovat_tekst_v_cifry,
+    sohranit_sostoyanie,
+    vosstanovit_tekst_iz_cifr,
+    zagruzit_sostoyanie,
+)
+
+
+# --- Базовые тесты (T1–T7) -------------------------------------------------
+
+def test_t1_text_roundtrip() -> None:
+    tekst = "Колибри живёт цифрами"
+    cifry = preobrazovat_tekst_v_cifry(tekst)
+    assert cifry.isdigit()
+    assert vosstanovit_tekst_iz_cifr(cifry) == tekst
+
+
+def test_t2_teach_and_ask() -> None:
+    sim = KolibriSim(zerno=42)
+    sim.obuchit_svjaz("привет", "здравствуй")
+    assert sim.sprosit("привет") == "здравствуй"
+    assert sim.sprosit("неизвестно") == "..."
+
+
+def test_t3_formula_evolution() -> None:
+    sim = KolibriSim(zerno=1)
+    f1 = sim.evolyuciya_formul("math")
+    sim.ocenit_formulu(f1, 0.75)
+    f2 = sim.evolyuciya_formul("math")
+    assert f1 in sim.formuly
+    assert f2 in sim.formuly
+    assert sim.formuly[f1]["fitness"] > 0.0
+
+
+def test_t4_genome_records_growth() -> None:
+    sim = KolibriSim(zerno=5)
+    start = len(sim.genom)
+    sim.obuchit_svjaz("a", "b")
+    sim.evolyuciya_formul("demo")
+    assert len(sim.genom) > start
+    assert sim.proverit_genom() is True
+
+
+def test_t5_sync_merges_state() -> None:
+    sim_a = KolibriSim(zerno=2)
+    sim_b = KolibriSim(zerno=3)
+    sim_a.obuchit_svjaz("a", "b")
+    sim_b.obuchit_svjaz("c", "d")
+    imported = sim_a.sinhronizaciya(sim_b.vzjat_sostoyanie())
+    assert imported == 1
+    assert sim_a.sprosit("c") == "d"
+
+
+def test_t6_canvas_structure() -> None:
+    sim = KolibriSim(zerno=9)
+    sim.obuchit_svjaz("проба", "цифра")
+    holst = sim.poluchit_canvas(glubina=4)
+    assert len(holst) == 4
+    assert all(len(stroka) == 10 for stroka in holst)
+
+
+def test_t7_seed_determinism() -> None:
+    sim_a = KolibriSim(zerno=99)
+    sim_b = KolibriSim(zerno=99)
+    assert sim_a.massiv_cifr(6) == sim_b.massiv_cifr(6)
+
+
+# --- Дополнительные тесты (T8–T13) -----------------------------------------
+
+def test_t8_dec_hash_deterministic() -> None:
+    cifry = "0123456789" * 3
+    assert dec_hash(cifry) == dec_hash(cifry)
+    assert dec_hash(cifry).isdigit()
+
+
+def test_t9_chat_commands() -> None:
+    sim = KolibriSim(zerno=0)
+    sim.obuchit_svjaz("стимул", "ответ")
+    assert sim.dobrovolnaya_otpravka("стимул", "стимул") == "ответ"
+    assert sim.dobrovolnaya_otpravka("серия", "3").isdigit()
+    assert sim.dobrovolnaya_otpravka("число", "12a7") == "127"
+    assert sim.dobrovolnaya_otpravka("выражение", "2+2*2") == "6"
+
+
+def test_t10_repl_guard(monkeypatch: pytest.MonkeyPatch) -> None:
+    env = {"KOLIBRI_REPL": "1"}
+    assert dolzhen_zapustit_repl(env, True) is True
+    assert dolzhen_zapustit_repl(env, False) is False
+    assert dolzhen_zapustit_repl({}, True) is False
+
+
+def test_t11_soak_progress(tmp_path: Path) -> None:
+    sim = KolibriSim(zerno=7)
+    state_path = tmp_path / "state.json"
+    result = obnovit_soak_state(state_path, sim, minuti=2)
+    assert result["events"] > 0
+    assert state_path.exists()
+
+
+def test_t12_population_and_parents() -> None:
+    sim = KolibriSim(zerno=4)
+    sim.zapustit_turniry(6)
+    assert len(sim.populyaciya) <= sim.predel_populyacii
+    assert any(sim.formuly[name]["parents"] for name in sim.formuly)
+
+
+def test_t13_genome_verification_and_tamper() -> None:
+    sim = KolibriSim(zerno=11)
+    sim.obuchit_svjaz("a", "b")
+    sim.evolyuciya_formul("tamper")
+    assert sim.proverit_genom() is True
+    # Нарушаем цепочку, обнуляя payload
+    sim.genom[-1].payload = "000"
+    assert sim.proverit_genom() is False
+
+
+# --- Утилиты сохранения состояния -----------------------------------------
+
+def test_state_roundtrip(tmp_path: Path) -> None:
+    sim = KolibriSim(zerno=1)
+    sim.obuchit_svjaz("alpha", "beta")
+    state = {"knowledge": sim.vzjat_sostoyanie()}
+    path = tmp_path / "dump.json"
+    sohranit_sostoyanie(path, state)
+    restored = zagruzit_sostoyanie(path)
+    assert restored["knowledge"] == state["knowledge"]
+
+
+if __name__ == "__main__":  # pragma: no cover
+    pytest.main([__file__])
