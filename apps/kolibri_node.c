@@ -5,7 +5,8 @@
 #include "kolibri/decimal.h"
 #include "kolibri/formula.h"
 #include "kolibri/genome.h"
-#include "kolibri/net.h"
+#include "kolibri/random.h"
+#include "kolibri/roy.h"
 
 #include <ctype.h>
 #include <inttypes.h>
@@ -13,6 +14,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+#include <arpa/inet.h>
 
 #define KOLIBRI_MEMORY_CAPACITY 8192U
 
@@ -35,8 +38,9 @@ typedef struct {
     KolibriFormulaPool pool;
     uint8_t pamyat_bufer[KOLIBRI_MEMORY_CAPACITY];
     kolibri_potok_cifr pamyat_potok;
-    bool listener_ready;
-    KolibriNetListener listener;
+    bool roy_ready;
+    KolibriRoy roy;
+    KolibriRng roy_rng;
     KolibriGene last_gene;
     bool last_gene_valid;
     int last_question;
@@ -313,9 +317,9 @@ static void node_report_formula(const KolibriNode *node) {
     printf("\n");
 }
 
-static void node_share_formula(KolibriNode *node) {
-    if (!node->options.peer_enabled) {
-        printf("[Рой] соседи не заданы\n");
+static void node_share_formula_sluchajno(KolibriNode *node) {
+    if (!node->roy_ready) {
+        printf("[Рой] модуль роя не активирован\n");
         return;
     }
     const KolibriFormula *best = kf_pool_best(&node->pool);
@@ -323,47 +327,91 @@ static void node_share_formula(KolibriNode *node) {
         printf("[Рой] подходящая формула отсутствует\n");
         return;
     }
-    if (kn_share_formula(node->options.peer_host, node->options.peer_port,
-                         node->options.node_id, best) == 0) {
-        printf("[Рой] формула отправлена на %s:%u\n", node->options.peer_host,
-               node->options.peer_port);
+    uint64_t sluchajnoe = k_rng_next(&node->roy_rng);
+    if (kolibri_roy_otpravit_sluchajnomu(&node->roy, sluchajnoe, best) == 0) {
+        printf("[Рой] формула отправлена случайному соседу\n");
         node_record_event(node, "SYNC", "передан лучший ген");
     } else {
-        fprintf(stderr, "[Рой] не удалось отправить формулу\n");
+        printf("[Рой] нет активных соседей\n");
     }
 }
 
-static void node_poll_listener(KolibriNode *node) {
-    if (!node->listener_ready) {
+static void node_share_formula_vsem(KolibriNode *node) {
+    if (!node->roy_ready) {
+        printf("[Рой] модуль роя не активирован\n");
         return;
     }
-    KolibriNetMessage message;
-    int status = kn_listener_poll(&node->listener, 0U, &message);
-    if (status <= 0) {
+    const KolibriFormula *best = kf_pool_best(&node->pool);
+    if (!best) {
+        printf("[Рой] подходящая формула отсутствует\n");
         return;
     }
-    switch (message.type) {
-    case KOLIBRI_MSG_HELLO:
-        printf("[Рой] приветствие от узла %u\n", message.data.hello.node_id);
-        break;
-    case KOLIBRI_MSG_MIGRATE_RULE: {
-        printf("[Рой] получен ген от узла %u\n", message.data.formula.node_id);
-        KolibriFormula imported;
-        imported.gene.length = message.data.formula.length;
-        memcpy(imported.gene.digits, message.data.formula.digits,
-               message.data.formula.length);
-        imported.fitness = message.data.formula.fitness;
-        if (node->pool.count > 0) {
-            size_t slot = node->pool.count - 1U;
-            node->pool.formulas[slot] = imported;
-            kf_pool_tick(&node->pool, 4);
-            node_record_event(node, "IMPORT", "ген принят от соседа");
+    if (kolibri_roy_otpravit_vsem(&node->roy, best) == 0) {
+        printf("[Рой] формула разослана всем соседям и в широковещание\n");
+        node_record_event(node, "BROADCAST", "ген распространён по рою");
+    } else {
+        printf("[Рой] не удалось выполнить рассылку\n");
+    }
+}
+
+static void node_print_neighbors(KolibriNode *node) {
+    if (!node->roy_ready) {
+        printf("[Рой] модуль роя не активирован\n");
+        return;
+    }
+    KolibriRoySosed zapis[16];
+    size_t chislo = kolibri_roy_spisok_sosedey(&node->roy, zapis,
+            sizeof(zapis) / sizeof(zapis[0]));
+    if (chislo == 0U) {
+        printf("[Рой] активные соседи отсутствуют\n");
+        return;
+    }
+    time_t seichas = time(NULL);
+    printf("== Соседи роя (%zu) ==\n", chislo);
+    for (size_t indeks = 0U; indeks < chislo; ++indeks) {
+        char adres[64];
+        if (!inet_ntop(AF_INET, &zapis[indeks].adres.sin_addr,
+                       adres, sizeof(adres))) {
+            strncpy(adres, "<неизвестно>", sizeof(adres) - 1U);
+            adres[sizeof(adres) - 1U] = '\0';
         }
-        break;
+        printf("[%zu] узел=%u адрес=%s:%u прошло %lds\n", indeks + 1U,
+               zapis[indeks].identifikator, adres,
+               ntohs(zapis[indeks].adres.sin_port),
+               (long)(seichas - zapis[indeks].poslednij_otklik));
     }
-    case KOLIBRI_MSG_ACK:
-        printf("[Рой] ACK=%u\n", message.data.ack.status);
-        break;
+}
+
+static void node_poll_roy(KolibriNode *node) {
+    if (!node->roy_ready) {
+        return;
+    }
+    KolibriRoySobytie sobytie;
+    while (kolibri_roy_poluchit_sobytie(&node->roy, &sobytie) > 0) {
+        char adres[64];
+        if (!inet_ntop(AF_INET, &sobytie.adres.sin_addr, adres, sizeof(adres))) {
+            strncpy(adres, "<неизвестно>", sizeof(adres) - 1U);
+            adres[sizeof(adres) - 1U] = '\0';
+        }
+        switch (sobytie.tip) {
+        case KOLIBRI_ROY_SOBYTIE_HELLO:
+            printf("[Рой] приветствие от узла %u (%s:%u)\n",
+                   sobytie.identifikator, adres,
+                   ntohs(sobytie.adres.sin_port));
+            break;
+        case KOLIBRI_ROY_SOBYTIE_FORMULA:
+            printf("[Рой] ген от узла %u (%s:%u)\n", sobytie.identifikator,
+                   adres, ntohs(sobytie.adres.sin_port));
+            if (node->pool.count > 0) {
+                size_t slot = node->pool.count - 1U;
+                node->pool.formulas[slot] = sobytie.formula;
+                kf_pool_tick(&node->pool, 4);
+                node_record_event(node, "IMPORT", "ген принят от соседа");
+            }
+            break;
+        default:
+            break;
+        }
     }
 }
 
@@ -457,6 +505,34 @@ static void node_handle_verify(KolibriNode *node) {
     }
 }
 
+static void node_handle_cluster(KolibriNode *node, const char *payload) {
+    if (!node->roy_ready) {
+        printf("[Рой] модуль роя не активирован\n");
+        return;
+    }
+    if (!payload || payload[0] == '\0') {
+        printf("[Рой] подкоманды: list | broadcast | hello\n");
+        return;
+    }
+    if (strncmp(payload, "list", 4) == 0) {
+        node_print_neighbors(node);
+        return;
+    }
+    if (strncmp(payload, "broadcast", 9) == 0) {
+        node_share_formula_vsem(node);
+        return;
+    }
+    if (strncmp(payload, "hello", 5) == 0) {
+        if (kolibri_roy_otpravit_privet(&node->roy) == 0) {
+            printf("[Рой] широковещательное приветствие отправлено\n");
+        } else {
+            printf("[Рой] не удалось отправить приветствие\n");
+        }
+        return;
+    }
+    printf("[Рой] неизвестная подкоманда %s\n", payload);
+}
+
 static void node_print_help(void) {
     printf(":teach a->b — добавить обучающий пример\n");
     printf(":ask x — вычислить значение лучшей формулы\n");
@@ -466,7 +542,10 @@ static void node_print_help(void) {
     printf(":evolve [n] — форсировать дополнительную эволюцию\n");
     printf(":why — показать текущую формулу\n");
     printf(":canvas — вывести канву памяти\n");
-    printf(":sync — поделиться формулой с соседом\n");
+    printf(":sync — поделиться формулой со случайным соседом\n");
+    printf(":cluster list — показать известных соседей\n");
+    printf(":cluster broadcast — разослать формулу всем\n");
+    printf(":cluster hello — отправить широковещательное приветствие\n");
     printf(":verify — проверить геном\n");
     printf(":quit — завершить работу\n");
 }
@@ -476,7 +555,7 @@ static void node_run(KolibriNode *node) {
            node->options.node_id);
     char line[512];
     while (true) {
-        node_poll_listener(node);
+        node_poll_roy(node);
         printf("колибри-%u> ", node->options.node_id);
         fflush(stdout);
         if (!fgets(line, sizeof(line), stdin)) {
@@ -488,7 +567,7 @@ static void node_run(KolibriNode *node) {
         if (line[0] == '\0') {
             continue;
         }
-        node_poll_listener(node);
+        node_poll_roy(node);
         if (line[0] == ':') {
             const char *command = line + 1;
             while (*command && !isspace((unsigned char)*command)) {
@@ -548,7 +627,11 @@ static void node_run(KolibriNode *node) {
                 continue;
             }
             if (strcmp(name, "sync") == 0) {
-                node_share_formula(node);
+                node_share_formula_sluchajno(node);
+                continue;
+            }
+            if (strcmp(name, "cluster") == 0) {
+                node_handle_cluster(node, command);
                 continue;
             }
             if (strcmp(name, "verify") == 0) {
@@ -571,26 +654,37 @@ static void node_run(KolibriNode *node) {
     }
 }
 
-static int node_start_listener(KolibriNode *node) {
+static int node_start_roy(KolibriNode *node) {
     if (!node->options.listen_enabled) {
         return 0;
     }
-    if (kn_listener_start(&node->listener, node->options.listen_port) != 0) {
-        fprintf(stderr, "[Рой] не удалось открыть порт %u\n",
+    if (kolibri_roy_zapustit(&node->roy, node->options.node_id,
+            node->options.listen_port, KOLIBRI_HMAC_KEY,
+            sizeof(KOLIBRI_HMAC_KEY) - 1U) != 0) {
+        fprintf(stderr, "[Рой] не удалось открыть UDP-порт %u\n",
                 node->options.listen_port);
         return -1;
     }
-    node->listener_ready = true;
-    printf("[Рой] слушаем порт %u\n", node->options.listen_port);
+    node->roy_ready = true;
+    printf("[Рой] слушаем UDP %u\n", node->options.listen_port);
+    if (node->options.peer_enabled) {
+        struct sockaddr_in adres;
+        memset(&adres, 0, sizeof(adres));
+        adres.sin_family = AF_INET;
+        adres.sin_port = htons(node->options.peer_port);
+        if (inet_pton(AF_INET, node->options.peer_host, &adres.sin_addr) == 1) {
+            kolibri_roy_dobavit_soseda(&node->roy, &adres, 0U);
+        }
+    }
     return 0;
 }
 
-static void node_stop_listener(KolibriNode *node) {
-    if (!node->listener_ready) {
+static void node_stop_roy(KolibriNode *node) {
+    if (!node->roy_ready) {
         return;
     }
-    kn_listener_close(&node->listener);
-    node->listener_ready = false;
+    kolibri_roy_ostanovit(&node->roy);
+    node->roy_ready = false;
 }
 
 static int node_init(KolibriNode *node, const KolibriNodeOptions *options) {
@@ -599,10 +693,11 @@ static int node_init(KolibriNode *node, const KolibriNodeOptions *options) {
     node_reset_last_answer(node);
     kolibri_potok_cifr_init(&node->pamyat_potok, node->pamyat_bufer, sizeof(node->pamyat_bufer));
     kf_pool_init(&node->pool, node->options.seed);
+    k_rng_seed(&node->roy_rng, node->options.seed ^ 0x5A5A1234ULL);
     if (node_open_genome(node) != 0) {
         return -1;
     }
-    if (node_start_listener(node) != 0) {
+    if (node_start_roy(node) != 0) {
         node_close_genome(node);
         return -1;
     }
@@ -610,7 +705,7 @@ static int node_init(KolibriNode *node, const KolibriNodeOptions *options) {
 }
 
 static void node_shutdown(KolibriNode *node) {
-    node_stop_listener(node);
+    node_stop_roy(node);
     node_close_genome(node);
 }
 
