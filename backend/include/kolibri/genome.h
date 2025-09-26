@@ -2,6 +2,7 @@
 #define KOLIBRI_GENOME_H
 
 #include <stdint.h>
+#include <stddef.h>
 #include <stdio.h>
 
 #ifdef __cplusplus
@@ -12,14 +13,18 @@ extern "C" {
 #define KOLIBRI_EVENT_TYPE_SIZE 32
 #define KOLIBRI_PAYLOAD_SIZE 256
 #define KOLIBRI_HMAC_KEY_SIZE 64
+#define KOLIBRI_EVENT_DIGITS (KOLIBRI_EVENT_TYPE_SIZE * 3U)
+#define KOLIBRI_PAYLOAD_DIGITS (KOLIBRI_PAYLOAD_SIZE * 3U)
 
 typedef struct {
     uint64_t index;
     uint64_t timestamp;
     unsigned char prev_hash[KOLIBRI_HASH_SIZE];
     unsigned char hmac[KOLIBRI_HASH_SIZE];
-    char event_type[KOLIBRI_EVENT_TYPE_SIZE];
-    char payload[KOLIBRI_PAYLOAD_SIZE];
+    uint16_t event_digits_len;
+    uint8_t event_digits[KOLIBRI_EVENT_DIGITS];
+    uint16_t payload_digits_len;
+    uint8_t payload_digits[KOLIBRI_PAYLOAD_DIGITS];
 } ReasonBlock;
 
 typedef struct {
@@ -41,6 +46,9 @@ int kg_verify_file(const char *path, const unsigned char *key, size_t key_len);
 typedef int (*KolibriGenomeVisitor)(const ReasonBlock *block, void *context);
 int kg_replay(const char *path, const unsigned char *key, size_t key_len,
         KolibriGenomeVisitor visitor, void *context);
+
+int kg_block_event_text(const ReasonBlock *block, char *buffer, size_t buffer_len);
+int kg_block_payload_text(const ReasonBlock *block, char *buffer, size_t buffer_len);
 
 #ifdef __cplusplus
 }

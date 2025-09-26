@@ -18,7 +18,11 @@ static int kontrolnyj_posetitel(const ReasonBlock *blok, void *kontekst)
     RezhimProigrysha *sostoyanie = (RezhimProigrysha *)kontekst;
     sostoyanie->schetchik++;
     sostoyanie->poslednij_indeks = blok->index;
-    strncpy(sostoyanie->poslednee_sobytie, blok->event_type,
+    char tekst[KOLIBRI_EVENT_TYPE_SIZE];
+    if (kg_block_event_text(blok, tekst, sizeof(tekst)) != 0) {
+        return -1;
+    }
+    strncpy(sostoyanie->poslednee_sobytie, tekst,
             sizeof(sostoyanie->poslednee_sobytie) - 1U);
     sostoyanie->poslednee_sobytie[sizeof(sostoyanie->poslednee_sobytie) - 1U] = '\0';
     return 0;
@@ -42,6 +46,16 @@ void test_genome(void)
     assert(kg_append(&genome, "ASK", "payload2", &blok2) == 0);
     assert(blok1.index == 0U);
     assert(blok2.index == 1U);
+    assert(blok1.event_digits_len % 3U == 0U);
+    assert(blok2.payload_digits_len % 3U == 0U);
+
+    char vosstanovlennoe[KOLIBRI_PAYLOAD_SIZE];
+    assert(kg_block_event_text(&blok2, vosstanovlennoe,
+                sizeof(vosstanovlennoe)) == 0);
+    assert(strcmp(vosstanovlennoe, "ASK") == 0);
+    assert(kg_block_payload_text(&blok1, vosstanovlennoe,
+                sizeof(vosstanovlennoe)) == 0);
+    assert(strcmp(vosstanovlennoe, "payload1") == 0);
 
     kg_close(&genome);
 
