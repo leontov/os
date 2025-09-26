@@ -28,6 +28,8 @@
 | `size_t kolibri_dlina_dekodirovki_teksta(size_t dlina_cifr);` | Оценивает длину строки при обратном преобразовании. |
 | `int kolibri_kodirovat_text(const char *vhod, char *vyhod, size_t vyhod_dlina);` | Обёртка над потоковым API для быстрого кодирования UTF-8. |
 | `int kolibri_dekodirovat_text(const char *cifry, char *vyhod, size_t vyhod_dlina);` | Обратная обёртка, использующая потоковую реконструкцию. |
+| `int kolibri_potok_cifr_zapisat_chislo(kolibri_potok_cifr*, int64_t znachenie);` | Сериализует знаковое целое в поток цифр по канонической схеме длина/знак/цифры. |
+| `int kolibri_potok_cifr_schitat_chislo(kolibri_potok_cifr*, int64_t *znachenie);` | Десериализует число, возвращая `1`, когда поток исчерпан. |
 
 Возврат `0`/`-1` сигнализирует о нехватке буфера или неверных данных.
 
@@ -38,12 +40,20 @@
 ### Русский
 Каждый байт текста преобразуется в три десятичные цифры (000–255). Пример: символ `A` (0x41) → `065`. В результате строка «Hi» становится `072105`.
 
+#### Целые числа
+Функция `kolibri_potok_cifr_zapisat_chislo` записывает сначала две цифры длины абсолютного значения, затем цифру знака (`0` — положительное, `1` — отрицательное) и далее сами десятичные цифры. `kolibri_potok_cifr_schitat_chislo` выполняет обратное преобразование и контролирует переполнение (`INT64_MIN`/`INT64_MAX`).
+
 ### English
 Each byte is turned into a zero-padded decimal triplet (`000`–`255`). The encoded string length equals `input_len * 3`.
+
+#### Integers
+`kolibri_potok_cifr_zapisat_chislo` stores two digits for magnitude length, one digit for sign (`0` positive, `1` negative), and the magnitude digits themselves. `kolibri_potok_cifr_schitat_chislo` reverses the process and reports overflow attempts.
 
 ### 中文
 每个字节转换为三位十进制数字（前导零补齐），编码后的长度为 `input_len * 3`。
 
+#### 整数
+`kolibri_potok_cifr_zapisat_chislo` 先写入两位长度、再写入符号位（`0` 表示正数、`1` 表示负数）以及数值的十进制数字；`kolibri_potok_cifr_schitat_chislo` 则按同一方案解析并检测溢出。
 ---
 
 ## 4. Buffer Management / Управление буферами / 缓冲区管理

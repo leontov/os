@@ -88,6 +88,114 @@ size_t kolibri_potok_cifr_ostalos(const kolibri_potok_cifr *potok) {
     return potok->dlina - potok->poziciya;
 }
 
+/* Подсчитывает количество цифр в десятичном представлении величины. */
+static size_t kolibri_podschitat_cifry(uint64_t velichina) {
+    size_t schetchik = 0U;
+    do {
+        schetchik++;
+        velichina /= 10ULL;
+    } while (velichina > 0ULL);
+    return schetchik;
+}
+
+/* Возвращает модуль знакового 64-битного числа в беззнаковом виде. */
+static uint64_t kolibri_absolyut(int64_t znachenie) {
+    if (znachenie >= 0) {
+        return (uint64_t)znachenie;
+    }
+    return (uint64_t)(-(znachenie + 1LL)) + 1ULL;
+}
+
+/* Сериализует знаковое целое число в поток цифр. */
+int kolibri_potok_cifr_zapisat_chislo(kolibri_potok_cifr *potok,
+                                      int64_t znachenie) {
+    if (!potok || !potok->cifry) {
+        return -1;
+    }
+    uint64_t modul = kolibri_absolyut(znachenie);
+    size_t chislo_cifr = kolibri_podschitat_cifry(modul);
+    if (chislo_cifr > 99U) {
+        return -1;
+    }
+    if (potok->dlina + chislo_cifr + 3U > potok->emkost) {
+        return -1;
+    }
+    uint8_t znak = znachenie < 0 ? 1U : 0U;
+    uint8_t lokalnye[32];
+    uint64_t rabochij = modul;
+    for (size_t indeks = 0; indeks < chislo_cifr; ++indeks) {
+        lokalnye[chislo_cifr - 1U - indeks] = (uint8_t)(rabochij % 10ULL);
+        rabochij /= 10ULL;
+    }
+    size_t zapis = potok->dlina;
+    potok->cifry[zapis++] = (uint8_t)((chislo_cifr / 10U) % 10U);
+    potok->cifry[zapis++] = (uint8_t)(chislo_cifr % 10U);
+    potok->cifry[zapis++] = znak;
+    for (size_t indeks = 0; indeks < chislo_cifr; ++indeks) {
+        potok->cifry[zapis++] = lokalnye[indeks];
+    }
+    potok->dlina = zapis;
+    return 0;
+}
+
+/* Считывает ранее сериализованное целое число из потока цифр. */
+int kolibri_potok_cifr_schitat_chislo(kolibri_potok_cifr *potok,
+                                      int64_t *znachenie) {
+    if (!potok || !potok->cifry || !znachenie) {
+        return -1;
+    }
+    if (kolibri_potok_cifr_ostalos(potok) == 0U) {
+        return 1;
+    }
+    size_t nachalo = potok->poziciya;
+    size_t dostupno = potok->dlina - nachalo;
+    if (dostupno < 3U) {
+        return -1;
+    }
+    uint8_t dlina_desyatki = potok->cifry[nachalo];
+    uint8_t dlina_edinicy = potok->cifry[nachalo + 1U];
+    uint8_t znak = potok->cifry[nachalo + 2U];
+    if (dlina_desyatki > 9U || dlina_edinicy > 9U || znak > 1U) {
+        return -1;
+    }
+    size_t chislo_cifr = (size_t)dlina_desyatki * 10U + (size_t)dlina_edinicy;
+    if (chislo_cifr == 0U || chislo_cifr > 19U) {
+        return -1;
+    }
+    if (dostupno < chislo_cifr + 3U) {
+        return -1;
+    }
+    size_t poz = nachalo + 3U;
+    uint64_t modul = 0ULL;
+    for (size_t indeks = 0; indeks < chislo_cifr; ++indeks) {
+        uint8_t cifra = potok->cifry[poz + indeks];
+        if (cifra > 9U) {
+            return -1;
+        }
+        if (modul > (UINT64_MAX - (uint64_t)cifra) / 10ULL) {
+            return -1;
+        }
+        modul = modul * 10ULL + (uint64_t)cifra;
+    }
+    if (znak == 0U) {
+        if (modul > (uint64_t)INT64_MAX) {
+            return -1;
+        }
+        *znachenie = (int64_t)modul;
+    } else {
+        if (modul > (uint64_t)INT64_MAX + 1ULL) {
+            return -1;
+        }
+        if (modul == (uint64_t)INT64_MAX + 1ULL) {
+            *znachenie = INT64_MIN;
+        } else {
+            *znachenie = -(int64_t)modul;
+        }
+    }
+    potok->poziciya = poz + chislo_cifr;
+    return 0;
+}
+
 /* Переводит байт UTF-8 в три десятичные цифры. */
 static int zakodirovat_bajt(kolibri_potok_cifr *potok,
                             unsigned char znachenie) {

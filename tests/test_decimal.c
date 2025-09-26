@@ -2,6 +2,7 @@
 #include "kolibri/random.h"
 
 #include <assert.h>
+#include <inttypes.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -70,9 +71,52 @@ static void proverit_sluchajnye_posledovatelnosti(void) {
     }
 }
 
+static void proverit_serializaciyu_chisel(void) {
+    const int64_t dannye[] = {0,        7,          -7,        1234567890,
+                              -9876543210, INT64_MAX, INT64_MIN};
+    uint8_t bufer[512];
+    kolibri_potok_cifr potok;
+    kolibri_potok_cifr_init(&potok, bufer, sizeof(bufer));
+    for (size_t indeks = 0; indeks < sizeof(dannye) / sizeof(dannye[0]); ++indeks) {
+        assert(kolibri_potok_cifr_zapisat_chislo(&potok, dannye[indeks]) == 0);
+    }
+    kolibri_potok_cifr_vernutsya(&potok);
+    for (size_t indeks = 0; indeks < sizeof(dannye) / sizeof(dannye[0]); ++indeks) {
+        int64_t znachenie = 0;
+        assert(kolibri_potok_cifr_schitat_chislo(&potok, &znachenie) == 0);
+        assert(znachenie == dannye[indeks]);
+    }
+    int64_t final = 0;
+    assert(kolibri_potok_cifr_schitat_chislo(&potok, &final) == 1);
+}
+
+static void proverit_otkazy_chislovogo_deshifrovaniya(void) {
+    uint8_t bufer[8];
+    kolibri_potok_cifr potok;
+    kolibri_potok_cifr_init(&potok, bufer, sizeof(bufer));
+    potok.cifry[0] = 0U;
+    potok.cifry[1] = 1U;
+    potok.cifry[2] = 0U;
+    potok.dlina = 3U;
+    int64_t znachenie = 0;
+    assert(kolibri_potok_cifr_schitat_chislo(&potok, &znachenie) == -1);
+    assert(potok.poziciya == 0U);
+
+    kolibri_potok_cifr_sbros(&potok);
+    potok.cifry[0] = 0U;
+    potok.cifry[1] = 1U;
+    potok.cifry[2] = 2U;
+    potok.cifry[3] = 0U;
+    potok.dlina = 4U;
+    assert(kolibri_potok_cifr_schitat_chislo(&potok, &znachenie) == -1);
+    assert(potok.poziciya == 0U);
+}
+
 void test_decimal(void) {
     proverit_transduktor_obratimost();
     proverit_granicy_potoka();
     proverit_kodirovanie_teksta();
     proverit_sluchajnye_posledovatelnosti();
+    proverit_serializaciyu_chisel();
+    proverit_otkazy_chislovogo_deshifrovaniya();
 }

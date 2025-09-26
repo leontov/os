@@ -54,6 +54,14 @@ int kolibri_kodirovat_text(const char *vhod, char *vyhod, size_t vyhod_dlina);
 /* Декодирует цифровую последовательность обратно в строку UTF-8. */
 int kolibri_dekodirovat_text(const char *cifry, char *vyhod, size_t vyhod_dlina);
 
+/* Сериализует знаковое целое число в поток цифр. */
+int kolibri_potok_cifr_zapisat_chislo(kolibri_potok_cifr *potok,
+                                      int64_t znachenie);
+
+/* Считывает ранее сериализованное целое число из потока цифр. */
+int kolibri_potok_cifr_schitat_chislo(kolibri_potok_cifr *potok,
+                                      int64_t *znachenie);
+
 #ifdef __cplusplus
 }
 #endif
