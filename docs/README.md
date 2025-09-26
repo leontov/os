@@ -4,8 +4,6 @@
 
 ## Русский
 
-Этот каталог содержит полную подборку документации прототипа Kolibri. Каждая запись дополнена кратким описанием, чтобы упростить навигацию:
-
 - [kolibri_integrated_prototype.md](kolibri_integrated_prototype.md) — обзорный научный документ с изложением концепции, экспериментов и результатов.
 - [master_prompt.md](master_prompt.md) — мастер-промпт «Prometheus», определяющий философию и дорожную карту.
 - [architecture.md](architecture.md) — архитектурная модель ядра, подсистем и потоков данных.
@@ -18,6 +16,7 @@
 - [web_interface.md](web_interface.md) — детали PWA/Canvas-интерфейса и WebAssembly-моста.
 - [research_agenda.md](research_agenda.md) — планы экспериментов, метрики и научная повестка.
 - [conflict_resolution.md](conflict_resolution.md) — пошаговая инструкция по устранению конфликтов слияния и проверке качества.
+- [kolibri_script.md](kolibri_script.md) — спецификация языка сценариев KolibriScript.
 
 ## English
 
@@ -35,11 +34,9 @@ This directory aggregates every documentation artifact required for the Kolibri 
 - [web_interface.md](web_interface.md) — PWA/Canvas UI and WebAssembly bridge documentation.
 - [research_agenda.md](research_agenda.md) — experimental plans, metrics, and research agenda.
 - [conflict_resolution.md](conflict_resolution.md) — step-by-step merge-conflict resolution and quality assurance checklist.
-
-## 中文
+- [kolibri_script.md](kolibri_script.md) — KolibriScript language specification and runtime expectations.
 
 此目录收录 Kolibri 原型所需的全部文档，并提供快速导航：
-
 - [kolibri_integrated_prototype.md](kolibri_integrated_prototype.md) —— 论文式综述，涵盖方法论与实验。
 - [master_prompt.md](master_prompt.md) —— “Prometheus” 主提示词，阐述理念与路线。
 - [architecture.md](architecture.md) —— 核心系统、子系统与数据流的架构说明。
@@ -52,4 +49,4 @@ This directory aggregates every documentation artifact required for the Kolibri 
 - [web_interface.md](web_interface.md) —— PWA/Canvas 界面与 WebAssembly 桥接说明。
 - [research_agenda.md](research_agenda.md) —— 实验计划、指标与研究议程。
 - [conflict_resolution.md](conflict_resolution.md) —— 合并冲突解决与质量检查步骤说明。
-
+- [kolibri_script.md](kolibri_script.md) —— KolibriScript 脚本语言规范与执行约定。
