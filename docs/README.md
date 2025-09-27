@@ -18,6 +18,7 @@
 - [conflict_resolution.md](conflict_resolution.md) — пошаговая инструкция по устранению конфликтов слияния и проверке качества.
 - [kolibri_script.md](kolibri_script.md) — спецификация языка сценариев KolibriScript.
 - [release_notes.md](release_notes.md) — релизные заметки и контроль артефактов.
+- [release_process.md](release_process.md) — пошаговая инструкция подготовки релиза.
 - [project_status.md](project_status.md) — консолидированный отчёт о готовности проекта и порядке запуска.
 
 ## English
@@ -38,6 +39,7 @@ This directory aggregates every documentation artifact required for the Kolibri 
 - [conflict_resolution.md](conflict_resolution.md) — step-by-step merge-conflict resolution and quality assurance checklist.
 - [kolibri_script.md](kolibri_script.md) — KolibriScript language specification and runtime expectations.
 - [release_notes.md](release_notes.md) — release notes tracking ISO/WASM readiness.
+- [release_process.md](release_process.md) — end-to-end release packaging checklist.
 - [project_status.md](project_status.md) — consolidated readiness report with execution checklist.
 
 此目录收录 Kolibri 原型所需的全部文档，并提供快速导航：
@@ -55,4 +57,5 @@ This directory aggregates every documentation artifact required for the Kolibri 
 - [conflict_resolution.md](conflict_resolution.md) —— 合并冲突解决与质量检查步骤说明。
 - [kolibri_script.md](kolibri_script.md) —— KolibriScript 脚本语言规范与执行约定。
 - [release_notes.md](release_notes.md) —— 发布说明与 ISO/WASM 工程概览。
+- [release_process.md](release_process.md) —— 发布包制作流程说明。
 - [project_status.md](project_status.md) —— 项目完备性汇总与执行步骤清单。

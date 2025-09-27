@@ -135,6 +135,11 @@ sudo apt-get install nasm grub-pc-bin xorriso gcc-multilib
 `emsdk install latest && emsdk activate latest`) и формирует артефакт
 `build/wasm/kolibri.wasm`, а также файл с контрольной суммой.
 
+Для подготовки финального архива с артефактами воспользуйтесь
+`scripts/package_release.sh`. По умолчанию он запускает полный цикл `run_all.sh`
+и сохраняет ISO, WASM и документы в `build/release/`. Подробная инструкция — в
+[release_process.md](docs/release_process.md).
+
 ## Документация
 
 - [Индекс документации / Documentation Index](docs/README.md)
@@ -151,4 +156,5 @@ sudo apt-get install nasm grub-pc-bin xorriso gcc-multilib
 - [Нейронный телескоп Kolibri](docs/neural_telescope.md)
 - [Язык KolibriScript](docs/kolibri_script.md)
 - [Релизные заметки](docs/release_notes.md)
+- [Процесс подготовки релиза](docs/release_process.md)
 - [Научная повестка](docs/research_agenda.md)

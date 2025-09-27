@@ -1,0 +1,118 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Скрипт готовит релизный пакет Kolibri: собирает артефакты ядра,
+# проверяет контрольные суммы и формирует tar-архив в каталоге build/release.
+
+usage() {
+    cat <<USAGE
+Использование: $0 [опции]
+
+Опции:
+  --skip-iso       Не собирать и не включать kolibri.iso
+  --skip-wasm      Не собирать и не включать kolibri.wasm
+  --skip-cluster   Не запускать оркестровочный кластер в рамках подготовки
+  -h, --help       Показать эту справку
+USAGE
+}
+
+propustit_iso=0
+propustit_wasm=0
+propustit_klaster=0
+
+while (("$#" > 0)); do
+    case "$1" in
+        --skip-iso)
+            propustit_iso=1
+            shift
+            ;;
+        --skip-wasm)
+            propustit_wasm=1
+            shift
+            ;;
+        --skip-cluster)
+            propustit_klaster=1
+            shift
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            echo "[Ошибка] Неизвестная опция: $1" >&2
+            usage
+            exit 1
+            ;;
+    esac
+done
+
+kornevaya=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+postroika="$kornevaya/build"
+reliz_dir="$postroika/release"
+mkdir -p "$reliz_dir"
+
+run_all_opts=()
+if [ "$propustit_iso" -ne 0 ]; then
+    run_all_opts+=("--skip-iso")
+fi
+if [ "$propustit_wasm" -ne 0 ]; then
+    run_all_opts+=("--skip-wasm")
+fi
+if [ "$propustit_klaster" -ne 0 ]; then
+    run_all_opts+=("--skip-cluster")
+else
+    run_all_opts+=("-n" "3" "-d" "10")
+fi
+
+# Запускаем основной конвейер сборки/тестов/артефактов.
+"$kornevaya/scripts/run_all.sh" "${run_all_opts[@]}"
+
+artifacts=()
+if [ "$propustit_iso" -eq 0 ]; then
+    iso_path="$postroika/kolibri.iso"
+    if [ ! -f "$iso_path" ]; then
+        echo "[Ошибка] Ожидалось найти $iso_path после сборки" >&2
+        exit 1
+    fi
+    artifacts+=("$iso_path")
+fi
+
+if [ "$propustit_wasm" -eq 0 ]; then
+    wasm_path="$postroika/wasm/kolibri.wasm"
+    if [ ! -f "$wasm_path" ]; then
+        echo "[Ошибка] Ожидалось найти $wasm_path после сборки" >&2
+        exit 1
+    fi
+    artifacts+=("$wasm_path" "$postroika/wasm/kolibri.wasm.sha256")
+fi
+
+metadannye="$reliz_dir/METADATA.txt"
+commit=$(git -C "$kornevaya" rev-parse --verify HEAD)
+cat >"$metadannye" <<META
+Kolibri release snapshot
+Коммит: $commit
+Дата: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
+META
+
+# Копируем ключевые документы в релиз.
+cp "$kornevaya/README.md" "$reliz_dir/README.md"
+cp "$kornevaya/LICENSE" "$reliz_dir/LICENSE"
+cp "$kornevaya/docs/release_notes.md" "$reliz_dir/release_notes.md"
+cp "$kornevaya/docs/kolibri_integrated_prototype.md" "$reliz_dir/kolibri_integrated_prototype.md"
+
+# Подготовка каталога с артефактами.
+reliz_payload="$reliz_dir/payload"
+rm -rf "$reliz_payload"
+mkdir -p "$reliz_payload"
+for art in "${artifacts[@]}"; do
+    cp "$art" "$reliz_payload/"
+    if command -v sha256sum >/dev/null 2>&1; then
+        (cd "$reliz_payload" && sha256sum "$(basename "$art")" > "$(basename "$art").sha256")
+    fi
+done
+cp "$metadannye" "$reliz_payload/"
+
+arhiv="$reliz_dir/kolibri-$(date -u +"%Y%m%dT%H%M%SZ").tar.gz"
+tar -czf "$arhiv" -C "$reliz_payload" .
+
+echo "[Готово] Релизный архив создан: $arhiv"

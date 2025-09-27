@@ -33,8 +33,9 @@
 1. `make check` — юнит-тесты, ISO, wasm.
 2. `./kolibri.sh up` — ручной прогон одиночного узла.
 3. `./scripts/run_cluster.sh` — смоук роя (опционально).
-4. `qemu-system-i386 -cdrom build/kolibri.iso` — загрузка микроядра.
-5. Публикация `build/wasm/kolibri.wasm` на PWA-хостинге (например, GitHub Pages).
+4. `./scripts/package_release.sh --skip-cluster` — упаковка артефактов и формирование архива.
+5. `qemu-system-i386 -cdrom build/kolibri.iso` — загрузка микроядра.
+6. Публикация `build/wasm/kolibri.wasm` на PWA-хостинге (например, GitHub Pages).
 
 ---
 
