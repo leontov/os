@@ -12,6 +12,7 @@ add_library(kolibri_core
     backend/src/genome.c
     backend/src/random.c
     backend/src/formula.c
+    backend/src/net.c
 
     backend/src/roy.c
 
@@ -41,6 +42,7 @@ if(KOLIBRI_ENABLE_TESTS)
         tests/test_decimal.c
         tests/test_genome.c
         tests/test_formula.c
+        tests/test_net.c
         tests/test_roy.c
     )
     target_link_libraries(kolibri_tests PRIVATE kolibri_core Threads::Threads)

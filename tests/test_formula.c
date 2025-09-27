@@ -1,6 +1,6 @@
 #include "kolibri/formula.h"
+
 #include <assert.h>
-#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -25,8 +25,10 @@ static void assert_deterministic(void) {
   const KolibriFormula *best_second = kf_pool_best(&second);
   uint8_t digits_first[32];
   uint8_t digits_second[32];
-  size_t len_first = kf_formula_digits(best_first, digits_first, sizeof(digits_first));
-  size_t len_second = kf_formula_digits(best_second, digits_second, sizeof(digits_second));
+  size_t len_first =
+      kf_formula_digits(best_first, digits_first, sizeof(digits_first));
+  size_t len_second =
+      kf_formula_digits(best_second, digits_second, sizeof(digits_second));
   assert(len_first == len_second);
   assert(memcmp(digits_first, digits_second, len_first) == 0);
 }
@@ -75,23 +77,4 @@ void test_formula(void) {
   assert(errors <= baseline_errors);
   assert_deterministic();
   test_feedback_adjustment();
-
-#include <stdlib.h>
-
-void test_formula(void) {
-  KolibriFormulaPool pool;
-  kf_pool_init(&pool, 42);
-
-  const int inputs[] = {0, 1, 2, 3};
-  const int targets[] = {1, 3, 5, 7};
-
-  for (int i = 0; i < 32; ++i) {
-    kf_pool_tick(&pool, inputs, targets, sizeof(inputs) / sizeof(inputs[0]));
-  }
-
-  const KolibriFormula *best = kf_pool_best(&pool);
-  assert(best != NULL);
-  assert(abs(best->a - 2) <= 1);
-  assert(abs(best->b - 1) <= 1);
-
 }
