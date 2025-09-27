@@ -49,7 +49,7 @@ import ModuleFactory from "./kolibri.wasm";
 export async function createKolibriCore() {
   const module = await ModuleFactory();
   return {
-    encode: (text: string) => module._kolibri_kodirovat_text(text),
+    encode: (text: string) => module._k_encode_text(text),
     tick: (inputPtr: number, len: number) => module._kf_pool_tick(inputPtr, len),
     getBest: () => module._kf_pool_best(),
   };
@@ -95,39 +95,4 @@ export async function createKolibriCore() {
 - WebAssembly модуль не должен иметь сетевых побочных эффектов без явного разрешения пользователя.
 - Логи генома сохраняются в IndexedDB с шифрованием (планируется).
 - Все команды пользователя отображаются в журнале с отметкой времени.
-
----
-
-## 9. Technology Rationale / Обоснование выбора технологий / 技术选型依据
-
-### Summary / Кратко / 摘要
-
-- **WebAssembly** остаётся единственной практической технологией для запуска ядра Kolibri на C11 внутри браузера с производительностью, близкой к нативной, и строгой песочницей безопасности.
-- **WebGPU** рассматривается как дополнительный ускоритель для массово-параллельных операций (например, визуализации роя и ускоренного агрегирования голосов), но не заменяет WASM для основного цикла формул.
-- **Современный JavaScript** остаётся оболочкой UI (React/Vite), однако не удовлетворяет требованиям по детерминизму и контролю памяти для цифрового ядра.
-
-### Detailed Comparison / Подробно / 详细说明
-
-| Технология / Technology | Роль в Kolibri | Причины выбора / Key Reasons |
-|-------------------------|----------------|-------------------------------|
-| **WebAssembly** | Исполнение ядра KolibriScript и цифрового движка | - Компиляция существующего C-кода без переписывания.<br>- Производительность, близкая к нативной, и минимализм по зависимостям.<br>- Изоляция и безопасность: модуль работает в песочнице, не нарушая Закон Чистоты. |
-| **WebGPU** | Будущие оптимизации визуализации и параллельных вычислений | - Предоставляет доступ к GPU для фрактальных визуализаций и ускоренного голосования.<br>- Используется как дополнение: WASM готовит данные, WebGPU визуализирует.<br>- Сложность WGSL требует отдельного слоя-адаптера, поэтому внедрение планируется после стабилизации ядра. |
-| **JavaScript (ES2022+)** | React-интерфейс и мост WASM↔UI | - Богатая экосистема UI и прямой доступ к DOM.<br>- Обеспечивает PWA-функции и управление состоянием.<br>- Не используется для цифрового ядра из-за недетерминированного JIT и ограниченного контроля памяти. |
-
-### Conclusion / Вывод / 结论
-
-В рамках Закона Множественности и Автономности мы сохраняем WebAssembly как «мозг» браузерной версии Kolibri. WebGPU добавляется как «ускоренное сердце» визуализаций там, где требуется массовый параллелизм, а JavaScript остаётся «лицом» и мостом к пользователю. Такая связка обеспечивает минимализм, прозрачность и воспроизводимость, соответствующие фундаментальным законам экосистемы.
-
-
----
-
-## 10. Neural Telescope Layer / Слой «Нейронного телескопа» / “神经望远镜”层
-
-- **EN:** WebGPU replaces mock simulations with a live feed. KVP delta streams arrive over WebSockets, patch GPU buffers, and keep ≥1M swarm particles in sync at 60 FPS. Filtering, zoom, and timeline scrubbing operate on the live dataset without pausing ingestion.
-- **RU:** WebGPU полностью исключает псевдо-симуляции: поток дельт KVP приходит по WebSocket, патчит GPU-буферы и синхронизирует ≥1 млн частиц роя при 60 FPS. Фильтрация, зум и прокрутка временной шкалы работают поверх живых данных без остановки приёма.
-- **ZH:** WebGPU 用实时数据取代任何模拟：KVP 增量通过 WebSocket 到达，更新 GPU 缓冲区，使 ≥100 万粒子在 60 FPS 下保持同步。过滤、缩放与时间轴拖动都在实时数据上执行，无需暂停数据流。
-
-- **EN:** Compute pipelines such as `vote_aggregator.wgsl` expose GPU acceleration to the WASM core via the `uskorit_golosovanie_cherez_gpu` export. Critical digit-fold reductions move off the CPU, cutting response latency for swarm consensus.
-- **RU:** Вычислительные конвейеры, например `vote_aggregator.wgsl`, открывают ускорение GPU для WASM-ядра через экспорт `uskorit_golosovanie_cherez_gpu`. Ключевые десятичные свёртки уходят с CPU, снижая задержку консенсуса роя.
-- **ZH:** 计算管线（如 `vote_aggregator.wgsl`）通过 `uskorit_golosovanie_cherez_gpu` 导出向 WASM 内核提供 GPU 加速。关键的十进制归并从 CPU 转移到 GPU，显著降低群体一致性的延迟。
 

@@ -3,488 +3,275 @@
  */
 
 #include "kolibri/genome.h"
-#include "kolibri/decimal.h"
+
+#include <openssl/hmac.h>
+#include <openssl/sha.h>
 
 #include <errno.h>
-#include <openssl/hmac.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
 
-/* Преобразует массив байтов в шестнадцатеричную строку. */
-static void preobrazovat_v_hex(const unsigned char *istochnik, size_t dlina,
-                               char *naznachenie, size_t razmer_naznacheniya) {
-    static const char tablica[] = "0123456789abcdef";
-    if (!istochnik || !naznachenie || razmer_naznacheniya < dlina * 2U + 1U) {
-        return;
-    }
-    for (size_t indeks = 0; indeks < dlina; ++indeks) {
-        naznachenie[indeks * 2U] = tablica[(istochnik[indeks] >> 4U) & 0x0FU];
-        naznachenie[indeks * 2U + 1U] = tablica[istochnik[indeks] & 0x0FU];
-    }
-    naznachenie[dlina * 2U] = '\0';
+static void bytes_to_hex(const unsigned char *bytes, size_t len, char *out,
+                         size_t out_len) {
+  static const char hex[] = "0123456789abcdef";
+  if (out_len < len * 2 + 1) {
+    return;
+  }
+  for (size_t i = 0; i < len; ++i) {
+    out[i * 2] = hex[(bytes[i] >> 4) & 0xF];
+    out[i * 2 + 1] = hex[bytes[i] & 0xF];
+  }
+  out[len * 2] = '\0';
 }
 
-/* Конвертирует шестнадцатеричную строку в массив байтов. */
-static int preobrazovat_hex_v_bajty(const char *stroka,
-                                    unsigned char *naznachenie,
-                                    size_t razmer_naznacheniya) {
-    if (!stroka || !naznachenie) {
-        return -1;
+static int hex_to_bytes(const char *hex, unsigned char *out, size_t out_len) {
+  size_t len = strlen(hex);
+  if (len % 2 != 0 || len / 2 != out_len) {
+    return -1;
+  }
+  for (size_t i = 0; i < out_len; ++i) {
+    unsigned int value = 0;
+    if (sscanf(hex + i * 2, "%02x", &value) != 1) {
+      return -1;
     }
-    size_t dlina = strlen(stroka);
-    if (dlina % 2U != 0U || dlina / 2U != razmer_naznacheniya) {
-        return -1;
-    }
-    for (size_t indeks = 0; indeks < razmer_naznacheniya; ++indeks) {
-        unsigned int znachenie = 0U;
-        if (sscanf(stroka + indeks * 2U, "%02x", &znachenie) != 1) {
-            return -1;
-        }
-        naznachenie[indeks] = (unsigned char)znachenie;
-    }
-    return 0;
+    out[i] = (unsigned char)value;
+  }
+  return 0;
 }
 
-/* Сбрасывает состояние контекста генома в исходное. */
-static void sbrosit_kontekst(KolibriGenome *kontekst) {
-    if (!kontekst) {
-        return;
-    }
-    kontekst->file = NULL;
-    memset(kontekst->last_hash, 0, sizeof(kontekst->last_hash));
-    memset(kontekst->hmac_key, 0, sizeof(kontekst->hmac_key));
-    kontekst->hmac_key_len = 0U;
-    memset(kontekst->path, 0, sizeof(kontekst->path));
-    kontekst->next_index = 0U;
+static void reset_context(KolibriGenome *ctx) {
+  if (!ctx) {
+    return;
+  }
+  ctx->file = NULL;
+  memset(ctx->last_hash, 0, sizeof(ctx->last_hash));
+  memset(ctx->hmac_key, 0, sizeof(ctx->hmac_key));
+  ctx->hmac_key_len = 0;
+  memset(ctx->path, 0, sizeof(ctx->path));
+  ctx->next_index = 0;
 }
 
-/* Формирует буфер данных, используемый для HMAC-подписи блока. */
-static int preobrazovat_cifry_v_stroku(const uint8_t *istochnik, uint16_t dlina,
-                                       char *naznachenie, size_t razmer) {
-    if (!naznachenie) {
-        return -1;
+int kg_open(KolibriGenome *ctx, const char *path, const unsigned char *key,
+            size_t key_len) {
+  if (!ctx || !path || !key || key_len == 0 ||
+      key_len > sizeof(ctx->hmac_key)) {
+    return -1;
+  }
+
+  reset_context(ctx);
+
+  ctx->file = fopen(path, "a+b");
+  if (!ctx->file) {
+    return -1;
+  }
+
+  strncpy(ctx->path, path, sizeof(ctx->path) - 1);
+  memcpy(ctx->hmac_key, key, key_len);
+  ctx->hmac_key_len = key_len;
+
+  fflush(ctx->file);
+  fseek(ctx->file, 0, SEEK_SET);
+
+  char line[1024];
+  ReasonBlock block;
+  while (fgets(line, sizeof(line), ctx->file)) {
+    char prev_hash_hex[KOLIBRI_HASH_SIZE * 2 + 1];
+    char hmac_hex[KOLIBRI_HASH_SIZE * 2 + 1];
+    char event[KOLIBRI_EVENT_TYPE_SIZE];
+    char payload[KOLIBRI_PAYLOAD_SIZE];
+    unsigned long long index = 0ULL;
+    unsigned long long timestamp = 0ULL;
+    int matched =
+        sscanf(line, "%llu,%llu,%64[^,],%64[^,],%31[^,],%255[^\n]", &index,
+               &timestamp, prev_hash_hex, hmac_hex, event, payload);
+    if (matched == 6) {
+      block.index = (uint64_t)index;
+      block.timestamp = (uint64_t)timestamp;
+      strncpy(block.event_type, event, sizeof(block.event_type) - 1);
+      block.event_type[sizeof(block.event_type) - 1] = '\0';
+      strncpy(block.payload, payload, sizeof(block.payload) - 1);
+      block.payload[sizeof(block.payload) - 1] = '\0';
+      if (hex_to_bytes(prev_hash_hex, block.prev_hash, KOLIBRI_HASH_SIZE) ==
+              0 &&
+          hex_to_bytes(hmac_hex, block.hmac, KOLIBRI_HASH_SIZE) == 0) {
+        memcpy(ctx->last_hash, block.hmac, KOLIBRI_HASH_SIZE);
+        ctx->next_index = block.index + 1;
+      }
     }
-    if ((size_t)dlina >= razmer) {
-        return -1;
-    }
-    for (uint16_t indeks = 0; indeks < dlina; ++indeks) {
-        if (istochnik[indeks] > 9U) {
-            return -1;
-        }
-        naznachenie[indeks] = (char)('0' + istochnik[indeks]);
-    }
-    naznachenie[dlina] = '\0';
-    return 0;
+  }
+
+  fseek(ctx->file, 0, SEEK_END);
+  return 0;
 }
 
-static int preobrazovat_stroku_v_cifry(const char *istochnik,
-                                       uint8_t *naznachenie, uint16_t *dlina,
-                                       size_t emkost) {
-    if (!istochnik || !naznachenie || !dlina) {
-        return -1;
-    }
-    size_t dlina_bajt = strlen(istochnik);
-    if (dlina_bajt * 3U > emkost) {
-        return -1;
-    }
-    kolibri_potok_cifr potok;
-    kolibri_potok_cifr_init(&potok, naznachenie, emkost);
-    if (kolibri_transducirovat_utf8(&potok, (const unsigned char *)istochnik,
-                                    dlina_bajt) != 0) {
-        return -1;
-    }
-    *dlina = (uint16_t)potok.dlina;
-    return 0;
+void kg_close(KolibriGenome *ctx) {
+  if (!ctx) {
+    return;
+  }
+  if (ctx->file) {
+    fclose(ctx->file);
+    ctx->file = NULL;
+  }
+  memset(ctx->last_hash, 0, sizeof(ctx->last_hash));
+  memset(ctx->hmac_key, 0, sizeof(ctx->hmac_key));
+  ctx->hmac_key_len = 0;
+  memset(ctx->path, 0, sizeof(ctx->path));
+  ctx->next_index = 0;
 }
 
-static int preobrazovat_ascii_v_cifry(const char *istochnik,
-                                      uint8_t *naznachenie, uint16_t *dlina,
-                                      size_t emkost) {
-    if (!istochnik || !naznachenie || !dlina) {
-        return -1;
-    }
-    size_t dlina_stroki = strlen(istochnik);
-    if (dlina_stroki > emkost) {
-        return -1;
-    }
-    if (dlina_stroki % 3U != 0U) {
-        return -1;
-    }
-    for (size_t indeks = 0; indeks < dlina_stroki; ++indeks) {
-        char znak = istochnik[indeks];
-        if (znak < '0' || znak > '9') {
-            return -1;
-        }
-        naznachenie[indeks] = (uint8_t)(znak - '0');
-    }
-    *dlina = (uint16_t)dlina_stroki;
-    return 0;
+static void build_payload_buffer(const ReasonBlock *block,
+                                 unsigned char *buffer, size_t *out_len) {
+  size_t offset = 0;
+  memcpy(buffer + offset, &block->index, sizeof(block->index));
+  offset += sizeof(block->index);
+  memcpy(buffer + offset, &block->timestamp, sizeof(block->timestamp));
+  offset += sizeof(block->timestamp);
+  memcpy(buffer + offset, block->prev_hash, KOLIBRI_HASH_SIZE);
+  offset += KOLIBRI_HASH_SIZE;
+  memcpy(buffer + offset, block->event_type, sizeof(block->event_type));
+  offset += sizeof(block->event_type);
+  memcpy(buffer + offset, block->payload, sizeof(block->payload));
+  offset += sizeof(block->payload);
+  *out_len = offset;
 }
 
-static void sobrat_paket(const ReasonBlock *blok, unsigned char *bufer,
-                         size_t *dlina) {
-    size_t smeschenie = 0U;
-    memcpy(bufer + smeschenie, &blok->index, sizeof(blok->index));
-    smeschenie += sizeof(blok->index);
-    memcpy(bufer + smeschenie, &blok->timestamp, sizeof(blok->timestamp));
-    smeschenie += sizeof(blok->timestamp);
-    memcpy(bufer + smeschenie, blok->prev_hash, KOLIBRI_HASH_SIZE);
-    smeschenie += KOLIBRI_HASH_SIZE;
-    memcpy(bufer + smeschenie, &blok->event_digits_len,
-           sizeof(blok->event_digits_len));
-    smeschenie += sizeof(blok->event_digits_len);
-    memcpy(bufer + smeschenie, blok->event_digits, blok->event_digits_len);
-    smeschenie += blok->event_digits_len;
-    memcpy(bufer + smeschenie, &blok->payload_digits_len,
-           sizeof(blok->payload_digits_len));
-    smeschenie += sizeof(blok->payload_digits_len);
-    memcpy(bufer + smeschenie, blok->payload_digits, blok->payload_digits_len);
-    smeschenie += blok->payload_digits_len;
-    *dlina = smeschenie;
+int kg_append(KolibriGenome *ctx, const char *event_type, const char *payload,
+              ReasonBlock *out_block) {
+  if (!ctx || !ctx->file || !event_type || !payload) {
+    return -1;
+  }
+
+  ReasonBlock block;
+  memset(&block, 0, sizeof(block));
+  block.index = ctx->next_index++;
+  block.timestamp = (uint64_t)time(NULL);
+  memcpy(block.prev_hash, ctx->last_hash, KOLIBRI_HASH_SIZE);
+  strncpy(block.event_type, event_type, sizeof(block.event_type) - 1);
+  strncpy(block.payload, payload, sizeof(block.payload) - 1);
+
+  unsigned char buffer[sizeof(block.index) + sizeof(block.timestamp) +
+                       KOLIBRI_HASH_SIZE + sizeof(block.event_type) +
+                       sizeof(block.payload)];
+  size_t buffer_len = 0;
+  build_payload_buffer(&block, buffer, &buffer_len);
+
+  unsigned int hmac_len = 0;
+  unsigned char *result =
+      HMAC(EVP_sha256(), ctx->hmac_key, (int)ctx->hmac_key_len, buffer,
+           buffer_len, block.hmac, &hmac_len);
+  if (!result || hmac_len != KOLIBRI_HASH_SIZE) {
+    return -1;
+  }
+
+  memcpy(ctx->last_hash, block.hmac, KOLIBRI_HASH_SIZE);
+
+  char prev_hex[KOLIBRI_HASH_SIZE * 2 + 1];
+  char hmac_hex[KOLIBRI_HASH_SIZE * 2 + 1];
+  bytes_to_hex(block.prev_hash, KOLIBRI_HASH_SIZE, prev_hex, sizeof(prev_hex));
+  bytes_to_hex(block.hmac, KOLIBRI_HASH_SIZE, hmac_hex, sizeof(hmac_hex));
+
+  int written = fprintf(ctx->file, "%llu,%llu,%s,%s,%s,%s\n",
+                        (unsigned long long)block.index,
+                        (unsigned long long)block.timestamp, prev_hex, hmac_hex,
+                        block.event_type, block.payload);
+  if (written < 0) {
+    return -1;
+  }
+
+  fflush(ctx->file);
+
+  if (out_block) {
+    *out_block = block;
+  }
+
+  return 0;
 }
 
-/*
- * Разбирает строку журнала в структуру ReasonBlock, проверяя хеш-цепочку и
- * HMAC. Возвращает 0 при успехе, отрицательное значение при ошибке.
- */
-static int razobrat_stroku(const char *stroka,
-                           const unsigned char *ozhidaemyj_prev,
-                           uint64_t ozhidaemyj_indeks,
-                           const unsigned char *klyuch, size_t dlina_klyucha,
-                           ReasonBlock *blok) {
-    if (!stroka || !ozhidaemyj_prev || !klyuch || dlina_klyucha == 0U ||
-        !blok) {
-        return -1;
+int kg_verify_file(const char *path, const unsigned char *key,
+                   size_t key_len) {
+  if (!path || !key || key_len == 0 || key_len > KOLIBRI_HMAC_KEY_SIZE) {
+    return -1;
+  }
+
+  FILE *file = fopen(path, "rb");
+  if (!file) {
+    if (errno == ENOENT) {
+      return 1;
+    }
+    return -1;
+  }
+
+  unsigned char expected_prev[KOLIBRI_HASH_SIZE];
+  memset(expected_prev, 0, sizeof(expected_prev));
+  uint64_t expected_index = 0;
+
+  char line[1024];
+  while (fgets(line, sizeof(line), file)) {
+    ReasonBlock block;
+    memset(&block, 0, sizeof(block));
+
+    char prev_hash_hex[KOLIBRI_HASH_SIZE * 2 + 1];
+    char hmac_hex[KOLIBRI_HASH_SIZE * 2 + 1];
+    char event[KOLIBRI_EVENT_TYPE_SIZE];
+    char payload[KOLIBRI_PAYLOAD_SIZE];
+    unsigned long long index = 0ULL;
+    unsigned long long timestamp = 0ULL;
+
+    int matched = sscanf(line, "%llu,%llu,%64[^,],%64[^,],%31[^,],%255[^\n]",
+                         &index, &timestamp, prev_hash_hex, hmac_hex, event,
+                         payload);
+    if (matched != 6) {
+      fclose(file);
+      return -1;
     }
 
-    char pred_hex[KOLIBRI_HASH_SIZE * 2U + 1U];
-    char hmac_hex[KOLIBRI_HASH_SIZE * 2U + 1U];
-    char sobytie[KOLIBRI_EVENT_DIGITS + 1U];
-    char nagruzka[KOLIBRI_PAYLOAD_DIGITS + 1U];
-    unsigned long long indeks = 0ULL;
-    unsigned long long metka_vremeni = 0ULL;
+    block.index = (uint64_t)index;
+    block.timestamp = (uint64_t)timestamp;
+    strncpy(block.event_type, event, sizeof(block.event_type) - 1);
+    strncpy(block.payload, payload, sizeof(block.payload) - 1);
 
-    int sovpalo =
-        sscanf(stroka, "%llu,%llu,%64[^,],%64[^,],%96[^,],%768[^\n]", &indeks,
-               &metka_vremeni, pred_hex, hmac_hex, sobytie, nagruzka);
-    if (sovpalo != 6) {
-        return -1;
+    if (block.index != expected_index) {
+      fclose(file);
+      return -1;
     }
 
-    memset(blok, 0, sizeof(*blok));
-    blok->index = (uint64_t)indeks;
-    blok->timestamp = (uint64_t)metka_vremeni;
-    if (preobrazovat_ascii_v_cifry(sobytie, blok->event_digits,
-                                   &blok->event_digits_len,
-                                   KOLIBRI_EVENT_DIGITS) != 0) {
-        return -1;
-    }
-    if (preobrazovat_ascii_v_cifry(nagruzka, blok->payload_digits,
-                                   &blok->payload_digits_len,
-                                   KOLIBRI_PAYLOAD_DIGITS) != 0) {
-        return -1;
+    if (hex_to_bytes(prev_hash_hex, block.prev_hash, KOLIBRI_HASH_SIZE) != 0 ||
+        hex_to_bytes(hmac_hex, block.hmac, KOLIBRI_HASH_SIZE) != 0) {
+      fclose(file);
+      return -1;
     }
 
-    if (blok->index != ozhidaemyj_indeks) {
-        return -1;
-    }
-    if (preobrazovat_hex_v_bajty(pred_hex, blok->prev_hash,
-                                 KOLIBRI_HASH_SIZE) != 0 ||
-        preobrazovat_hex_v_bajty(hmac_hex, blok->hmac, KOLIBRI_HASH_SIZE) !=
-            0) {
-        return -1;
-    }
-    if (memcmp(blok->prev_hash, ozhidaemyj_prev, KOLIBRI_HASH_SIZE) != 0) {
-        return -1;
+    if (memcmp(block.prev_hash, expected_prev, KOLIBRI_HASH_SIZE) != 0) {
+      fclose(file);
+      return -1;
     }
 
-    unsigned char bufer[sizeof(blok->index) + sizeof(blok->timestamp) +
-                        KOLIBRI_HASH_SIZE + sizeof(blok->event_digits_len) +
-                        KOLIBRI_EVENT_DIGITS +
-                        sizeof(blok->payload_digits_len) +
-                        KOLIBRI_PAYLOAD_DIGITS];
-    size_t dlina_bufera = 0U;
-    sobrat_paket(blok, bufer, &dlina_bufera);
+    unsigned char buffer[sizeof(block.index) + sizeof(block.timestamp) +
+                         KOLIBRI_HASH_SIZE + sizeof(block.event_type) +
+                         sizeof(block.payload)];
+    size_t buffer_len = 0;
+    build_payload_buffer(&block, buffer, &buffer_len);
 
-    unsigned char vychisleno[KOLIBRI_HASH_SIZE];
-    unsigned int dlina_hmac = 0U;
-    unsigned char *rezultat =
-        HMAC(EVP_sha256(), klyuch, (int)dlina_klyucha, bufer, dlina_bufera,
-             vychisleno, &dlina_hmac);
-    if (!rezultat || dlina_hmac != KOLIBRI_HASH_SIZE) {
-        return -1;
-    }
-    if (memcmp(vychisleno, blok->hmac, KOLIBRI_HASH_SIZE) != 0) {
-        return -1;
+    unsigned char computed[KOLIBRI_HASH_SIZE];
+    unsigned int hmac_len = 0;
+    unsigned char *result = HMAC(EVP_sha256(), key, (int)key_len, buffer,
+                                 buffer_len, computed, &hmac_len);
+    if (!result || hmac_len != KOLIBRI_HASH_SIZE) {
+      fclose(file);
+      return -1;
     }
 
-    return 0;
-}
-
-/* Открывает файл генома и восстанавливает контекст цепочки. */
-int kg_open(KolibriGenome *kontekst, const char *path,
-            const unsigned char *klyuch, size_t dlina_klyucha) {
-    if (!kontekst || !path || !klyuch || dlina_klyucha == 0U ||
-        dlina_klyucha > sizeof(kontekst->hmac_key)) {
-        return -1;
+    if (memcmp(computed, block.hmac, KOLIBRI_HASH_SIZE) != 0) {
+      fclose(file);
+      return -1;
     }
 
-    sbrosit_kontekst(kontekst);
+    memcpy(expected_prev, block.hmac, KOLIBRI_HASH_SIZE);
+    expected_index = block.index + 1;
+  }
 
-    FILE *fail = fopen(path, "a+b");
-    if (!fail) {
-        return -1;
-    }
-    kontekst->file = fail;
-
-    strncpy(kontekst->path, path, sizeof(kontekst->path) - 1U);
-    memcpy(kontekst->hmac_key, klyuch, dlina_klyucha);
-    kontekst->hmac_key_len = dlina_klyucha;
-
-    fflush(kontekst->file);
-    fseek(kontekst->file, 0, SEEK_SET);
-
-    unsigned char ozhidaemyj_prev[KOLIBRI_HASH_SIZE];
-    memset(ozhidaemyj_prev, 0, sizeof(ozhidaemyj_prev));
-    uint64_t ozhidaemyj_indeks = 0U;
-
-    char stroka[1024];
-    while (fgets(stroka, sizeof(stroka), kontekst->file)) {
-        ReasonBlock blok;
-        if (razobrat_stroku(stroka, ozhidaemyj_prev, ozhidaemyj_indeks,
-                            kontekst->hmac_key, kontekst->hmac_key_len,
-                            &blok) != 0) {
-            fclose(kontekst->file);
-            sbrosit_kontekst(kontekst);
-            return -1;
-        }
-        memcpy(ozhidaemyj_prev, blok.hmac, KOLIBRI_HASH_SIZE);
-        ozhidaemyj_indeks = blok.index + 1U;
-    }
-
-    memcpy(kontekst->last_hash, ozhidaemyj_prev, KOLIBRI_HASH_SIZE);
-    kontekst->next_index = ozhidaemyj_indeks;
-
-    fseek(kontekst->file, 0, SEEK_END);
-    return 0;
-}
-
-/* Закрывает файл генома и очищает конфиденциальные данные. */
-void kg_close(KolibriGenome *kontekst) {
-    if (!kontekst) {
-        return;
-    }
-    if (kontekst->file) {
-        fclose(kontekst->file);
-        kontekst->file = NULL;
-    }
-    memset(kontekst->last_hash, 0, sizeof(kontekst->last_hash));
-    memset(kontekst->hmac_key, 0, sizeof(kontekst->hmac_key));
-    kontekst->hmac_key_len = 0U;
-    memset(kontekst->path, 0, sizeof(kontekst->path));
-    kontekst->next_index = 0U;
-}
-
-/* Добавляет новый блок рассуждения в конец цепочки. */
-int kg_append(KolibriGenome *kontekst, const char *tip_sobytiya,
-              const char *nagruzka, ReasonBlock *vyhod) {
-    if (!kontekst || !kontekst->file || !tip_sobytiya || !nagruzka) {
-        return -1;
-    }
-
-    ReasonBlock blok;
-    memset(&blok, 0, sizeof(blok));
-    blok.index = kontekst->next_index++;
-    blok.timestamp = (uint64_t)time(NULL);
-    memcpy(blok.prev_hash, kontekst->last_hash, KOLIBRI_HASH_SIZE);
-    if (preobrazovat_stroku_v_cifry(tip_sobytiya, blok.event_digits,
-                                    &blok.event_digits_len,
-                                    KOLIBRI_EVENT_DIGITS) != 0) {
-        return -1;
-    }
-    if (preobrazovat_stroku_v_cifry(nagruzka, blok.payload_digits,
-                                    &blok.payload_digits_len,
-                                    KOLIBRI_PAYLOAD_DIGITS) != 0) {
-        return -1;
-    }
-
-    unsigned char bufer[sizeof(blok.index) + sizeof(blok.timestamp) +
-                        KOLIBRI_HASH_SIZE + sizeof(blok.event_digits_len) +
-                        KOLIBRI_EVENT_DIGITS + sizeof(blok.payload_digits_len) +
-                        KOLIBRI_PAYLOAD_DIGITS];
-    size_t dlina_bufera = 0U;
-    sobrat_paket(&blok, bufer, &dlina_bufera);
-
-    unsigned int dlina_hmac = 0U;
-    unsigned char *rezultat =
-        HMAC(EVP_sha256(), kontekst->hmac_key, (int)kontekst->hmac_key_len,
-             bufer, dlina_bufera, blok.hmac, &dlina_hmac);
-    if (!rezultat || dlina_hmac != KOLIBRI_HASH_SIZE) {
-        return -1;
-    }
-
-    memcpy(kontekst->last_hash, blok.hmac, KOLIBRI_HASH_SIZE);
-
-    char pred_hex[KOLIBRI_HASH_SIZE * 2U + 1U];
-    char hmac_hex[KOLIBRI_HASH_SIZE * 2U + 1U];
-    preobrazovat_v_hex(blok.prev_hash, KOLIBRI_HASH_SIZE, pred_hex,
-                       sizeof(pred_hex));
-    preobrazovat_v_hex(blok.hmac, KOLIBRI_HASH_SIZE, hmac_hex,
-                       sizeof(hmac_hex));
-
-    char sobytie_ascii[KOLIBRI_EVENT_DIGITS + 1U];
-    char nagruzka_ascii[KOLIBRI_PAYLOAD_DIGITS + 1U];
-    if (preobrazovat_cifry_v_stroku(blok.event_digits, blok.event_digits_len,
-                                    sobytie_ascii,
-                                    sizeof(sobytie_ascii)) != 0) {
-        return -1;
-    }
-    if (preobrazovat_cifry_v_stroku(blok.payload_digits,
-                                    blok.payload_digits_len, nagruzka_ascii,
-                                    sizeof(nagruzka_ascii)) != 0) {
-        return -1;
-    }
-
-    int zapisano = fprintf(kontekst->file, "%llu,%llu,%s,%s,%s,%s\n",
-                           (unsigned long long)blok.index,
-                           (unsigned long long)blok.timestamp, pred_hex,
-                           hmac_hex, sobytie_ascii, nagruzka_ascii);
-    if (zapisano < 0) {
-        return -1;
-    }
-
-    fflush(kontekst->file);
-
-    if (vyhod) {
-        *vyhod = blok;
-    }
-
-    return 0;
-}
-
-/* Проверяет целостность цепочки блоков в указанном файле. */
-int kg_verify_file(const char *path, const unsigned char *klyuch,
-                   size_t dlina_klyucha) {
-    if (!path || !klyuch || dlina_klyucha == 0U ||
-        dlina_klyucha > KOLIBRI_HMAC_KEY_SIZE) {
-        return -1;
-    }
-
-    FILE *fail = fopen(path, "rb");
-    if (!fail) {
-        if (errno == ENOENT) {
-            return 1;
-        }
-        return -1;
-    }
-
-    unsigned char ozhidaemyj_prev[KOLIBRI_HASH_SIZE];
-    memset(ozhidaemyj_prev, 0, sizeof(ozhidaemyj_prev));
-    uint64_t ozhidaemyj_indeks = 0U;
-
-    char stroka[1024];
-    while (fgets(stroka, sizeof(stroka), fail)) {
-        ReasonBlock blok;
-        if (razobrat_stroku(stroka, ozhidaemyj_prev, ozhidaemyj_indeks, klyuch,
-                            dlina_klyucha, &blok) != 0) {
-            fclose(fail);
-            return -1;
-        }
-        memcpy(ozhidaemyj_prev, blok.hmac, KOLIBRI_HASH_SIZE);
-        ozhidaemyj_indeks = blok.index + 1U;
-    }
-
-    fclose(fail);
-    return 0;
-}
-
-/*
- * Последовательно воспроизводит блоки генома, вызывая обратный вызов для
- * каждого блока. Возвращает 0 при успехе, 1 если файл отсутствует,
- * отрицательное значение при ошибке.
- */
-int kg_replay(const char *path, const unsigned char *klyuch,
-              size_t dlina_klyucha, KolibriGenomeVisitor posetitel,
-              void *kontekst) {
-    if (!path || !klyuch || dlina_klyucha == 0U ||
-        dlina_klyucha > KOLIBRI_HMAC_KEY_SIZE || !posetitel) {
-        return -1;
-    }
-
-    FILE *fail = fopen(path, "rb");
-    if (!fail) {
-        if (errno == ENOENT) {
-            return 1;
-        }
-        return -1;
-    }
-
-    unsigned char ozhidaemyj_prev[KOLIBRI_HASH_SIZE];
-    memset(ozhidaemyj_prev, 0, sizeof(ozhidaemyj_prev));
-    uint64_t ozhidaemyj_indeks = 0U;
-
-    char stroka[1024];
-    while (fgets(stroka, sizeof(stroka), fail)) {
-        ReasonBlock blok;
-        if (razobrat_stroku(stroka, ozhidaemyj_prev, ozhidaemyj_indeks, klyuch,
-                            dlina_klyucha, &blok) != 0) {
-            fclose(fail);
-            return -1;
-        }
-        if (posetitel(&blok, kontekst) != 0) {
-            fclose(fail);
-            return -1;
-        }
-        memcpy(ozhidaemyj_prev, blok.hmac, KOLIBRI_HASH_SIZE);
-        ozhidaemyj_indeks = blok.index + 1U;
-    }
-
-    fclose(fail);
-    return 0;
-}
-
-/* Восстанавливает текстовую метку события из цифрового блока. */
-int kg_block_event_text(const ReasonBlock *blok, char *bufer, size_t razmer) {
-    if (!blok || !bufer) {
-        return -1;
-    }
-    kolibri_potok_cifr potok;
-    potok.cifry = (uint8_t *)blok->event_digits;
-    potok.emkost = blok->event_digits_len;
-    potok.dlina = blok->event_digits_len;
-    potok.poziciya = 0U;
-    size_t zapisano = 0U;
-    if (kolibri_izluchit_utf8(&potok, (unsigned char *)bufer, razmer,
-                              &zapisano) != 0) {
-        return -1;
-    }
-    if (zapisano >= razmer) {
-        return -1;
-    }
-    bufer[zapisano] = '\0';
-    return 0;
-}
-
-/* Восстанавливает полезную нагрузку из цифрового блока. */
-int kg_block_payload_text(const ReasonBlock *blok, char *bufer, size_t razmer) {
-    if (!blok || !bufer) {
-        return -1;
-    }
-    kolibri_potok_cifr potok;
-    potok.cifry = (uint8_t *)blok->payload_digits;
-    potok.emkost = blok->payload_digits_len;
-    potok.dlina = blok->payload_digits_len;
-    potok.poziciya = 0U;
-    size_t zapisano = 0U;
-    if (kolibri_izluchit_utf8(&potok, (unsigned char *)bufer, razmer,
-                              &zapisano) != 0) {
-        return -1;
-    }
-    if (zapisano >= razmer) {
-        return -1;
-    }
-    bufer[zapisano] = '\0';
-    return 0;
+  fclose(file);
+  return 0;
 }

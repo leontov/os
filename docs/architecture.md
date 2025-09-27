@@ -11,10 +11,9 @@ Kolibri — это модульная система, в которой кажд
 1. **Decimal Cognition** (`backend/src/decimal.c`) — преобразует внешние данные в десятичные импульсы и обратно.
 2. **Formula Evolution** (`backend/src/formula.c`) — эволюционный пул формул, управляющий «геномом» знаний.
 3. **Digital Genome** (`backend/src/genome.c`) — криптографический журнал ReasonBlock, фиксирующий события и формулы.
-4. **Swarm Networking** (`backend/src/roy.c`) — UDP-протокол Kolibri Swarm с HMAC и широковещательным обнаружением соседей.
-5. **KolibriScript Interpreter** (`backend/src/script.c`) — исполняет русскоязычные сценарии, трансформируя их в десятичные импульсы.
-6. **Kolibri Node CLI** (`apps/kolibri_node.c`) — оболочка, которая объединяет все подсистемы и предоставляет REPL/daemon режим.
-7. **Тесты** (`tests/`) — регрессионный каркас, обеспечивающий воспроизводимость.
+4. **Swarm Networking** (`backend/src/net.c`) — бинарный протокол для обмена лучшими формулами между узлами.
+5. **Kolibri Node CLI** (`apps/kolibri_node.c`) — оболочка, которая объединяет все подсистемы и предоставляет REPL/daemon режим.
+6. **Тесты** (`tests/`) — регрессионный каркас, обеспечивающий воспроизводимость.
 
 ### English
 Kolibri is a modular system implemented in pure C with predictable boundaries between subsystems. The major layers are identical to the list above with focus on deterministic APIs and minimal dependencies.
@@ -27,7 +26,7 @@ Kolibri 采用纯 C 模块化实现，子系统之间通过稳定接口协作。
 ## 2. Component Responsibilities / Ответственность компонентов / 组件职责
 
 ### Decimal Cognition
-- **API:** `kolibri_kodirovat_text`, `kolibri_dekodirovat_text`, и функции оценки длины буферов.
+- **API:** `k_encode_text`, `k_decode_text`, и функции оценки длины буферов.
 - **Назначение:** конвертация входа/выхода в цифры `0–9`, обеспечение обратимости.
 - **Артефакты:** `backend/include/kolibri/decimal.h`, `backend/src/decimal.c`, тест `tests/test_decimal.c`.
 
@@ -42,24 +41,23 @@ Kolibri 采用纯 C 模块化实现，子系统之间通过稳定接口协作。
 - **Артефакты:** `backend/include/kolibri/genome.h`, `backend/src/genome.c`, тест `tests/test_genome.c`.
 
 ### Swarm Networking
-- **API:** `kolibri_roy_zapustit`, `kolibri_roy_poluchit_sobytie`, `kolibri_roy_otpravit_sluchajnomu`, `kolibri_roy_otpravit_vsem`.
-- **Назначение:** широковещательные HELLO и одноадресная/широковещательная отправка генов через UDP.
-- **Артефакты:** `backend/include/kolibri/roy.h`, `backend/src/roy.c`, тест `tests/test_roy.c`.
+- **API:** `kn_message_encode_*`, `kn_message_decode`, `kn_listener_*`, `kn_share_formula`.
+- **Назначение:** сериализация сообщений HELLO/MIGRATE_RULE/ACK, TCP-соединения для миграции формул.
+- **Артефакты:** `backend/include/kolibri/net.h`, `backend/src/net.c`, тест `tests/test_net.c`.
 
 ### Application Layer
 - **Колибри-узел:** аргументы командной строки (`--seed`, `--node-id`, `--listen`, `--peer`), REPL-команды (`:good`, `:bad`, `:why`, `:canvas`, `:sync`, `:verify`).
-- **KolibriScript:** `backend/include/kolibri/script.h`, `backend/src/script.c`, тест `tests/test_script.c`; команда REPL `:script` исполняет русскоязычный сценарий и логирует действия в геном.
-- **Скрипты оркестрации:** `kolibri.sh` автоматизирует сборку, запуск тестов, старт кластера.
+- **Скрипты:** `kolibri.sh` автоматизирует сборку, запуск тестов, старт кластера.
 
 ---
 
 ## 3. Data Flow / Потоки данных / 数据流
 
-1. Пользовательский ввод поступает в `apps/kolibri_node` → кодируется функцией `kolibri_kodirovat_text` → формирует импульсы для формульного пула.
+1. Пользовательский ввод поступает в `apps/kolibri_node` → кодируется функцией `k_encode_text` → формирует импульсы для формульного пула.
 2. `KolibriFormulaPool` обновляет формулы, вычисляя fitness, и выбирает лучшую формулу для текущего контекста.
 3. События обучения записываются в `KolibriGenome` как `ReasonBlock` с HMAC.
-4. При командах `:sync`/`:cluster broadcast` лучшая формула кодируется и отправляется через `kolibri_roy_otpravit_sluchajnomu` или `kolibri_roy_otpravit_vsem`.
-5. Поток роя принимает пакет, создаёт событие `KOLIBRI_ROY_SOBYTIE_FORMULA`, узел интегрирует формулу и логирует событие `IMPORT`.
+4. При конфигурации `--peer` лучшая формула пакуется `kn_message_encode_formula` и отправляется через TCP.
+5. Полученный пакет декодируется `kn_message_decode`, формула интегрируется и событие логируется.
 
 ---
 
@@ -83,7 +81,7 @@ Kolibri 采用纯 C 模块化实现，子系统之间通过稳定接口协作。
 
 ## 6. Extensibility / Расширяемость / 可扩展性
 
-- Новые типы сообщений добавляются в `kolibri/roy.h` и реализуются в `backend/src/roy.c` вместе с тестами.
+- Новые типы сообщений должны расширять `KolibriNetMessageType` и сопровождаться тестами.
 - Дополнительные формульные операторы могут быть добавлены в `KolibriFormula` при сохранении совместимости сериализации.
 - Подключение плагинов осуществляется через документированный API (см. `developer_guide.md`).
 

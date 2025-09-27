@@ -15,13 +15,11 @@
 | Field | Size | Description |
 |-------|------|-------------|
 | `index` | 8 байт | Последовательный номер блока. |
-| `timestamp` | 8 байт | UNIX-время в секундах. |
+| `timestamp` | 8 байт | UNIX-время в наносекундах. |
 | `prev_hash` | 32 байта | SHA-256 предыдущего блока. |
 | `hmac` | 32 байта | HMAC-SHA256 текущего блока. |
-| `event_digits_len` | 2 байта | Количество цифр (кратно 3), описывающих событие. |
-| `event_digits[]` | до 96 байтов | Последовательность цифр `0–9`, кодирующая событие в UTF-8. |
-| `payload_digits_len` | 2 байта | Количество цифр (кратно 3) для полезной нагрузки. |
-| `payload_digits[]` | до 768 байтов | Последовательность цифр `0–9`, представляющая полезную нагрузку. |
+| `event_type` | 32 байта | Нуль-терминированная строка (UTF-8). |
+| `payload` | 256 байт | Данные события (десятичные строки). |
 
 ---
 
@@ -39,43 +37,27 @@
   - **EN:** Returns `0` on success, `1` when the ledger file is missing, and `-1`
     when integrity validation fails.
   - **ZH:** 验证成功返回 `0`，文件不存在返回 `1`，若校验失败则返回 `-1`。
-- `int kg_replay(const char *path, const unsigned char *key, size_t key_len, KolibriGenomeVisitor visitor, void *context);`
-  - **RU:** Последовательно воспроизводит блоки и вызывает обратный вызов для каждого.
-    Возвращает `0` при успехе, `1` если файл отсутствует, `-1` при нарушении цепочки.
-  - **EN:** Streams every block through a callback (`visitor`). Returns `0` on success,
-    `1` when the ledger is missing, `-1` on integrity errors.
-  - **ZH:** 逐块回放并调用回调处理器；成功返回 `0`，缺少文件返回 `1`，完整性错误返回 `-1`。
-- `int kg_block_event_text(const ReasonBlock *block, char *buffer, size_t buffer_len);`
-  - Восстанавливает исходную метку события из цифровых импульсов.
-- `int kg_block_payload_text(const ReasonBlock *block, char *buffer, size_t buffer_len);`
-  - Декодирует полезную нагрузку (до 256 байт) обратно в UTF-8.
-
-- **RU:** Узел Kolibri считывает HMAC-ключ из файла, путь к которому задаётся
-  параметром `--hmac-key` (по умолчанию `root.key`). Файл создаётся локально и
-  не хранится в репозитории.
-- **EN:** The Kolibri node reads its HMAC key from a file provided via the
-  `--hmac-key` option (default `root.key`). The file is generated locally and is
-  never versioned.
-- **ZH:** Kolibri 节点通过 `--hmac-key` 参数指定的文件读取 HMAC 密钥（默认
-  为 `root.key`），该文件在本地生成，不随代码仓库存储。
 
 ---
 
 ## 4. HMAC Calculation / Расчёт HMAC / HMAC 计算
 
-1. Собирается бинарное представление блока без поля `hmac`: индекс, метка времени,
-   `prev_hash`, длины цифровых массивов и сами массивы.
+1. Собирается бинарное представление блока без поля `hmac`.
 2. Вычисляется `HMAC_SHA256(key, data)`.
 3. Результат записывается в `hmac`.
-4. Длины хранятся в little-endian формате `uint16_t`, импульсы — как байты `0–9`.
+4. Все байты хранятся в big-endian порядке.
 
 ---
 
 ## 5. File Layout / Макет файла / 文件结构
 
-Каждая запись хранится в текстовом файле `CSV`-формата: поля разделены запятыми,
-цифровые последовательности сериализуются как строки `0–9`. Общая длина строки
-зависит от полезной нагрузки и не является фиксированной.
+```
++-----------+-----------+-----------+-----+
+| Block 0   | Block 1   | Block 2   | ... |
++-----------+-----------+-----------+-----+
+```
+
+Каждый блок имеет фиксированную длину 8+8+32+32+32+256 = 368 байт.
 
 ---
 

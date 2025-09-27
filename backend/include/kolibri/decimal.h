@@ -1,66 +1,34 @@
 #ifndef KOLIBRI_DECIMAL_H
 #define KOLIBRI_DECIMAL_H
-
 #include <stddef.h>
 #include <stdint.h>
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+
 typedef struct {
-    uint8_t *cifry;
-    size_t emkost;
-    size_t dlina;
-    size_t poziciya;
-} kolibri_potok_cifr;
+    uint8_t *digits;
+    size_t capacity;
+    size_t length;
+    size_t cursor;
+} k_digit_stream;
 
-/* Инициализирует поток цифр поверх внешнего буфера. */
-void kolibri_potok_cifr_init(kolibri_potok_cifr *potok, uint8_t *bufer,
-                             size_t emkost);
+void k_digit_stream_init(k_digit_stream *stream, uint8_t *buffer, size_t capacity);
+void k_digit_stream_reset(k_digit_stream *stream);
+void k_digit_stream_rewind(k_digit_stream *stream);
+int k_digit_stream_push(k_digit_stream *stream, uint8_t digit);
+int k_digit_stream_read(k_digit_stream *stream, uint8_t *digit);
+size_t k_digit_stream_remaining(const k_digit_stream *stream);
 
-/* Сбрасывает состояние потока и очищает буфер цифр. */
-void kolibri_potok_cifr_sbros(kolibri_potok_cifr *potok);
+int k_transduce_utf8(k_digit_stream *stream, const unsigned char *bytes, size_t len);
+int k_emit_utf8(const k_digit_stream *stream, unsigned char *out, size_t out_len, size_t *written);
 
-/* Возвращает указатель чтения в начало последовательности. */
-void kolibri_potok_cifr_vernutsya(kolibri_potok_cifr *potok);
 
-/* Добавляет новую цифру 0-9 в поток. */
-int kolibri_potok_cifr_push(kolibri_potok_cifr *potok, uint8_t cifra);
-
-/* Считывает следующую цифру из потока. */
-int kolibri_potok_cifr_chitat(kolibri_potok_cifr *potok, uint8_t *cifra);
-
-/* Возвращает количество оставшихся цифр для чтения. */
-size_t kolibri_potok_cifr_ostalos(const kolibri_potok_cifr *potok);
-
-/* Преобразует байтовый поток UTF-8 в последовательность цифр. */
-int kolibri_transducirovat_utf8(kolibri_potok_cifr *potok,
-                                const unsigned char *bajty, size_t dlina);
-
-/* Восстанавливает байты UTF-8 из последовательности цифр. */
-int kolibri_izluchit_utf8(const kolibri_potok_cifr *potok, unsigned char *vyhod,
-                          size_t vyhod_dlina, size_t *zapisano);
-
-/* Возвращает требуемую длину массива цифр для строки заданной длины. */
-size_t kolibri_dlina_kodirovki_teksta(size_t dlina_vhoda);
-
-/* Возвращает длину результирующей строки при декодировании массива цифр. */
-size_t kolibri_dlina_dekodirovki_teksta(size_t dlina_cifr);
-
-/* Кодирует текст в цифровое представление без промежуточных строк. */
-int kolibri_kodirovat_text(const char *vhod, char *vyhod, size_t vyhod_dlina);
-
-/* Декодирует цифровую последовательность обратно в строку UTF-8. */
-int kolibri_dekodirovat_text(const char *cifry, char *vyhod, size_t vyhod_dlina);
-
-/* Сериализует знаковое целое число в поток цифр. */
-int kolibri_potok_cifr_zapisat_chislo(kolibri_potok_cifr *potok,
-                                      int64_t znachenie);
-
-/* Считывает ранее сериализованное целое число из потока цифр. */
-int kolibri_potok_cifr_schitat_chislo(kolibri_potok_cifr *potok,
-                                      int64_t *znachenie);
+size_t k_encode_text_length(size_t input_len);
+size_t k_decode_text_length(size_t digits_len);
+int k_encode_text(const char *input, char *out, size_t out_len);
+int k_decode_text(const char *digits, char *out, size_t out_len);
 
 #ifdef __cplusplus
 }

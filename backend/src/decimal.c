@@ -6,325 +6,197 @@
 
 #include <ctype.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <string.h>
 
-/* Проверяет, доступно ли ещё место в потоке цифр. */
-static int proverit_mesto(kolibri_potok_cifr *potok) {
-    if (!potok || !potok->cifry) {
+static int ensure_space(k_digit_stream *stream) {
+    if (!stream || !stream->digits) {
         return -1;
     }
-    if (potok->dlina >= potok->emkost) {
+    if (stream->length >= stream->capacity) {
         return -1;
     }
     return 0;
 }
 
-/* Инициализирует поток поверх заранее выделенного буфера. */
-void kolibri_potok_cifr_init(kolibri_potok_cifr *potok, uint8_t *bufer,
-                             size_t emkost) {
-    if (!potok) {
+void k_digit_stream_init(k_digit_stream *stream, uint8_t *buffer, size_t capacity) {
+    if (!stream) {
         return;
     }
-    potok->cifry = bufer;
-    potok->emkost = emkost;
-    potok->dlina = 0;
-    potok->poziciya = 0;
-    if (potok->cifry && potok->emkost > 0) {
-        memset(potok->cifry, 0, potok->emkost);
+    stream->digits = buffer;
+    stream->capacity = capacity;
+    stream->length = 0;
+    stream->cursor = 0;
+    if (stream->digits && stream->capacity > 0) {
+        memset(stream->digits, 0, stream->capacity);
     }
 }
 
-/* Полностью очищает поток и возвращает его в исходное состояние. */
-void kolibri_potok_cifr_sbros(kolibri_potok_cifr *potok) {
-    if (!potok || !potok->cifry) {
+void k_digit_stream_reset(k_digit_stream *stream) {
+    if (!stream || !stream->digits) {
         return;
     }
-    memset(potok->cifry, 0, potok->emkost);
-    potok->dlina = 0;
-    potok->poziciya = 0;
+    memset(stream->digits, 0, stream->capacity);
+    stream->length = 0;
+    stream->cursor = 0;
 }
 
-/* Перемещает курсор чтения на начало последовательности. */
-void kolibri_potok_cifr_vernutsya(kolibri_potok_cifr *potok) {
-    if (!potok) {
+void k_digit_stream_rewind(k_digit_stream *stream) {
+    if (!stream) {
         return;
     }
-    potok->poziciya = 0;
+    stream->cursor = 0;
 }
 
-/* Добавляет цифру в конец последовательности. */
-int kolibri_potok_cifr_push(kolibri_potok_cifr *potok, uint8_t cifra) {
-    if (cifra > 9) {
+int k_digit_stream_push(k_digit_stream *stream, uint8_t digit) {
+    if (digit > 9) {
         return -1;
     }
-    if (proverit_mesto(potok) != 0) {
+    if (ensure_space(stream) != 0) {
         return -1;
     }
-    potok->cifry[potok->dlina++] = cifra;
+    stream->digits[stream->length++] = digit;
     return 0;
 }
 
-/* Считывает очередную цифру из последовательности. */
-int kolibri_potok_cifr_chitat(kolibri_potok_cifr *potok, uint8_t *cifra) {
-    if (!potok || !cifra) {
+int k_digit_stream_read(k_digit_stream *stream, uint8_t *digit) {
+    if (!stream || !digit) {
         return -1;
     }
-    if (potok->poziciya >= potok->dlina) {
+    if (stream->cursor >= stream->length) {
         return 1;
     }
-    *cifra = potok->cifry[potok->poziciya++];
+    *digit = stream->digits[stream->cursor++];
     return 0;
 }
 
-/* Возвращает количество доступных для чтения цифр. */
-size_t kolibri_potok_cifr_ostalos(const kolibri_potok_cifr *potok) {
-    if (!potok) {
+size_t k_digit_stream_remaining(const k_digit_stream *stream) {
+    if (!stream) {
         return 0;
     }
-    if (potok->poziciya >= potok->dlina) {
+    if (stream->cursor >= stream->length) {
         return 0;
     }
-    return potok->dlina - potok->poziciya;
+    return stream->length - stream->cursor;
 }
 
-/* Подсчитывает количество цифр в десятичном представлении величины. */
-static size_t kolibri_podschitat_cifry(uint64_t velichina) {
-    size_t schetchik = 0U;
-    do {
-        schetchik++;
-        velichina /= 10ULL;
-    } while (velichina > 0ULL);
-    return schetchik;
-}
-
-/* Возвращает модуль знакового 64-битного числа в беззнаковом виде. */
-static uint64_t kolibri_absolyut(int64_t znachenie) {
-    if (znachenie >= 0) {
-        return (uint64_t)znachenie;
-    }
-    return (uint64_t)(-(znachenie + 1LL)) + 1ULL;
-}
-
-/* Сериализует знаковое целое число в поток цифр. */
-int kolibri_potok_cifr_zapisat_chislo(kolibri_potok_cifr *potok,
-                                      int64_t znachenie) {
-    if (!potok || !potok->cifry) {
-        return -1;
-    }
-    uint64_t modul = kolibri_absolyut(znachenie);
-    size_t chislo_cifr = kolibri_podschitat_cifry(modul);
-    if (chislo_cifr > 99U) {
-        return -1;
-    }
-    if (potok->dlina + chislo_cifr + 3U > potok->emkost) {
-        return -1;
-    }
-    uint8_t znak = znachenie < 0 ? 1U : 0U;
-    uint8_t lokalnye[32];
-    uint64_t rabochij = modul;
-    for (size_t indeks = 0; indeks < chislo_cifr; ++indeks) {
-        lokalnye[chislo_cifr - 1U - indeks] = (uint8_t)(rabochij % 10ULL);
-        rabochij /= 10ULL;
-    }
-    size_t zapis = potok->dlina;
-    potok->cifry[zapis++] = (uint8_t)((chislo_cifr / 10U) % 10U);
-    potok->cifry[zapis++] = (uint8_t)(chislo_cifr % 10U);
-    potok->cifry[zapis++] = znak;
-    for (size_t indeks = 0; indeks < chislo_cifr; ++indeks) {
-        potok->cifry[zapis++] = lokalnye[indeks];
-    }
-    potok->dlina = zapis;
-    return 0;
-}
-
-/* Считывает ранее сериализованное целое число из потока цифр. */
-int kolibri_potok_cifr_schitat_chislo(kolibri_potok_cifr *potok,
-                                      int64_t *znachenie) {
-    if (!potok || !potok->cifry || !znachenie) {
-        return -1;
-    }
-    if (kolibri_potok_cifr_ostalos(potok) == 0U) {
-        return 1;
-    }
-    size_t nachalo = potok->poziciya;
-    size_t dostupno = potok->dlina - nachalo;
-    if (dostupno < 3U) {
-        return -1;
-    }
-    uint8_t dlina_desyatki = potok->cifry[nachalo];
-    uint8_t dlina_edinicy = potok->cifry[nachalo + 1U];
-    uint8_t znak = potok->cifry[nachalo + 2U];
-    if (dlina_desyatki > 9U || dlina_edinicy > 9U || znak > 1U) {
-        return -1;
-    }
-    size_t chislo_cifr = (size_t)dlina_desyatki * 10U + (size_t)dlina_edinicy;
-    if (chislo_cifr == 0U || chislo_cifr > 19U) {
-        return -1;
-    }
-    if (dostupno < chislo_cifr + 3U) {
-        return -1;
-    }
-    size_t poz = nachalo + 3U;
-    uint64_t modul = 0ULL;
-    for (size_t indeks = 0; indeks < chislo_cifr; ++indeks) {
-        uint8_t cifra = potok->cifry[poz + indeks];
-        if (cifra > 9U) {
-            return -1;
-        }
-        if (modul > (UINT64_MAX - (uint64_t)cifra) / 10ULL) {
-            return -1;
-        }
-        modul = modul * 10ULL + (uint64_t)cifra;
-    }
-    if (znak == 0U) {
-        if (modul > (uint64_t)INT64_MAX) {
-            return -1;
-        }
-        *znachenie = (int64_t)modul;
-    } else {
-        if (modul > (uint64_t)INT64_MAX + 1ULL) {
-            return -1;
-        }
-        if (modul == (uint64_t)INT64_MAX + 1ULL) {
-            *znachenie = INT64_MIN;
-        } else {
-            *znachenie = -(int64_t)modul;
-        }
-    }
-    potok->poziciya = poz + chislo_cifr;
-    return 0;
-}
-
-/* Переводит байт UTF-8 в три десятичные цифры. */
-static int zakodirovat_bajt(kolibri_potok_cifr *potok,
-                            unsigned char znachenie) {
-    uint8_t sotni = (uint8_t)(znachenie / 100U);
-    uint8_t desyatki = (uint8_t)((znachenie / 10U) % 10U);
-    uint8_t edinicy = (uint8_t)(znachenie % 10U);
-    if (kolibri_potok_cifr_push(potok, sotni) != 0 ||
-        kolibri_potok_cifr_push(potok, desyatki) != 0 ||
-        kolibri_potok_cifr_push(potok, edinicy) != 0) {
+static int encode_byte(k_digit_stream *stream, unsigned char value) {
+    uint8_t hundreds = (uint8_t)(value / 100U);
+    uint8_t tens = (uint8_t)((value / 10U) % 10U);
+    uint8_t ones = (uint8_t)(value % 10U);
+    if (k_digit_stream_push(stream, hundreds) != 0 ||
+        k_digit_stream_push(stream, tens) != 0 ||
+        k_digit_stream_push(stream, ones) != 0) {
         return -1;
     }
     return 0;
 }
 
-/* Преобразует массив байтов в цифровую последовательность. */
-int kolibri_transducirovat_utf8(kolibri_potok_cifr *potok,
-                                const unsigned char *bajty, size_t dlina) {
-    if (!potok || !bajty) {
+int k_transduce_utf8(k_digit_stream *stream, const unsigned char *bytes, size_t len) {
+    if (!stream || !bytes) {
         return -1;
     }
-    for (size_t indeks = 0; indeks < dlina; ++indeks) {
-        if (zakodirovat_bajt(potok, bajty[indeks]) != 0) {
+    for (size_t i = 0; i < len; ++i) {
+        if (encode_byte(stream, bytes[i]) != 0) {
             return -1;
         }
     }
     return 0;
 }
 
-/* Восстанавливает байты из цифрового представления. */
-int kolibri_izluchit_utf8(const kolibri_potok_cifr *potok, unsigned char *vyhod,
-                          size_t vyhod_dlina, size_t *zapisano) {
-    if (!potok || !vyhod) {
+int k_emit_utf8(const k_digit_stream *stream, unsigned char *out, size_t out_len,
+                size_t *written) {
+    if (!stream || !out) {
         return -1;
     }
-    if (potok->dlina % 3 != 0) {
+    if (stream->length % 3 != 0) {
         return -1;
     }
-    size_t ozhidaemye_bajty = potok->dlina / 3U;
-    if (vyhod_dlina < ozhidaemye_bajty) {
+    size_t expected = stream->length / 3;
+    if (out_len < expected) {
         return -1;
     }
-    for (size_t indeks = 0; indeks < ozhidaemye_bajty; ++indeks) {
-        size_t smeschenie = indeks * 3U;
-        unsigned int znachenie =
-            (unsigned int)(potok->cifry[smeschenie] * 100U +
-                           potok->cifry[smeschenie + 1U] * 10U +
-                           potok->cifry[smeschenie + 2U]);
-        vyhod[indeks] = (unsigned char)znachenie;
+    for (size_t i = 0; i < expected; ++i) {
+        size_t offset = i * 3U;
+        unsigned int value = (unsigned int)(stream->digits[offset] * 100U +
+                                            stream->digits[offset + 1] * 10U +
+                                            stream->digits[offset + 2]);
+        out[i] = (unsigned char)value;
     }
-    if (zapisano) {
-        *zapisano = ozhidaemye_bajty;
+    if (written) {
+        *written = expected;
     }
     return 0;
 }
 
-/* Возвращает длину буфера цифр для строки заданной длины. */
-size_t kolibri_dlina_kodirovki_teksta(size_t dlina_vhoda) {
-    return dlina_vhoda * 3U + 1U;
+size_t k_encode_text_length(size_t input_len) {
+    return input_len * 3 + 1;
 }
 
-/* Возвращает длину строки, которая получится после декодирования. */
-size_t kolibri_dlina_dekodirovki_teksta(size_t dlina_cifr) {
-    if (dlina_cifr % 3U != 0U) {
-        return 0U;
+size_t k_decode_text_length(size_t digits_len) {
+    if (digits_len % 3 != 0) {
+        return 0;
     }
-    return dlina_cifr / 3U + 1U;
+    return digits_len / 3 + 1;
 }
 
-/* Быстрая обёртка для кодирования текста в цифровой поток. */
-int kolibri_kodirovat_text(const char *vhod, char *vyhod, size_t vyhod_dlina) {
-    if (!vhod || !vyhod) {
+int k_encode_text(const char *input, char *out, size_t out_len) {
+    if (!input || !out) {
         return -1;
     }
-    size_t dlina_vhoda = strlen(vhod);
-    size_t nuzhno = dlina_vhoda * 3U + 1U;
-    if (vyhod_dlina < nuzhno) {
+    size_t len = strlen(input);
+    size_t need = len * 3U + 1U;
+    if (out_len < need) {
         return -1;
     }
-    uint8_t bufer[512];
-    kolibri_potok_cifr potok;
-    kolibri_potok_cifr_init(&potok, bufer, sizeof(bufer));
-    if (dlina_vhoda * 3U > sizeof(bufer)) {
+    uint8_t buffer[512];
+    if (len * 3U > sizeof(buffer)) {
         return -1;
     }
-    if (kolibri_transducirovat_utf8(&potok, (const unsigned char *)vhod,
-                                    dlina_vhoda) != 0) {
+    k_digit_stream stream;
+    k_digit_stream_init(&stream, buffer, sizeof(buffer));
+    if (k_transduce_utf8(&stream, (const unsigned char *)input, len) != 0) {
         return -1;
     }
-    for (size_t indeks = 0; indeks < potok.dlina; ++indeks) {
-        vyhod[indeks] = (char)('0' + potok.cifry[indeks]);
+    for (size_t i = 0; i < stream.length; ++i) {
+        out[i] = (char)('0' + stream.digits[i]);
     }
-    vyhod[potok.dlina] = '\0';
+    out[stream.length] = '\0';
     return 0;
 }
 
-/* Быстрая обёртка для декодирования цифровой строки в UTF-8. */
-int kolibri_dekodirovat_text(const char *cifry, char *vyhod,
-                             size_t vyhod_dlina) {
-    if (!cifry || !vyhod) {
+int k_decode_text(const char *digits, char *out, size_t out_len) {
+    if (!digits || !out) {
         return -1;
     }
-    size_t dlina_cifr = strlen(cifry);
-    if (dlina_cifr % 3U != 0U) {
+    size_t len = strlen(digits);
+    if (len % 3U != 0U) {
         return -1;
     }
-    size_t ozhidaemye_bajty = dlina_cifr / 3U;
-    if (vyhod_dlina < ozhidaemye_bajty + 1U) {
+    size_t expected = len / 3U;
+    if (out_len < expected + 1U) {
         return -1;
     }
-    kolibri_potok_cifr potok;
-    uint8_t bufer[512];
-    if (dlina_cifr > sizeof(bufer)) {
+    uint8_t buffer[512];
+    if (len > sizeof(buffer)) {
         return -1;
     }
-    kolibri_potok_cifr_init(&potok, bufer, sizeof(bufer));
-    for (size_t indeks = 0; indeks < dlina_cifr; ++indeks) {
-        if (!isdigit((unsigned char)cifry[indeks])) {
+    k_digit_stream stream;
+    k_digit_stream_init(&stream, buffer, len);
+    for (size_t i = 0; i < len; ++i) {
+        if (digits[i] < '0' || digits[i] > '9') {
             return -1;
         }
-        uint8_t cifra = (uint8_t)(cifry[indeks] - '0');
-        if (kolibri_potok_cifr_push(&potok, cifra) != 0) {
-            return -1;
-        }
+        stream.digits[i] = (uint8_t)(digits[i] - '0');
     }
-    size_t zapisano = 0U;
-    if (kolibri_izluchit_utf8(&potok, (unsigned char *)vyhod, vyhod_dlina,
-                              &zapisano) != 0) {
+    stream.length = len;
+    unsigned char decoded[256];
+    size_t produced = 0;
+    if (k_emit_utf8(&stream, decoded, sizeof(decoded), &produced) != 0) {
         return -1;
     }
-    vyhod[zapisano] = '\0';
+    for (size_t i = 0; i < produced; ++i) {
+        out[i] = (char)decoded[i];
+    }
+    out[produced] = '\0';
     return 0;
 }

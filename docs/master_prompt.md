@@ -46,7 +46,7 @@
 
 ### Фаза 1 — The Crystalline Core (C11 Engine)
 
-- Реализовать слой Decimal Cognition (`kolibri_kodirovat_text`, `kolibri_dekodirovat_text`).
+- Реализовать слой Decimal Cognition (`k_encode_text`, `k_decode_text`).
 - Создать Digital Genome: `ReasonBlock`, подпись HMAC-SHA256, журнал `genome.dat`.
 - Построить движок Formula Evolution: циклы `teach`, `ask`, `tick`, `evolve` с фитнесом по обратной связи пользователя (`:good`/`:bad`).
 - Написать REPL `chat` с командами `:why`, `:canvas`, `:sync`, `:verify`.
