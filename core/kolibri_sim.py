@@ -19,6 +19,12 @@ class ZhurnalZapis(TypedDict):
     metka: float
 
 
+
+class ZhurnalSnapshot(TypedDict):
+    offset: int
+    zapisi: List[ZhurnalZapis]
+
+
 class FormulaZapis(TypedDict):
     kod: str
     fitness: float
@@ -94,6 +100,10 @@ class KolibriSim:
         self.generator = random.Random(zerno)
         self.hmac_klyuch = hmac_klyuch or b"kolibri-hmac"
         self.zhurnal: List[ZhurnalZapis] = []
+
+        self.predel_zhurnala = 256
+        self._zhurnal_sdvig = 0
+
         self.znanija: Dict[str, str] = {}
         self.formuly: Dict[str, FormulaZapis] = {}
         self.populyaciya: List[str] = []
@@ -131,6 +141,10 @@ class KolibriSim:
             "metka": time.time(),
         }
         self.zhurnal.append(zapis)
+        if len(self.zhurnal) > self.predel_zhurnala:
+            sdvig = len(self.zhurnal) - self.predel_zhurnala
+            del self.zhurnal[:sdvig]
+            self._zhurnal_sdvig += sdvig
         self._sozdanie_bloka(tip, zapis)
 
     # --- Базовые операции обучения ---
@@ -275,6 +289,20 @@ class KolibriSim:
         """Возвращает копию текущих знаний для синхронизации."""
         return dict(self.znanija)
 
+    def ustanovit_predel_zhurnala(self, predel: int) -> None:
+        """Задаёт максимальный размер журнала и немедленно усечает избыток."""
+        if predel < 1:
+            raise ValueError("предельный размер журнала должен быть положительным")
+        self.predel_zhurnala = predel
+        if len(self.zhurnal) > predel:
+            sdvig = len(self.zhurnal) - predel
+            del self.zhurnal[:sdvig]
+            self._zhurnal_sdvig += sdvig
+
+    def poluchit_zhurnal(self) -> ZhurnalSnapshot:
+        """Возвращает снимок журнала с информацией о отброшенных записях."""
+        return {"offset": self._zhurnal_sdvig, "zapisi": list(self.zhurnal)}
+
     def massiv_cifr(self, kolichestvo: int) -> List[int]:
         """Генерирует детерминированную последовательность цифр на основе зерна."""
         return [self.generator.randint(0, 9) for _ in range(kolichestvo)]
@@ -355,6 +383,9 @@ __all__ = [
     "MetricEntry",
     "SoakResult",
     "SoakState",
+
+    "ZhurnalSnapshot",
+
     "sohranit_sostoyanie",
     "zagruzit_sostoyanie",
     "obnovit_soak_state",

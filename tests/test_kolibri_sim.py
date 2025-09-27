@@ -110,9 +110,18 @@ def test_t11_soak_progress(tmp_path: Path) -> None:
     sim = KolibriSim(zerno=7)
     state_path = tmp_path / "state.json"
     result = obnovit_soak_state(state_path, sim, minuti=2)
+
+    events = result.get("events", 0)
+    assert isinstance(events, int)
+    assert events > 0
+
     assert "events" in result
     assert result["events"] > 0
+
     assert state_path.exists()
+    metrics = result.get("metrics", [])
+    assert isinstance(metrics, list)
+    assert len(metrics) == 2
 
 
 def test_t12_population_and_parents() -> None:
@@ -130,6 +139,37 @@ def test_t13_genome_verification_and_tamper() -> None:
     # Нарушаем цепочку, обнуляя payload
     sim.genom[-1].payload = "000"
     assert sim.proverit_genom() is False
+
+
+def test_t14_journal_rollover() -> None:
+    sim = KolibriSim(zerno=123)
+    sim.ustanovit_predel_zhurnala(5)
+    for idx in range(12):
+        sim.obuchit_svjaz(f"k{idx}", f"v{idx}")
+    snapshot = sim.poluchit_zhurnal()
+    assert snapshot["offset"] == 7
+    assert len(snapshot["zapisi"]) == 5
+    assert snapshot["zapisi"][0]["soobshenie"].startswith("k7")
+
+
+def test_t15_soak_state_accumulates(tmp_path: Path) -> None:
+    state_path = tmp_path / "soak.json"
+    sim_a = KolibriSim(zerno=3)
+    first = obnovit_soak_state(state_path, sim_a, minuti=1)
+    events_first = first.get("events", 0)
+    assert isinstance(events_first, int)
+    assert events_first > 0
+
+    sim_b = KolibriSim(zerno=3)
+    second = obnovit_soak_state(state_path, sim_b, minuti=2)
+    events_second = second.get("events", 0)
+    assert isinstance(events_second, int)
+    assert events_second > events_first
+    metrics_second = second.get("metrics", [])
+    metrics_first = first.get("metrics", [])
+    assert isinstance(metrics_second, list)
+    assert isinstance(metrics_first, list)
+    assert len(metrics_second) >= len(metrics_first) + 2
 
 
 # --- Утилиты сохранения состояния -----------------------------------------
