@@ -8,6 +8,7 @@
 #include "kolibri/formula.h"
 #include "kolibri/genome.h"
 
+#include <ctype.h>
 #include <errno.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -22,6 +23,34 @@ static void skript_sbros(KolibriScript *skript) {
         return;
     }
     kolibri_potok_cifr_sbros(&skript->potok);
+}
+
+/* Загружает цифровой поток (.ksd), преобразуя символы '0'..'9' в импульсы. */
+static int skript_zagruzit_cifry(KolibriScript *skript, const char *dannye) {
+    if (!skript || !dannye) {
+        return -1;
+    }
+    skript_sbros(skript);
+    size_t kolichestvo_cifr = 0U;
+    for (const unsigned char *ptr = (const unsigned char *)dannye; *ptr; ++ptr) {
+        if (*ptr >= '0' && *ptr <= '9') {
+            ++kolichestvo_cifr;
+        }
+    }
+    if (kolichestvo_cifr == 0U || kolichestvo_cifr > skript->emkost) {
+        return -1;
+    }
+    kolibri_potok_cifr_sbros(&skript->potok);
+    for (const unsigned char *ptr = (const unsigned char *)dannye; *ptr; ++ptr) {
+        if (*ptr >= '0' && *ptr <= '9') {
+            if (kolibri_potok_cifr_push(&skript->potok,
+                                        (uint8_t)(*ptr - (unsigned char)'0')) != 0) {
+                return -1;
+            }
+        }
+    }
+    kolibri_potok_cifr_vernutsya(&skript->potok);
+    return 0;
 }
 
 int ks_init(KolibriScript *skript, KolibriFormulaPool *pool,
@@ -116,7 +145,23 @@ int ks_load_file(KolibriScript *skript, const char *path) {
     size_t read = fread(buffer, 1U, (size_t)size, file);
     fclose(file);
     buffer[read] = '\0';
-    int status = ks_load_text(skript, buffer);
+    bool tolko_cifry = false;
+    bool soderzhit_netcifry = false;
+    for (size_t indeks = 0U; indeks < read; ++indeks) {
+        unsigned char simvol = (unsigned char)buffer[indeks];
+        if (simvol >= '0' && simvol <= '9') {
+            tolko_cifry = true;
+        } else if (!isspace(simvol)) {
+            soderzhit_netcifry = true;
+            break;
+        }
+    }
+    int status = -1;
+    if (tolko_cifry && !soderzhit_netcifry) {
+        status = skript_zagruzit_cifry(skript, buffer);
+    } else {
+        status = ks_load_text(skript, buffer);
+    }
     free(buffer);
     return status;
 }
