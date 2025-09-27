@@ -13,19 +13,16 @@
 ## 2. Build Workflow / Процесс сборки / 构建流程
 
 ### Русский
-1. Установите инструменты: `cmake`, `nasm`, `grub-mkrescue`, `xorriso`, поддержку `-m32` (например, `gcc-multilib`) и Emscripten (`emcc`).
-2. Выполните `make` для базовой сборки бинарников и создания каталога `build/`.
-3. Команда `make check` запустит `ctest`, соберёт ISO (`scripts/build_iso.sh`) и сформирует `build/wasm/kolibri.wasm` с проверкой лимита <1 МБ.
-4. Комплексный цикл `./scripts/run_all.sh` объединяет сборку, тесты, артефакты ISO/WASM и (по желанию) запуск роя. Отсутствующие инструменты фиксируются в предупреждениях.
-5. Для чистой сборки используйте `make clean`.
-6. `./kolibri.sh up` соберёт проект, при необходимости создаст `root.key` и поднимет одиночный узел.
-7. `./scripts/run_cluster.sh` разворачивает локальный рой, генерирует общий ключ `swarm.key` и управляет временем жизни процессов.
+1. Установите зависимости компилятора C11 и `cmake` (при необходимости).
+2. Выполните `make` для генерации бинарников в `build/`.
+3. Для чистой сборки используйте `make clean`.
+4. Скрипт `./kolibri.sh up` выполняет последовательность: сборка, тесты, запуск локального роя.
 
 ### English
-Install `cmake`, `nasm`, `grub-mkrescue`, `xorriso`, a compiler with `-m32` support (e.g. `gcc-multilib`), and Emscripten. Run `make` followed by `make check` to execute `ctest`, build the ISO image, and produce `build/wasm/kolibri.wasm` under the 1 MB budget. The orchestration helper `./scripts/run_all.sh` chains build, tests, ISO/WASM generation, and (optionally) a local swarm run while reporting missing dependencies as warnings. Use `make clean` for a fresh build. `./kolibri.sh up` starts a single node (creating `root.key` automatically), and `./scripts/run_cluster.sh` spins up a local swarm with a shared `swarm.key`.
+Run `make`, `make test`, and `./kolibri.sh up` after source changes. Use `cmake --build build` for IDE-generated projects.
 
 ### 中文
-请安装 `cmake`、`nasm`、`grub-mkrescue`、`xorriso`、支持 `-m32` 的编译器（例如 `gcc-multilib`）以及 Emscripten。运行 `make` 后执行 `make check`，依次完成 `ctest`、ISO 构建及 `build/wasm/kolibri.wasm` 生成（并保证尺寸 <1MB）。综合脚本 `./scripts/run_all.sh` 可串联完成构建、测试、ISO/WASM 生成及（可选的）本地蜂群启动，并在缺少依赖时给出警告。 如需全新编译可使用 `make clean`。脚本 `./kolibri.sh up` 会创建 `root.key` 并启动单节点，`./scripts/run_cluster.sh` 可部署本地蜂群并生成共享的 `swarm.key`。
+修改源码后依次执行 `make`、`make test` 与 `./kolibri.sh up`。若使用 IDE，可通过 `cmake --build build` 构建。
 
 ---
 
@@ -33,11 +30,10 @@ Install `cmake`, `nasm`, `grub-mkrescue`, `xorriso`, a compiler with `-m32` supp
 
 | Layer | Command | Notes |
 |-------|---------|-------|
-| Unit tests | `make test` | Покрывают decimal/genome/formula/roy. |
-| Full check | `make check` | Запускает тесты, сборку ISO и wasm с проверкой лимитов. |
-| Property tests | встроены в `tests/test_decimal.c` и `tests/test_formula.c` | Используют случайные входы с фиксированным seed. |
+| Unit tests | `make test` | Покрывают decimal/genome/formula/net. |
+| Property tests | встроены в `tests/test_formula.c` | Используют случайные входы с фиксированным seed. |
 | Static analysis | `clang-tidy backend/src/*.c apps/kolibri_node.c -- -Ibackend/include` | Выполняется при изменении C-кода. |
-| Integration | `./scripts/run_cluster.sh` | Разворачивает локальный рой и проверяет обмен формулами. |
+| Integration | `./kolibri.sh up` | Стартует два узла и проверяет обмен формулами. |
 
 *Документационные изменения не требуют запуска тестов, однако в коммит-сообщении нужно явно указывать причину пропуска.*
 
@@ -72,7 +68,7 @@ Install `cmake`, `nasm`, `grub-mkrescue`, `xorriso`, a compiler with `-m32` supp
 
 ## 7. Release Checklist / Чек-лист релиза / 发布清单
 
-1. `make check` (включая ISO и wasm) и `./kolibri.sh up` без ошибок.
+1. `make`, `make test`, `./kolibri.sh up` без ошибок.
 2. `clang-tidy` для затронутых исходников.
 3. Обновлённые документы и ссылки в `README.md`.
 4. Проверка отсутствия секретов и бинарных артефактов в репозитории.

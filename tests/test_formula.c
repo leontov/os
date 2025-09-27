@@ -1,81 +1,95 @@
 #include "kolibri/formula.h"
-
 #include <assert.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
-static void obuchit_linejnuju_zadachu(KolibriFormulaPool *pool) {
-    for (int indeks = 0; indeks < 4; ++indeks) {
-        int vhod = indeks;
-        int cel = 2 * indeks + 1;
-        assert(kf_pool_add_example(pool, vhod, cel) == 0);
-    }
+static void teach_linear_task(KolibriFormulaPool *pool) {
+  for (int i = 0; i < 4; ++i) {
+    int input = i;
+    int target = 2 * i + 1;
+    assert(kf_pool_add_example(pool, input, target) == 0);
+  }
 }
 
-static void proverit_determinizm(void) {
-    KolibriFormulaPool pervyj;
-    KolibriFormulaPool vtoroj;
-    kf_pool_init(&pervyj, 2025U);
-    kf_pool_init(&vtoroj, 2025U);
-    obuchit_linejnuju_zadachu(&pervyj);
-    obuchit_linejnuju_zadachu(&vtoroj);
-    kf_pool_tick(&pervyj, 64U);
-    kf_pool_tick(&vtoroj, 64U);
-    const KolibriFormula *luchshaja_pervaja = kf_pool_best(&pervyj);
-    const KolibriFormula *luchshaja_vtoraja = kf_pool_best(&vtoroj);
-    uint8_t cifry_pervye[32];
-    uint8_t cifry_vtorye[32];
-    size_t dlina_pervaya = kf_formula_digits(luchshaja_pervaja, cifry_pervye,
-                                             sizeof(cifry_pervye));
-    size_t dlina_vtoraya = kf_formula_digits(luchshaja_vtoraja, cifry_vtorye,
-                                             sizeof(cifry_vtorye));
-    assert(dlina_pervaya == dlina_vtoraya);
-    assert(memcmp(cifry_pervye, cifry_vtorye, dlina_pervaya) == 0);
+static void assert_deterministic(void) {
+  KolibriFormulaPool first;
+  KolibriFormulaPool second;
+  kf_pool_init(&first, 2025);
+  kf_pool_init(&second, 2025);
+  teach_linear_task(&first);
+  teach_linear_task(&second);
+  kf_pool_tick(&first, 64);
+  kf_pool_tick(&second, 64);
+  const KolibriFormula *best_first = kf_pool_best(&first);
+  const KolibriFormula *best_second = kf_pool_best(&second);
+  uint8_t digits_first[32];
+  uint8_t digits_second[32];
+  size_t len_first = kf_formula_digits(best_first, digits_first, sizeof(digits_first));
+  size_t len_second = kf_formula_digits(best_second, digits_second, sizeof(digits_second));
+  assert(len_first == len_second);
+  assert(memcmp(digits_first, digits_second, len_first) == 0);
 }
 
-static void proverit_podkreplenie(void) {
-    KolibriFormulaPool pool;
-    kf_pool_init(&pool, 321U);
-    obuchit_linejnuju_zadachu(&pool);
-    kf_pool_tick(&pool, 64U);
-    const KolibriFormula *luchshaja = kf_pool_best(&pool);
-    assert(luchshaja != NULL);
-    KolibriGene kopiya = luchshaja->gene;
-    double bazovaja_ocenka = luchshaja->fitness;
-    assert(kf_pool_feedback(&pool, &kopiya, 0.3) == 0);
-    const KolibriFormula *posle_nagrazhdeniya = kf_pool_best(&pool);
-    assert(posle_nagrazhdeniya != NULL);
-    assert(posle_nagrazhdeniya->fitness >= bazovaja_ocenka);
-    assert(kf_pool_feedback(&pool, &kopiya, -0.8) == 0);
-    const KolibriFormula *posle_shtrafa = kf_pool_best(&pool);
-    assert(posle_shtrafa != NULL);
-    assert(posle_shtrafa->fitness >= 0.0);
+static void test_feedback_adjustment(void) {
+  KolibriFormulaPool pool;
+  kf_pool_init(&pool, 321);
+  teach_linear_task(&pool);
+  kf_pool_tick(&pool, 64);
+  const KolibriFormula *best = kf_pool_best(&pool);
+  assert(best != NULL);
+  KolibriGene snapshot = best->gene;
+  double baseline = best->fitness;
+  assert(kf_pool_feedback(&pool, &snapshot, 0.3) == 0);
+  const KolibriFormula *after_reward = kf_pool_best(&pool);
+  assert(after_reward != NULL);
+  assert(after_reward->fitness >= baseline);
+  assert(kf_pool_feedback(&pool, &snapshot, -0.8) == 0);
+  const KolibriFormula *after_penalty = kf_pool_best(&pool);
+  assert(after_penalty != NULL);
+  assert(after_penalty->fitness >= 0.0);
 }
 
 void test_formula(void) {
-    KolibriFormulaPool pool;
-    kf_pool_init(&pool, 77U);
-    obuchit_linejnuju_zadachu(&pool);
-    const KolibriFormula *iskhodnaja = kf_pool_best(&pool);
-    int bazovaja_pogreshnost = 0;
-    for (int indeks = 0; indeks < 4; ++indeks) {
-        int lokalnyj = 0;
-        assert(kf_formula_apply(iskhodnaja, indeks, &lokalnyj) == 0);
-        bazovaja_pogreshnost += abs((2 * indeks + 1) - lokalnyj);
-    }
-    kf_pool_tick(&pool, 128U);
-    const KolibriFormula *luchshaja = kf_pool_best(&pool);
-    assert(luchshaja != NULL);
-    int prognoz = 0;
-    assert(kf_formula_apply(luchshaja, 4, &prognoz) == 0);
-    int pogreshnost = 0;
-    for (int indeks = 0; indeks < 4; ++indeks) {
-        int lokalnyj = 0;
-        assert(kf_formula_apply(luchshaja, indeks, &lokalnyj) == 0);
-        pogreshnost += abs((2 * indeks + 1) - lokalnyj);
-    }
-    assert(pogreshnost <= bazovaja_pogreshnost);
-    proverit_determinizm();
-    proverit_podkreplenie();
+  KolibriFormulaPool pool;
+  kf_pool_init(&pool, 77);
+  teach_linear_task(&pool);
+  const KolibriFormula *initial = kf_pool_best(&pool);
+  int baseline_errors = 0;
+  for (int i = 0; i < 4; ++i) {
+    int local = 0;
+    assert(kf_formula_apply(initial, i, &local) == 0);
+    baseline_errors += abs((2 * i + 1) - local);
+  }
+  kf_pool_tick(&pool, 128);
+  const KolibriFormula *best = kf_pool_best(&pool);
+  assert(best != NULL);
+  int prediction = 0;
+  assert(kf_formula_apply(best, 4, &prediction) == 0);
+  int errors = 0;
+  for (int i = 0; i < 4; ++i) {
+    int local = 0;
+    assert(kf_formula_apply(best, i, &local) == 0);
+    errors += abs((2 * i + 1) - local);
+  }
+  assert(errors <= baseline_errors);
+  assert_deterministic();
+  test_feedback_adjustment();
+#include <stdlib.h>
+
+void test_formula(void) {
+  KolibriFormulaPool pool;
+  kf_pool_init(&pool, 42);
+
+  const int inputs[] = {0, 1, 2, 3};
+  const int targets[] = {1, 3, 5, 7};
+
+  for (int i = 0; i < 32; ++i) {
+    kf_pool_tick(&pool, inputs, targets, sizeof(inputs) / sizeof(inputs[0]));
+  }
+
+  const KolibriFormula *best = kf_pool_best(&pool);
+  assert(best != NULL);
+  assert(abs(best->a - 2) <= 1);
+  assert(abs(best->b - 1) <= 1);
 }

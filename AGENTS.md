@@ -1,188 +1,38 @@
-# AGENTS Guidelines — Руководство для репозитория **Kolibri OS** (v2)
+# AGENTS Guidelines for Kolibri OS Repository
 
-> Каноничный язык документа — **русский**. Английские термины даны, где это облегчает интеграцию.
+## Copyright
+Copyright (c) 2025 Кочуров Владислав Евгеньевич. All contributions must preserve this notice in every source file header where it already exists and include it in new source files when appropriate.
 
-## Авторские права / Copyright
+## General Workflow
+- Work directly on the `main` branch; do not create additional branches.
+- Use Conventional Commits (`feat:`, `fix:`, `docs:`, `chore:`) when committing.
+- Keep the working tree clean before finishing a task.
 
-Copyright (c) 2025 Кочуров Владислав Евгеньевич.
+## Code Style & Conventions
+- **Language Standard**: C sources target ANSI C11 with minimal external dependencies.
+- **Headers**: Place shared declarations under `backend/include/kolibri/`. Maintain include guards using the `KOLIBRI_<NAME>_H` pattern.
+- **Formatting**: Follow `clang-format` defaults compatible with LLVM style. Avoid trailing whitespace.
+- **Error Handling**: Prefer explicit return codes over silent failures. Log meaningful error messages via the existing logging utilities.
+- **Determinism**: Randomized routines must accept a seed and remain reproducible across runs.
 
-* Это уведомление должно сохраняться в заголовках всех существующих исходных файлов и добавляться в новые, когда уместно.
-* Добавляйте также SPDX‑идентификатор лицензии при наличии (`SPDX-License-Identifier: ...`).
+## Testing & Tooling
+- Always build with `make` and execute `make test` after modifying code under `backend/` or `apps/`.
+- Run `./kolibri.sh up` to validate orchestration scripts when they are touched.
+- Execute the relevant linters: `clang-tidy` for C sources, `npm run lint` / `npm run test` for frontend code (when present).
+- Property-based tests (e.g., RapidCheck) must accompany new deterministic logic where feasible.
 
----
+## Documentation & Specs
+- Update `README.md` and files in `docs/` whenever CLI usage, API contracts, or protocol behaviour changes.
+- Keep documentation multilingual where applicable (Russian, English, Chinese sections).
+- Cite experimental logs and artefacts in `docs/kolibri_integrated_prototype.md` when referencing new results.
 
-## Роли и агенты
+## Networking & Security
+- Swarm protocol changes must include binary framing diagrams and integration tests under `tests/`.
+- Never commit credentials, secrets, or real-world dataset snapshots.
 
-**codexgpt** — служебный агент, который:
+## Project Structure Notes
+- `backend/` contains the Kolibri core (decimal cognition, genome chain, formula evolution, networking).
+- `apps/kolibri_node.c` is the reference CLI; ensure new options have help text and tests.
+- `tests/` holds unit and property tests; mirror new modules with matching test files.
+- `docs/` is authoritative for research papers, concept manifests, and roadmap material.
 
-* держит ветку `main` зелёной: линт/типы/тесты, авто‑резолв конфликтов;
-* читает встроенную политику слияния (см. блок `kolibri-policy` в конце файла);
-* комментирует PR с отчётом о принятых решениях.
-
-**Люди‑мейнтейнеры** — владеют областями кода через `CODEOWNERS` и подтверждают изменения протоколов/ABI.
-
----
-
-## Ветвление и мердж‑политика (Trunk‑based via PR)
-
-* Базовая ветка: `main` (защищена). Прямые коммиты в `main` — только для **мелких правок** в `docs/` и `.github/` у владельцев.
-* Все изменения кода — через короткоживущие ветки: `feat/<область>`, `fix/<область>`, `chore/<область>`, `docs/<тема>`.
-* Merge — только через PR с зелёным CI и подтверждением `CODEOWNERS` по затронутым областям.
-* Конфликты в PR решаются автоматикой по политике: **build=ours**, **code=theirs**, **docs=theirs**, с точечными исключениями (см. блок ниже).
-
-### Conventional Commits с `scope`
-
-Используйте: `feat|fix|docs|chore|refactor|perf|test` + `(<scope>)` где `scope ∈ {core,evo,ksp,os,wasm,pwa,ci,docs,tests}`.
-
-**Примеры:**
-
-* `feat(core): добавить фикс‑пойнт исполнитель 0..9`
-* `fix(ksp): устранить падение при пустом кадре MIGRATE_RULE`
-* `docs(roadmap): обновить Фазу 5`
-
----
-
-## Стиль кода: **Kolibri C11 Standard**
-
-* **Язык/стандарт:** C11, минимальные внешние зависимости.
-* **Формат:** стиль K&R, отступ 4 пробела, без табуляции; без хвостовых пробелов; один `return` в конце — предпочтительно, если это повышает читаемость.
-* **Именование:** русская транслитерация `snake_case` (`sozdat_formulu`, `schotchik_pokoleniy`).
-* **Заголовки:** общие объявления в `backend/include/kolibri/`; include‑guards по шаблону `KOLIBRI_<NAME>_H`.
-* **Детерминизм:**
-  * Любая «случайность» принимает `seed` и воспроизводима (включая сетевые интервалы discovery).
-  * Арифметика ядра — фиксированная десятичная шкала (fixed‑point/Q‑формат) там, где это влияет на `genome.dat`.
-  * Запрет неопределённостей: `-fno-fast-math`, единый режим округления (FE_TONEAREST), строго определённые ширины типов (`stdint.h`).
-* **Безопасность:** никаких `gets()`. Только безопасные аналоги (`fgets`, проверенные размеры буферов).
-* **Прозрачность:** комментарии на русском с назначением, входами/выходами; отсутствие «магии» — все константы названы.
-
----
-
-## Сборка и инструменты
-
-* **Сборка:** `cmake -S . -B build && cmake --build build -j`.
-* **Тесты:** `ctest --test-dir build --output-on-failure` (или `make test`, если подключено).
-* **Оркестрация:** при изменениях скриптов — `./kolibri.sh up`.
-* **Линтеры:** `clang-format` (K&R/LLVM совместимый профиль), `clang-tidy` для C; для фронтенда — `npm run lint`/`test` (если присутствует).
-* **Санитайзеры:** добавляйте профили `ASan/UBSan/TSan` в матрицу CI.
-* **Reproducible builds:** фиксируйте версии тулчейнов; используйте `-ffile-prefix-map=.` и `SOURCE_DATE_EPOCH`.
-
----
-
-## Тестирование
-
-* **Юнит‑тесты (C/CTest)** и **property‑based** (RapidCheck) обязательны для новой детерминированной логики.
-* **Интеграция KSP:** двоичные кадры, ARP/IPv4/UDP — тесты в `tests/` с эмуляцией задержек/потерь.
-* **Fuzzing:** libFuzzer/AFL для парсеров KSP (`tests/fuzz/`).
-* **Soak‑прогоны:** длительные прогоны чанками (часы) с сохранением метрик `.json/.csv`; рестарт по watchdog.
-
-**Политика мерджа:** без сопутствующих тестов для новой фичи — PR не принимается.
-
----
-
-## Документация
-
-* Обновляйте `README.md` и `docs/*` при изменениях CLI, ABI, протоколов.
-* RU — канонический; EN/CN — поддерживаются, метка `needs-translation` в PR для отстающих страниц.
-* Экспериментальные артефакты/логи цитируйте в `docs/kolibri_integrated_prototype.md`.
-* Важные решения фиксируйте как ADR: `docs/adr/ADR-XXXX-<slug>.md`.
-
----
-
-## Сеть и безопасность
-
-* Изменения **KSP** сопровождайте бинарными схемами (например, Kaitai `.ksy`) и интеграционными тестами.
-* Подписи/HMAC‑ключи/сид‑деривации — в десятичном представлении; секреты/реальные датасеты в репо **не коммитить**.
-* Supply‑chain: SBOM (CycloneDX/Syft), подписи релизных артефактов (cosign), сканеры секретов (`gitleaks`, `trufflehog`).
-
----
-
-## Структура проекта
-
-* `backend/` — ядро Kolibri: десятичная когниция, цепь генома, эволюция формул, сеть.
-* `apps/kolibri_node.c` — эталонная CLI‑утилита; новые опции сопровождаются `--help` и тестами.
-* `tests/` — юнит/проперти/интеграция/fuzz; зеркальте новые модули тестами.
-* `docs/` — манифесты, спецификации, дорожная карта — **источник истины**.
-
----
-
-## PR‑шаблон (чек‑лист качества)
-
-Перед отправкой PR подтвердите:
-
-1. ✅ Сборка (`cmake && build`) и тесты (`ctest`) — зелёные на локали.
-2. ✅ Линт/типы/санитайзеры — чисто.
-3. ✅ Документация обновлена (CLI/API/протоколы, ADR при необходимости).
-4. ✅ Soak‑мини прогнан (если менялись циклы/память).
-5. ✅ Conventional Commit с корректным `scope` и описанием «что/зачем».
-
----
-
-## Бюджеты и гейты (fail‑the‑build)
-
-* Размер `kolibri.wasm` < **1 MB**.
-* Латентность шага предсказания ≤ **2 ms** на эталонной машине.
-* Покрытие `backend/`: `lines ≥ 85%`, `branches ≥ 70%`.
-* Flakiness тестов < **2%** (падающие изредка — помечаются и прогоняются повторно).
-
----
-
-## Конфликты и авто‑резолв
-
-* По умолчанию: **build=ours**, **code=theirs**, **docs=theirs**.
-* Исключения задаются масками в блоке `kolibri-policy` ниже; их читает `scripts/resolve_conflicts.py`.
-* Агент публикует комментарий в PR с отчётом (какие файлы и какая сторона принята).
-
----
-
-## Релизы
-
-* Релиз‑поезд: каждые **14 дней**. Release notes собираются из Conventional Commits.
-* Смоук‑тест релиза: QEMU‑кластер (2–5 узлов), KSP discovery, ICMP‑ответ, `MIGRATE_RULE` по сети — обязательно.
-* Артефакты и метрики храним ≥ **30 дней**; автоматическая чистка старше.
-
----
-
-## Политика для автоматического разрешения конфликтов и бюджетов
-
-Ниже — машинно‑читаемый блок, который используют скрипты и агенты:
-
-```kolibri-policy
-build: ours
-code: theirs
-docs: theirs
-files:
-  prefer_theirs:
-    - apps/kolibri_node.c
-    - backend/include/kolibri/*.h
-    - backend/src/*.c
-    - tests/*.c
-  prefer_ours:
-    - CMakeLists.txt
-    - Makefile
-    - kolibri.sh
-budgets:
-  wasm_max_kb: 1000
-  step_latency_ms: 2
-  coverage_min_lines: 85
-  coverage_min_branches: 70
-release:
-  cadence_days: 14
-  require_smoke_ksp: true
-security:
-  sbom: cyclonedx
-  sign_artifacts: cosign
-  scanners: [gitleaks, trufflehog]
-```
-
----
-
-## Быстрые команды
-
-* Сборка: `cmake -S . -B build && cmake --build build -j`  →  Тесты: `ctest --test-dir build --output-on-failure`
-* Линт: `clang-format -i $(git ls-files '*.c' '*.h')`  →  Анализ: `clang-tidy`
-* Оркестрация: `./kolibri.sh up`
-* Авто‑резолв конфликтов (при наличии скрипта): `python scripts/resolve_conflicts.py`
-
----
-
-*Документ поддерживает Политику Детерминизма «Колибри»: внутренняя сущность — десятичные последовательности; знание — исполняемые формулы; память — проверяемая цепь `genome.dat`; рой — децентрализованная сеть узлов.*
