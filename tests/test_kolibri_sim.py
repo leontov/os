@@ -9,9 +9,9 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-import pytest
+import pytest  # noqa: E402
 
-from core.kolibri_sim import (
+from core.kolibri_sim import (  # noqa: E402
     KolibriSim,
     dec_hash,
     dolzhen_zapustit_repl,
@@ -110,6 +110,7 @@ def test_t11_soak_progress(tmp_path: Path) -> None:
     sim = KolibriSim(zerno=7)
     state_path = tmp_path / "state.json"
     result = obnovit_soak_state(state_path, sim, minuti=2)
+    assert "events" in result
     assert result["events"] > 0
     assert state_path.exists()
 
