@@ -385,6 +385,7 @@ int kf_pool_feedback(KolibriFormulaPool *pool, const KolibriGene *gene, double d
     }
     return -1;
 
+
 #include <stdlib.h>
 #include <string.h>
 
@@ -474,5 +475,6 @@ int kf_formula_apply(const KolibriFormula *formula, int input) {
     return 0;
   }
   return formula->a * input + formula->b;
+
 
 }

@@ -126,6 +126,7 @@ int k_emit_utf8(const k_digit_stream *stream, unsigned char *out, size_t out_len
     }
     return 0;
 
+
 #include <stdio.h>
 
 size_t k_encode_text_length(size_t input_len) { return input_len * 3 + 1; }
@@ -199,6 +200,7 @@ int k_decode_text(const char *digits, char *out, size_t out_len) {
     out[produced] = '\0';
     return 0;
 
+
   if (digits_len % 3 != 0) {
     return 0;
   }
@@ -257,5 +259,6 @@ int k_decode_text(const char *digits, char *out, size_t out_len) {
   }
   out[len / 3] = '\0';
   return 0;
+
 
 }

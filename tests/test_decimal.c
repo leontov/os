@@ -49,6 +49,7 @@ void test_decimal(void) {
   test_text_roundtrip();
 }
 
+
 #include <string.h>
 
 void test_decimal(void) {
@@ -61,4 +62,5 @@ void test_decimal(void) {
   assert(rc == 0);
   assert(strcmp(text, decoded) == 0);
 }
+
 

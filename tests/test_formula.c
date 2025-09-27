@@ -75,6 +75,7 @@ void test_formula(void) {
   assert(errors <= baseline_errors);
   assert_deterministic();
   test_feedback_adjustment();
+
 #include <stdlib.h>
 
 void test_formula(void) {
@@ -92,4 +93,5 @@ void test_formula(void) {
   assert(best != NULL);
   assert(abs(best->a - 2) <= 1);
   assert(abs(best->b - 1) <= 1);
+
 }

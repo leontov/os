@@ -30,6 +30,7 @@ void test_net(void) {
   assert(memcmp(message.data.formula.digits, formula.gene.digits,
                 formula.gene.length) == 0);
 
+
   KolibriFormula formula = {.a = 3, .b = -2, .fitness = 0.875};
   len = kn_message_encode_formula(buffer, sizeof(buffer), 7U, &formula);
   assert(len == 3U + sizeof(uint32_t) * 3 + sizeof(uint64_t));
@@ -38,6 +39,7 @@ void test_net(void) {
   assert(message.data.formula.node_id == 7U);
   assert(message.data.formula.a == formula.a);
   assert(message.data.formula.b == formula.b);
+
 
   assert(fabs(message.data.formula.fitness - formula.fitness) < 1e-9);
 
