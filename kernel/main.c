@@ -6,6 +6,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "kolibri/formula.h"
+#include "kolibri/genome.h"
+#include "kolibri/net.h"
+#include "kolibri/random.h"
+
 #define VGA_ADRES ((volatile uint16_t *)0xB8000U)
 #define VGA_SHIRINA 80U
 #define VGA_VYSOTA 25U
@@ -54,6 +59,15 @@ static struct gdt_zapis gdt_tablica[3];
 static struct idt_zapis idt_tablica[256];
 static uint64_t schetchik_tickov = 0ULL;
 
+static KolibriFormulaPool kernel_pool;
+
+struct KolibriBootConfig {
+    uint32_t seed;
+    uint32_t node_id;
+    uint16_t listen_port;
+    uint16_t reserved;
+};
+
 extern void isr_timer(void);
 extern void isr_keyboard(void);
 
@@ -97,6 +111,83 @@ static void vga_pechat_stroku(const char *stroka) {
     }
     while (*stroka) {
         vga_pechat_simvol(*stroka++);
+    }
+}
+
+/* Выводит беззнаковое число в десятичном виде. */
+static void vga_pechat_chislo_u32(uint32_t znachenie) {
+    char buffer[11];
+    size_t index = sizeof(buffer) - 1U;
+    buffer[index] = '\0';
+    do {
+        buffer[--index] = (char)('0' + (znachenie % 10U));
+        znachenie /= 10U;
+    } while (znachenie != 0U && index > 0U);
+    vga_pechat_stroku(&buffer[index]);
+}
+
+/* Выводит строку и число: вспомогательный форматтер. */
+static void vga_pechat_paru(const char *metka, uint32_t znachenie) {
+    vga_pechat_stroku(metka);
+    vga_pechat_chislo_u32(znachenie);
+    vga_pechat_stroku("\n");
+}
+
+static void kolibri_print_gene(const KolibriGene *gene) {
+    vga_pechat_stroku("digits: ");
+    if (!gene) {
+        vga_pechat_stroku("<none>\n");
+        return;
+    }
+    for (size_t i = 0; i < gene->length; ++i) {
+        vga_pechat_chislo_u32(gene->digits[i]);
+        if (i + 1U < gene->length) {
+            vga_pechat_stroku(" ");
+        }
+    }
+    vga_pechat_stroku("\n");
+}
+
+static void kolibri_autopilot(const struct KolibriBootConfig *cfg) {
+    uint32_t seed = cfg ? cfg->seed : 20250923U;
+    vga_pechat_stroku("[Kolibri] init RNG\n");
+    kf_pool_init(&kernel_pool, (uint64_t)seed);
+    kf_pool_clear_examples(&kernel_pool);
+
+    vga_pechat_stroku("[Kolibri] seed examples\n");
+    const int inputs[] = {0, 1, 2, 3};
+    const int targets[] = {1, 3, 5, 7};
+    for (size_t i = 0; i < sizeof(inputs) / sizeof(inputs[0]); ++i) {
+        (void)kf_pool_add_example(&kernel_pool, inputs[i], targets[i]);
+    }
+
+    vga_pechat_stroku("[Kolibri] evolve\n");
+    kf_pool_tick(&kernel_pool, 32);
+
+    const KolibriFormula *best = kf_pool_best(&kernel_pool);
+    if (!best) {
+        vga_pechat_stroku("[Kolibri] pool empty\n");
+        return;
+    }
+
+    char description[128];
+    if (kf_formula_describe(best, description, sizeof(description)) == 0) {
+        vga_pechat_stroku("[Kolibri] best: ");
+        vga_pechat_stroku(description);
+        vga_pechat_stroku("\n");
+    }
+    kolibri_print_gene(&best->gene);
+
+    int preview = 0;
+    if (kf_formula_apply(best, 4, &preview) == 0) {
+        vga_pechat_stroku("f(4)=");
+        vga_pechat_chislo_u32((uint32_t)preview);
+        vga_pechat_stroku("\n");
+    }
+
+    if (cfg && cfg->listen_port != 0U) {
+        vga_pechat_stroku("[Kolibri] swarm bootstrap\n");
+        (void)cfg; /* реальный сетевой стек будет подключен позже */
     }
 }
 
@@ -242,6 +333,9 @@ void kolibri_kernel_main(uint32_t multiboot_magic, uint32_t multiboot_info) {
 
     vga_pechat_stroku("Прерывания активируются...\n");
     __asm__ __volatile__("sti");
+
+    const struct KolibriBootConfig *config = (const struct KolibriBootConfig *)0x00008000U;
+    kolibri_autopilot(config);
 
     for (;;) {
         __asm__ __volatile__("hlt");

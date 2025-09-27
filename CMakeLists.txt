@@ -35,6 +35,9 @@ add_executable(kolibri_node apps/kolibri_node.c)
 
 target_link_libraries(kolibri_node PRIVATE kolibri_core)
 
+add_executable(kolibri_kernel kernel/main.c)
+target_link_libraries(kolibri_kernel PRIVATE kolibri_core)
+
 if(KOLIBRI_ENABLE_TESTS)
     enable_testing()
     add_executable(kolibri_tests
