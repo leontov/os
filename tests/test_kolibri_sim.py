@@ -9,9 +9,9 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-import pytest
+import pytest  # noqa: E402
 
-from core.kolibri_sim import (
+from core.kolibri_sim import (  # noqa: E402
     KolibriSim,
     dec_hash,
     dolzhen_zapustit_repl,
