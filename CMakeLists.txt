@@ -28,8 +28,10 @@ find_package(Threads REQUIRED)
 target_link_libraries(kolibri_core PRIVATE OpenSSL::Crypto)
 
 add_executable(kolibri_node apps/kolibri_node.c)
+add_executable(ks_compiler apps/ks_compiler.c)
 
 target_link_libraries(kolibri_node PRIVATE kolibri_core)
+target_link_libraries(ks_compiler PRIVATE kolibri_core)
 
 if(KOLIBRI_ENABLE_TESTS)
     enable_testing()
@@ -43,4 +45,12 @@ if(KOLIBRI_ENABLE_TESTS)
     )
     target_link_libraries(kolibri_tests PRIVATE kolibri_core Threads::Threads)
     add_test(NAME kolibri_tests COMMAND kolibri_tests)
+
+    configure_file(tests/ks_compiler_roundtrip.cmake
+                   ${CMAKE_CURRENT_BINARY_DIR}/ks_compiler_roundtrip.cmake
+                   @ONLY)
+    add_test(NAME ks_compiler_roundtrip
+             COMMAND ${CMAKE_COMMAND}
+                     -Dks_compiler=$<TARGET_FILE:ks_compiler>
+                     -P ${CMAKE_CURRENT_BINARY_DIR}/ks_compiler_roundtrip.cmake)
 endif()
