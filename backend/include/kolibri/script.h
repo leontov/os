@@ -1,11 +1,11 @@
 /*
-#include "kolibri/digits.h"
  * Copyright (c) 2025 Кочуров Владислав Евгеньевич
  */
 
 #ifndef KOLIBRI_SCRIPT_H
 #define KOLIBRI_SCRIPT_H
 
+#include "kolibri/digits.h"
 #include "kolibri/decimal.h"
 #include "kolibri/formula.h"
 #include "kolibri/genome.h"
