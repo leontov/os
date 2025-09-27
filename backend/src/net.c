@@ -119,14 +119,6 @@ size_t kn_message_encode_formula(uint8_t *buffer, size_t buffer_len,
 
   uint8_t payload[KOLIBRI_MAX_PAYLOAD];
   uint32_t be_node = htonl(node_id);
-
-
-  uint8_t payload[sizeof(uint32_t) * 3 + sizeof(uint64_t)];
-  uint32_t be_node = htonl(node_id);
-  uint32_t be_a = htonl((uint32_t)formula->a);
-  uint32_t be_b = htonl((uint32_t)formula->b);
-
-
   uint64_t fitness_bits;
   memcpy(&fitness_bits, &formula->fitness, sizeof(fitness_bits));
   fitness_bits = kolibri_htonll(fitness_bits);
@@ -134,7 +126,6 @@ size_t kn_message_encode_formula(uint8_t *buffer, size_t buffer_len,
   size_t offset = 0;
   memcpy(payload + offset, &be_node, sizeof(be_node));
   offset += sizeof(be_node);
-
   payload[offset++] = (uint8_t)digit_len;
   memcpy(payload + offset, digits, digit_len);
   offset += digit_len;
@@ -148,25 +139,6 @@ size_t kn_message_encode_formula(uint8_t *buffer, size_t buffer_len,
   }
   memcpy(buffer + header, payload, offset);
   return header + offset;
-
-
-  memcpy(payload + offset, &be_a, sizeof(be_a));
-  offset += sizeof(be_a);
-  memcpy(payload + offset, &be_b, sizeof(be_b));
-  offset += sizeof(be_b);
-  memcpy(payload + offset, &fitness_bits,
-         sizeof(fitness_bits));
-
-  size_t header = kolibri_write_header(buffer, buffer_len,
-                                       KOLIBRI_MSG_MIGRATE_RULE,
-                                       sizeof(payload));
-  if (header == 0 || buffer_len < header + sizeof(payload)) {
-    return 0;
-  }
-  memcpy(buffer + header, payload, sizeof(payload));
-  return header + sizeof(payload);
-
-
 }
 
 size_t kn_message_encode_ack(uint8_t *buffer, size_t buffer_len,
@@ -232,37 +204,10 @@ int kn_message_decode(const uint8_t *buffer, size_t buffer_len,
     offset += length;
     uint64_t fitness_raw;
     memcpy(&fitness_raw, payload + offset, sizeof(fitness_raw));
-
-
-    if (payload_len != sizeof(uint32_t) * 3 + sizeof(uint64_t)) {
-      return -1;
-    }
-    uint32_t node_raw;
-    uint32_t a_raw;
-    uint32_t b_raw;
-    uint64_t fitness_raw;
-    size_t offset = 0;
-    memcpy(&node_raw, payload + offset, sizeof(node_raw));
-    offset += sizeof(node_raw);
-    memcpy(&a_raw, payload + offset, sizeof(a_raw));
-    offset += sizeof(a_raw);
-    memcpy(&b_raw, payload + offset, sizeof(b_raw));
-    offset += sizeof(b_raw);
-    memcpy(&fitness_raw, payload + offset, sizeof(fitness_raw));
-    int32_t a_val = (int32_t)ntohl(a_raw);
-    int32_t b_val = (int32_t)ntohl(b_raw);
-
-
     fitness_raw = kolibri_ntohll(fitness_raw);
     double fitness_value;
     memcpy(&fitness_value, &fitness_raw, sizeof(fitness_value));
     out_message->data.formula.node_id = ntohl(node_raw);
-
-
-    out_message->data.formula.a = a_val;
-    out_message->data.formula.b = b_val;
-
-
     out_message->data.formula.fitness = fitness_value;
     break;
   }
