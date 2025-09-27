@@ -7,12 +7,12 @@ import argparse
 import csv
 import json
 from pathlib import Path
-from typing import List
+from typing import Sequence, cast
 
-from core.kolibri_sim import KolibriSim, obnovit_soak_state
+from core.kolibri_sim import KolibriSim, MetricRecord, obnovit_soak_state
 
 
-def zapisat_csv(path: Path, metrika: List[dict]) -> None:
+def zapisat_csv(path: Path, metrika: Sequence[MetricRecord]) -> None:
     """Сохраняет метрики прогона в CSV."""
     if not metrika:
         path.write_text("minute,formula,fitness,genome\n", encoding="utf-8")
@@ -42,14 +42,14 @@ def main() -> int:
 
     sim = KolibriSim(zerno=args.seed)
     rezultat = obnovit_soak_state(state_path, sim, minuti)
-    metrika = rezultat.get("metrics", [])[-minuti:]
+    metrika = cast(Sequence[MetricRecord], rezultat.get("metrics", []))[-minuti:]
 
     if args.metrics_path:
         zapisat_csv(Path(args.metrics_path), metrika)
 
     print(json.dumps({
         "minutes": minuti,
-        "events": rezultat.get("events", 0),
+        "events": cast(int, rezultat.get("events", 0)),
         "metrics_written": len(metrika),
         "state_path": str(state_path),
     }, ensure_ascii=False, indent=2))
