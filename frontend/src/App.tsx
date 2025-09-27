@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Layout from "./components/Layout";
 import Sidebar from "./components/Sidebar";
 import WelcomeScreen from "./components/WelcomeScreen";
@@ -12,6 +12,36 @@ const App = () => {
   const [draft, setDraft] = useState("");
   const [mode, setMode] = useState("Быстрый ответ");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [bridgeReady, setBridgeReady] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    kolibriBridge.ready
+      .then(() => {
+        if (!cancelled) {
+          setBridgeReady(true);
+        }
+      })
+      .catch((error) => {
+        if (cancelled) {
+          return;
+        }
+        const assistantMessage: ChatMessage = {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content:
+            error instanceof Error
+              ? `Не удалось инициализировать KolibriScript: ${error.message}`
+              : "Не удалось инициализировать KolibriScript.",
+          timestamp: new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }),
+        };
+        setMessages((prev) => [...prev, assistantMessage]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleSuggestionSelect = useCallback((prompt: string) => {
     setDraft(prompt);
@@ -25,7 +55,7 @@ const App = () => {
 
   const sendMessage = useCallback(async () => {
     const content = draft.trim();
-    if (!content || isProcessing) {
+    if (!content || isProcessing || !bridgeReady) {
       return;
     }
 
@@ -79,7 +109,7 @@ const App = () => {
       <ChatInput
         value={draft}
         mode={mode}
-        isBusy={isProcessing}
+        isBusy={isProcessing || !bridgeReady}
         onChange={setDraft}
         onModeChange={setMode}
         onSubmit={sendMessage}
