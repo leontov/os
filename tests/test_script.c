@@ -65,7 +65,7 @@ static void zapisat_cifrovyj_skript(char *path, size_t path_dlina,
     FILE *file = fdopen(fd, "wb");
     assert(file != NULL);
     for (size_t indeks = 0; indeks < potok.dlina; ++indeks) {
-        fputc('0' + potok.cifry[indeks], file);
+        fputc('0' + potok.danniye[indeks], file);
     }
     fclose(file);
 }
