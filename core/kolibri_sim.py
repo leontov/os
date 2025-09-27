@@ -19,6 +19,7 @@ class ZhurnalZapis(TypedDict):
     metka: float
 
 
+
 class ZhurnalSnapshot(TypedDict):
     offset: int
     zapisi: List[ZhurnalZapis]
@@ -99,8 +100,10 @@ class KolibriSim:
         self.generator = random.Random(zerno)
         self.hmac_klyuch = hmac_klyuch or b"kolibri-hmac"
         self.zhurnal: List[ZhurnalZapis] = []
+
         self.predel_zhurnala = 256
         self._zhurnal_sdvig = 0
+
         self.znanija: Dict[str, str] = {}
         self.formuly: Dict[str, FormulaZapis] = {}
         self.populyaciya: List[str] = []
@@ -380,7 +383,9 @@ __all__ = [
     "MetricEntry",
     "SoakResult",
     "SoakState",
+
     "ZhurnalSnapshot",
+
     "sohranit_sostoyanie",
     "zagruzit_sostoyanie",
     "obnovit_soak_state",

@@ -110,9 +110,14 @@ def test_t11_soak_progress(tmp_path: Path) -> None:
     sim = KolibriSim(zerno=7)
     state_path = tmp_path / "state.json"
     result = obnovit_soak_state(state_path, sim, minuti=2)
+
     events = result.get("events", 0)
     assert isinstance(events, int)
     assert events > 0
+
+    assert "events" in result
+    assert result["events"] > 0
+
     assert state_path.exists()
     metrics = result.get("metrics", [])
     assert isinstance(metrics, list)
