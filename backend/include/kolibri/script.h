@@ -1,4 +1,5 @@
 /*
+#include "kolibri/digits.h"
  * Copyright (c) 2025 Кочуров Владислав Евгеньевич
  */
 

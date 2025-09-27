@@ -54,3 +54,13 @@ if(KOLIBRI_ENABLE_TESTS)
                      -Dks_compiler=$<TARGET_FILE:ks_compiler>
                      -P ${CMAKE_CURRENT_BINARY_DIR}/ks_compiler_roundtrip.cmake)
 endif()
+
+# === Kolibri digits module wiring ===
+if(TARGET kolibri_core)
+  target_sources(kolibri_core PRIVATE backend/src/digits.c)
+endif()
+
+# (опционально) добавим минимальные тесты по digits
+if(TARGET kolibri_tests)
+  target_sources(kolibri_tests PRIVATE tests/test_digits.c)
+endif()
