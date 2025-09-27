@@ -12,10 +12,8 @@ add_library(kolibri_core
     backend/src/genome.c
     backend/src/random.c
     backend/src/formula.c
-    backend/src/net.c
-
     backend/src/roy.c
-
+    backend/src/script.c
 )
 
 target_include_directories(kolibri_core
@@ -25,18 +23,15 @@ target_include_directories(kolibri_core
 )
 
 find_package(OpenSSL REQUIRED)
-
 find_package(Threads REQUIRED)
-
 
 target_link_libraries(kolibri_core PRIVATE OpenSSL::Crypto)
 
 add_executable(kolibri_node apps/kolibri_node.c)
+add_executable(ks_compiler apps/ks_compiler.c)
 
 target_link_libraries(kolibri_node PRIVATE kolibri_core)
-
-add_executable(kolibri_kernel kernel/main.c)
-target_link_libraries(kolibri_kernel PRIVATE kolibri_core)
+target_link_libraries(ks_compiler PRIVATE kolibri_core)
 
 if(KOLIBRI_ENABLE_TESTS)
     enable_testing()
@@ -45,10 +40,27 @@ if(KOLIBRI_ENABLE_TESTS)
         tests/test_decimal.c
         tests/test_genome.c
         tests/test_formula.c
-        tests/test_net.c
         tests/test_roy.c
+        tests/test_script.c
     )
     target_link_libraries(kolibri_tests PRIVATE kolibri_core Threads::Threads)
-
     add_test(NAME kolibri_tests COMMAND kolibri_tests)
+
+    configure_file(tests/ks_compiler_roundtrip.cmake
+                   ${CMAKE_CURRENT_BINARY_DIR}/ks_compiler_roundtrip.cmake
+                   @ONLY)
+    add_test(NAME ks_compiler_roundtrip
+             COMMAND ${CMAKE_COMMAND}
+                     -Dks_compiler=$<TARGET_FILE:ks_compiler>
+                     -P ${CMAKE_CURRENT_BINARY_DIR}/ks_compiler_roundtrip.cmake)
+endif()
+
+# === Kolibri digits module wiring ===
+if(TARGET kolibri_core)
+  target_sources(kolibri_core PRIVATE backend/src/digits.c)
+endif()
+
+# (опционально) добавим минимальные тесты по digits
+if(TARGET kolibri_tests)
+  target_sources(kolibri_tests PRIVATE tests/test_digits.c)
 endif()

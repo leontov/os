@@ -2,9 +2,7 @@
 set -euo pipefail
 
 usage() {
-
     cat <<USAGE
-
 Usage: $0 <command>
 
 Commands:
@@ -15,7 +13,6 @@ USAGE
 
 root_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 build_dir="$root_dir/build"
-
 hmac_key_path="$root_dir/root.key"
 
 generate_hmac_key() {
@@ -60,5 +57,4 @@ case "${1:-}" in
         usage
         exit 1
         ;;
-
 esac
