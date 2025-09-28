@@ -10,7 +10,8 @@ import time
 import hashlib
 import hmac
 from pathlib import Path
-from typing import Dict, List, Mapping, Optional, TypedDict, cast
+
+from typing import Dict, List, Mapping, Optional, Protocol, TypedDict, cast
 
 
 class ZhurnalZapis(TypedDict):
@@ -22,6 +23,14 @@ class ZhurnalZapis(TypedDict):
 class ZhurnalSnapshot(TypedDict):
     offset: int
     zapisi: List[ZhurnalZapis]
+
+
+class ZhurnalTracer(Protocol):
+    """Интерфейс обработчика структурированных событий журнала."""
+
+    def zapisat(self, zapis: ZhurnalZapis, blok: "ZapisBloka | None" = None) -> None:
+        """Получает уведомление о новой записи журнала и соответствующем блоке."""
+
 
 
 class FormulaZapis(TypedDict):
@@ -108,6 +117,8 @@ class KolibriSim:
         self.populyaciya: List[str] = []
         self.predel_populyacii = 24
         self.genom: List[ZapisBloka] = []
+        self._tracer: Optional[ZhurnalTracer] = None
+        self._tracer_include_genome = False
         self._sozdanie_bloka("GENESIS", {"seed": zerno})
 
     # --- Вспомогательные методы ---
@@ -144,7 +155,18 @@ class KolibriSim:
             sdvig = len(self.zhurnal) - self.predel_zhurnala
             del self.zhurnal[:sdvig]
             self._zhurnal_sdvig += sdvig
-        self._sozdanie_bloka(tip, zapis)
+
+        blok = self._sozdanie_bloka(tip, zapis)
+        tracer = self._tracer
+        if tracer is not None:
+            try:
+                blok_dlya_tracinga = blok if self._tracer_include_genome else None
+                tracer.zapisat(zapis, blok_dlya_tracinga)
+            except Exception as oshibka:  # pragma: no cover - ошибки трассера должны быть видимы
+                raise RuntimeError("KolibriSim tracer не смог обработать событие") from oshibka
+
+       
+
 
     # --- Базовые операции обучения ---
     def obuchit_svjaz(self, stimul: str, otvet: str) -> None:
@@ -302,6 +324,14 @@ class KolibriSim:
         """Возвращает снимок журнала с информацией о отброшенных записях."""
         return {"offset": self._zhurnal_sdvig, "zapisi": list(self.zhurnal)}
 
+
+    def ustanovit_tracer(self, tracer: Optional[ZhurnalTracer], *, vkljuchat_genom: bool = False) -> None:
+        """Настраивает обработчик событий журнала и управление блоками генома."""
+
+        self._tracer = tracer
+        self._tracer_include_genome = bool(tracer) and vkljuchat_genom
+
+
     def massiv_cifr(self, kolichestvo: int) -> List[int]:
         """Генерирует детерминированную последовательность цифр на основе зерна."""
         return [self.generator.randint(0, 9) for _ in range(kolichestvo)]
@@ -384,6 +414,7 @@ __all__ = [
     "SoakState",
 
     "ZhurnalSnapshot",
+    "ZhurnalTracer",
 
     "sohranit_sostoyanie",
     "zagruzit_sostoyanie",

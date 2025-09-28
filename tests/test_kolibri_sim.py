@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 import sys
 
@@ -20,7 +21,10 @@ from core.kolibri_sim import (  # noqa: E402
     sohranit_sostoyanie,
     vosstanovit_tekst_iz_cifr,
     zagruzit_sostoyanie,
+    ZapisBloka,
+    ZhurnalZapis,
 )
+from core.tracing import JsonLinesTracer  # noqa: E402
 
 
 # --- Базовые тесты (T1–T7) -------------------------------------------------
@@ -167,6 +171,51 @@ def test_t15_soak_state_accumulates(tmp_path: Path) -> None:
     assert isinstance(metrics_second, list)
     assert isinstance(metrics_first, list)
     assert len(metrics_second) >= len(metrics_first) + 2
+
+
+
+# --- Трассировка и структурированные события -------------------------------
+
+def test_tracer_receives_journal_events() -> None:
+    sim = KolibriSim(zerno=21)
+
+    class Collector:
+        def __init__(self) -> None:
+            self.records: list[tuple[ZhurnalZapis, ZapisBloka | None]] = []
+
+        def zapisat(self, zapis: ZhurnalZapis, blok: ZapisBloka | None = None) -> None:
+            self.records.append((zapis, blok))
+
+    tracer = Collector()
+    sim.ustanovit_tracer(tracer, vkljuchat_genom=True)
+
+    sim.obuchit_svjaz("вопрос", "ответ")
+    assert tracer.records, "tracer должен получать события"
+    zapis, blok = tracer.records[0]
+    assert zapis["tip"] == "TEACH"
+    assert isinstance(zapis["soobshenie"], str)
+    assert blok is not None
+
+    sim.ustanovit_tracer(None)
+    sim.sprosit("вопрос")
+    assert len(tracer.records) == 1, "после отключения трассера события не должны копиться"
+
+
+def test_json_lines_tracer_writes(tmp_path: Path) -> None:
+    sim = KolibriSim(zerno=8)
+    trace_path = tmp_path / "trace" / "events.jsonl"
+    tracer = JsonLinesTracer(trace_path, include_genome=True)
+    sim.ustanovit_tracer(tracer, vkljuchat_genom=True)
+
+    sim.obuchit_svjaz("alpha", "beta")
+    sim.sprosit("alpha")
+
+    contents = trace_path.read_text(encoding="utf-8").splitlines()
+    assert len(contents) >= 2
+    first_event = json.loads(contents[0])
+    assert first_event["event"]["tip"] == "TEACH"
+    assert "genome" in first_event
+
 
 
 # --- Утилиты сохранения состояния -----------------------------------------
