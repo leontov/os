@@ -3,6 +3,7 @@
  */
 
 #include "kolibri/decimal.h"
+#include "kolibri/digits.h"
 
 #include <errno.h>
 #include <stdbool.h>
@@ -188,7 +189,7 @@ static int kodirovat(const char *vyhod, const unsigned char *vhod,
         return -1;
     }
     for (size_t indeks = 0U; indeks < potok.dlina; ++indeks) {
-        stroka[indeks] = (char)('0' + potok.cifry[indeks]);
+        stroka[indeks] = (char)('0' + potok.danniye[indeks]);
     }
     stroka[potok.dlina] = '\n';
     stroka[potok.dlina + 1U] = '\0';

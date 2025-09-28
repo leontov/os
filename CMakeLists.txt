@@ -14,6 +14,7 @@ add_library(kolibri_core
     backend/src/formula.c
     backend/src/roy.c
     backend/src/script.c
+    backend/src/net.c
 )
 
 target_include_directories(kolibri_core
@@ -42,6 +43,7 @@ if(KOLIBRI_ENABLE_TESTS)
         tests/test_formula.c
         tests/test_roy.c
         tests/test_script.c
+        tests/test_net.c
     )
     target_link_libraries(kolibri_tests PRIVATE kolibri_core Threads::Threads)
     add_test(NAME kolibri_tests COMMAND kolibri_tests)
@@ -57,7 +59,10 @@ endif()
 
 # === Kolibri digits module wiring ===
 if(TARGET kolibri_core)
-  target_sources(kolibri_core PRIVATE backend/src/digits.c)
+  target_sources(kolibri_core PRIVATE
+    backend/src/digits.c
+    backend/src/wasm_bridge.c
+  )
 endif()
 
 # (опционально) добавим минимальные тесты по digits

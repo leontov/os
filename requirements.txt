@@ -1,0 +1,4 @@
+# Kolibri's Python tooling currently relies on standalone scripts.
+# This placeholder keeps GitHub Actions' pip cache step happy by
+# presenting a dependency manifest even though no runtime packages
+# are required.

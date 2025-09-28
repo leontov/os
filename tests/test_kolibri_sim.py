@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 import sys
 
@@ -9,9 +10,9 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-import pytest
+import pytest  # noqa: E402
 
-from core.kolibri_sim import (
+from core.kolibri_sim import (  # noqa: E402
     KolibriSim,
     dec_hash,
     dolzhen_zapustit_repl,
@@ -20,7 +21,10 @@ from core.kolibri_sim import (
     sohranit_sostoyanie,
     vosstanovit_tekst_iz_cifr,
     zagruzit_sostoyanie,
+    ZapisBloka,
+    ZhurnalZapis,
 )
+from core.tracing import JsonLinesTracer  # noqa: E402
 
 
 # --- Базовые тесты (T1–T7) -------------------------------------------------
@@ -110,8 +114,13 @@ def test_t11_soak_progress(tmp_path: Path) -> None:
     sim = KolibriSim(zerno=7)
     state_path = tmp_path / "state.json"
     result = obnovit_soak_state(state_path, sim, minuti=2)
-    assert result["events"] > 0
+    events = result.get("events", 0)
+    assert isinstance(events, int)
+    assert events > 0
     assert state_path.exists()
+    metrics = result.get("metrics", [])
+    assert isinstance(metrics, list)
+    assert len(metrics) == 2
 
 
 def test_t12_population_and_parents() -> None:
@@ -129,6 +138,80 @@ def test_t13_genome_verification_and_tamper() -> None:
     # Нарушаем цепочку, обнуляя payload
     sim.genom[-1].payload = "000"
     assert sim.proverit_genom() is False
+
+
+def test_t14_journal_rollover() -> None:
+    sim = KolibriSim(zerno=123)
+    sim.ustanovit_predel_zhurnala(5)
+    for idx in range(12):
+        sim.obuchit_svjaz(f"k{idx}", f"v{idx}")
+    snapshot = sim.poluchit_zhurnal()
+    assert snapshot["offset"] == 7
+    assert len(snapshot["zapisi"]) == 5
+    assert snapshot["zapisi"][0]["soobshenie"].startswith("k7")
+
+
+def test_t15_soak_state_accumulates(tmp_path: Path) -> None:
+    state_path = tmp_path / "soak.json"
+    sim_a = KolibriSim(zerno=3)
+    first = obnovit_soak_state(state_path, sim_a, minuti=1)
+    events_first = first.get("events", 0)
+    assert isinstance(events_first, int)
+    assert events_first > 0
+
+    sim_b = KolibriSim(zerno=3)
+    second = obnovit_soak_state(state_path, sim_b, minuti=2)
+    events_second = second.get("events", 0)
+    assert isinstance(events_second, int)
+    assert events_second > events_first
+    metrics_second = second.get("metrics", [])
+    metrics_first = first.get("metrics", [])
+    assert isinstance(metrics_second, list)
+    assert isinstance(metrics_first, list)
+    assert len(metrics_second) >= len(metrics_first) + 2
+
+
+# --- Трассировка и структурированные события -------------------------------
+
+def test_tracer_receives_journal_events() -> None:
+    sim = KolibriSim(zerno=21)
+
+    class Collector:
+        def __init__(self) -> None:
+            self.records: list[tuple[ZhurnalZapis, ZapisBloka | None]] = []
+
+        def zapisat(self, zapis: ZhurnalZapis, blok: ZapisBloka | None = None) -> None:
+            self.records.append((zapis, blok))
+
+    tracer = Collector()
+    sim.ustanovit_tracer(tracer, vkljuchat_genom=True)
+
+    sim.obuchit_svjaz("вопрос", "ответ")
+    assert tracer.records, "tracer должен получать события"
+    zapis, blok = tracer.records[0]
+    assert zapis["tip"] == "TEACH"
+    assert isinstance(zapis["soobshenie"], str)
+    assert blok is not None
+
+    sim.ustanovit_tracer(None)
+    sim.sprosit("вопрос")
+    assert len(tracer.records) == 1, "после отключения трассера события не должны копиться"
+
+
+def test_json_lines_tracer_writes(tmp_path: Path) -> None:
+    sim = KolibriSim(zerno=8)
+    trace_path = tmp_path / "trace" / "events.jsonl"
+    tracer = JsonLinesTracer(trace_path, include_genome=True)
+    sim.ustanovit_tracer(tracer, vkljuchat_genom=True)
+
+    sim.obuchit_svjaz("alpha", "beta")
+    sim.sprosit("alpha")
+
+    contents = trace_path.read_text(encoding="utf-8").splitlines()
+    assert len(contents) >= 2
+    first_event = json.loads(contents[0])
+    assert first_event["event"]["tip"] == "TEACH"
+    assert "genome" in first_event
 
 
 # --- Утилиты сохранения состояния -----------------------------------------

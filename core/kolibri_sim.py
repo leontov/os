@@ -10,7 +10,49 @@ import time
 import hashlib
 import hmac
 from pathlib import Path
-from typing import Dict, List, Mapping, Optional
+from typing import Dict, List, Mapping, Optional, Protocol, TypedDict, cast
+
+
+class ZhurnalZapis(TypedDict):
+    tip: str
+    soobshenie: str
+    metka: float
+
+
+class ZhurnalSnapshot(TypedDict):
+    offset: int
+    zapisi: List[ZhurnalZapis]
+
+
+class ZhurnalTracer(Protocol):
+    """Интерфейс обработчика структурированных событий журнала."""
+
+    def zapisat(self, zapis: ZhurnalZapis, blok: "ZapisBloka | None" = None) -> None:
+        """Получает уведомление о новой записи журнала и соответствующем блоке."""
+
+
+class FormulaZapis(TypedDict):
+    kod: str
+    fitness: float
+    parents: List[str]
+    context: str
+
+
+class MetricEntry(TypedDict):
+    minute: int
+    formula: str
+    fitness: float
+    genome: int
+
+
+class SoakResult(TypedDict):
+    events: int
+    metrics: List[MetricEntry]
+
+
+class SoakState(TypedDict, total=False):
+    events: int
+    metrics: List[MetricEntry]
 
 
 def preobrazovat_tekst_v_cifry(tekst: str) -> str:
@@ -63,20 +105,24 @@ class KolibriSim:
         self.zerno = zerno
         self.generator = random.Random(zerno)
         self.hmac_klyuch = hmac_klyuch or b"kolibri-hmac"
-        self.zhurnal: List[Dict[str, str]] = []
+        self.zhurnal: List[ZhurnalZapis] = []
+        self.predel_zhurnala = 256
+        self._zhurnal_sdvig = 0
         self.znanija: Dict[str, str] = {}
-        self.formuly: Dict[str, Dict[str, object]] = {}
+        self.formuly: Dict[str, FormulaZapis] = {}
         self.populyaciya: List[str] = []
         self.predel_populyacii = 24
         self.genom: List[ZapisBloka] = []
+        self._tracer: Optional[ZhurnalTracer] = None
+        self._tracer_include_genome = False
         self._sozdanie_bloka("GENESIS", {"seed": zerno})
 
     # --- Вспомогательные методы ---
-    def _sozdanie_bloka(self, tip: str, dannye: Dict[str, object]) -> ZapisBloka:
+    def _sozdanie_bloka(self, tip: str, dannye: Mapping[str, object]) -> ZapisBloka:
         """Кодирует событие в цифровой геном и возвращает созданный блок."""
         zapis = {
             "tip": tip,
-            "dannye": dannye,
+            "dannye": dict(dannye),
             "metka": len(self.genom),
         }
         payload = preobrazovat_tekst_v_cifry(json.dumps(zapis, ensure_ascii=False, sort_keys=True))
@@ -95,13 +141,24 @@ class KolibriSim:
 
     def _registrirovat(self, tip: str, soobshenie: str) -> None:
         """Добавляет запись в оперативный журнал действий."""
-        zapis = {
+        zapis: ZhurnalZapis = {
             "tip": tip,
             "soobshenie": soobshenie,
             "metka": time.time(),
         }
         self.zhurnal.append(zapis)
-        self._sozdanie_bloka(tip, zapis)
+        if len(self.zhurnal) > self.predel_zhurnala:
+            sdvig = len(self.zhurnal) - self.predel_zhurnala
+            del self.zhurnal[:sdvig]
+            self._zhurnal_sdvig += sdvig
+        blok = self._sozdanie_bloka(tip, zapis)
+        tracer = self._tracer
+        if tracer is not None:
+            try:
+                blok_dlya_tracinga = blok if self._tracer_include_genome else None
+                tracer.zapisat(zapis, blok_dlya_tracinga)
+            except Exception as oshibka:  # pragma: no cover - ошибки трассера должны быть видимы
+                raise RuntimeError("KolibriSim tracer не смог обработать событие") from oshibka
 
     # --- Базовые операции обучения ---
     def obuchit_svjaz(self, stimul: str, otvet: str) -> None:
@@ -169,7 +226,7 @@ class KolibriSim:
         smeshchenie = self.generator.randint(0, 9)
         kod = f"f(x)={mnozhitel}*x+{smeshchenie}"
         nazvanie = f"F{len(self.formuly) + 1:04d}"
-        zapis = {
+        zapis: FormulaZapis = {
             "kod": kod,
             "fitness": 0.0,
             "parents": roditeli,
@@ -185,7 +242,7 @@ class KolibriSim:
     def ocenit_formulu(self, nazvanie: str, uspeh: float) -> float:
         """Обновляет фитнес формулы и возвращает новое значение."""
         zapis = self.formuly[nazvanie]
-        tekushchij = float(zapis["fitness"])
+        tekushchij = zapis["fitness"]
         novoe_znachenie = 0.6 * uspeh + 0.4 * tekushchij
         zapis["fitness"] = novoe_znachenie
         self._registrirovat("FITNESS", f"{nazvanie}:{novoe_znachenie:.3f}")
@@ -245,14 +302,34 @@ class KolibriSim:
         """Возвращает копию текущих знаний для синхронизации."""
         return dict(self.znanija)
 
+    def ustanovit_predel_zhurnala(self, predel: int) -> None:
+        """Задаёт максимальный размер журнала и немедленно усечает избыток."""
+        if predel < 1:
+            raise ValueError("предельный размер журнала должен быть положительным")
+        self.predel_zhurnala = predel
+        if len(self.zhurnal) > predel:
+            sdvig = len(self.zhurnal) - predel
+            del self.zhurnal[:sdvig]
+            self._zhurnal_sdvig += sdvig
+
+    def poluchit_zhurnal(self) -> ZhurnalSnapshot:
+        """Возвращает снимок журнала с информацией о отброшенных записях."""
+        return {"offset": self._zhurnal_sdvig, "zapisi": list(self.zhurnal)}
+
+    def ustanovit_tracer(self, tracer: Optional[ZhurnalTracer], *, vkljuchat_genom: bool = False) -> None:
+        """Настраивает обработчик событий журнала и управление блоками генома."""
+
+        self._tracer = tracer
+        self._tracer_include_genome = bool(tracer) and vkljuchat_genom
+
     def massiv_cifr(self, kolichestvo: int) -> List[int]:
         """Генерирует детерминированную последовательность цифр на основе зерна."""
         return [self.generator.randint(0, 9) for _ in range(kolichestvo)]
 
-    def zapustit_soak(self, minuti: int, sobytiya_v_minutu: int = 4) -> Dict[str, object]:
+    def zapustit_soak(self, minuti: int, sobytiya_v_minutu: int = 4) -> SoakResult:
         """Имитация длительного прогона: создаёт формулы и записи генома."""
         nachalnyj_razmer = len(self.genom)
-        metrika: List[Dict[str, object]] = []
+        metrika: List[MetricEntry] = []
         for minuta in range(minuti):
             nazvanie = self.evolyuciya_formul("soak")
             rezultat = self.ocenit_formulu(nazvanie, self.generator.random())
@@ -293,12 +370,24 @@ def zagruzit_sostoyanie(path: Path) -> Dict[str, object]:
     return rezultat
 
 
-def obnovit_soak_state(path: Path, sim: KolibriSim, minuti: int) -> Dict[str, object]:
+def obnovit_soak_state(path: Path, sim: KolibriSim, minuti: int) -> SoakState:
     """Читает, дополняет и сохраняет состояние длительных прогонов."""
-    tekuschee = zagruzit_sostoyanie(path)
+    tekuschee_raw = zagruzit_sostoyanie(path)
+    tekuschee: SoakState = cast(SoakState, tekuschee_raw)
     itogi = sim.zapustit_soak(minuti)
-    tekuschee.setdefault("metrics", []).extend(itogi["metrics"])
-    tekuschee["events"] = tekuschee.get("events", 0) + itogi["events"]
+
+    metrics: List[MetricEntry]
+    metrics_obj = tekuschee_raw.get("metrics")
+    if isinstance(metrics_obj, list):
+        metrics: List[MetricEntry] = cast(List[MetricEntry], metrics_obj)
+    else:
+        metrics = []
+        tekuschee["metrics"] = metrics
+    metrics.extend(itogi["metrics"])
+
+    events_obj = tekuschee_raw.get("events")
+    events_prev = events_obj if isinstance(events_obj, int) else 0
+    tekuschee["events"] = events_prev + itogi["events"]
     sohranit_sostoyanie(path, tekuschee)
     return tekuschee
 
@@ -310,6 +399,11 @@ __all__ = [
     "vosstanovit_tekst_iz_cifr",
     "dec_hash",
     "dolzhen_zapustit_repl",
+    "MetricEntry",
+    "SoakResult",
+    "SoakState",
+    "ZhurnalSnapshot",
+    "ZhurnalTracer",
     "sohranit_sostoyanie",
     "zagruzit_sostoyanie",
     "obnovit_soak_state",
