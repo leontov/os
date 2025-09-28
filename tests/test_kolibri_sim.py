@@ -114,9 +114,11 @@ def test_t11_soak_progress(tmp_path: Path) -> None:
     sim = KolibriSim(zerno=7)
     state_path = tmp_path / "state.json"
     result = obnovit_soak_state(state_path, sim, minuti=2)
+
     events = result.get("events", 0)
     assert isinstance(events, int)
     assert events > 0
+
     assert state_path.exists()
     metrics = result.get("metrics", [])
     assert isinstance(metrics, list)
@@ -171,6 +173,7 @@ def test_t15_soak_state_accumulates(tmp_path: Path) -> None:
     assert len(metrics_second) >= len(metrics_first) + 2
 
 
+
 # --- Трассировка и структурированные события -------------------------------
 
 def test_tracer_receives_journal_events() -> None:
@@ -212,6 +215,7 @@ def test_json_lines_tracer_writes(tmp_path: Path) -> None:
     first_event = json.loads(contents[0])
     assert first_event["event"]["tip"] == "TEACH"
     assert "genome" in first_event
+
 
 
 # --- Утилиты сохранения состояния -----------------------------------------
