@@ -59,7 +59,10 @@ endif()
 
 # === Kolibri digits module wiring ===
 if(TARGET kolibri_core)
-  target_sources(kolibri_core PRIVATE backend/src/digits.c)
+  target_sources(kolibri_core PRIVATE
+    backend/src/digits.c
+    backend/src/wasm_bridge.c
+  )
 endif()
 
 # (опционально) добавим минимальные тесты по digits

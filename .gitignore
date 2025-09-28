@@ -1,4 +1,7 @@
 /build/
+frontend/*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts
 *.o
 *.a
 *.log

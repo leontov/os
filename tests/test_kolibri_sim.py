@@ -115,9 +115,6 @@ def test_t11_soak_progress(tmp_path: Path) -> None:
     assert isinstance(events, int)
     assert events > 0
 
-    assert "events" in result
-    assert result["events"] > 0
-
     assert state_path.exists()
     metrics = result.get("metrics", [])
     assert isinstance(metrics, list)

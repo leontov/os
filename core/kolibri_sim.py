@@ -19,7 +19,6 @@ class ZhurnalZapis(TypedDict):
     metka: float
 
 
-
 class ZhurnalSnapshot(TypedDict):
     offset: int
     zapisi: List[ZhurnalZapis]
