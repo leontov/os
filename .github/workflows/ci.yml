@@ -63,8 +63,10 @@ jobs:
         uses: mymindstorm/setup-emsdk@v13
         with:
           emsdk-version: latest
+      - name: Конфигурация CMake
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
       - name: Сборка kolibri.wasm
-        run: ./scripts/build_wasm.sh
+        run: cmake --build build --target kolibri_wasm
       - name: Публикация артефактов WASM
         uses: actions/upload-artifact@v4
         with:
