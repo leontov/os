@@ -1,9 +1,9 @@
 /**
  * kolibri-bridge.ts
  *
- * Lightweight placeholder that simulates asynchronous interaction with the
- * Kolibri C11/WASM core. The module exposes a consistent API so the UI can be
- * wired to the real bridge once the WebAssembly artefact is ready.
+ * WebAssembly-backed bridge that executes KolibriScript programs inside the
+ * browser. The bridge loads `kolibri.wasm`, initialises the Kolibri runtime
+ * exported by the module, and exposes a single `ask` method used by the UI.
  */
 
 export interface KolibriBridge {
@@ -11,19 +11,161 @@ export interface KolibriBridge {
   ask(prompt: string, mode?: string): Promise<string>;
 }
 
-class MockKolibriBridge implements KolibriBridge {
+interface KolibriWasmExports extends WebAssembly.Exports {
+  memory: WebAssembly.Memory;
+  _malloc(size: number): number;
+  _free(ptr: number): void;
+  _kolibri_bridge_init(): number;
+  _kolibri_bridge_reset(): number;
+  _kolibri_bridge_execute(programPtr: number, outputPtr: number, outputCapacity: number): number;
+}
+
+const OUTPUT_CAPACITY = 8192;
+const DEFAULT_MODE = "Быстрый ответ";
+const WASM_RESOURCE_URL = "/kolibri.wasm";
+
+const COMMAND_PATTERN = /^(показать|обучить|спросить|тикнуть|сохранить)/i;
+const PROGRAM_START_PATTERN = /начало\s*:/i;
+const PROGRAM_END_PATTERN = /конец\./i;
+
+function escapeScriptString(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
+function normaliseLines(input: string): string[] {
+  return input
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+}
+
+function buildScript(prompt: string, mode: string): string {
+  const trimmed = prompt.trim();
+  if (!trimmed) {
+    return `начало:\n    показать "Пустой запрос"\nконец.\n`;
+  }
+
+  if (PROGRAM_START_PATTERN.test(trimmed) && PROGRAM_END_PATTERN.test(trimmed)) {
+    return trimmed.endsWith("\n") ? trimmed : `${trimmed}\n`;
+  }
+
+  const lines = normaliseLines(trimmed);
+  const modeLine = mode && mode !== DEFAULT_MODE ? `    показать "Режим: ${escapeScriptString(mode)}"\n` : "";
+
+  const scriptLines = lines.map((line) => {
+    if (COMMAND_PATTERN.test(line)) {
+      return `    ${line}`;
+    }
+    return `    показать "${escapeScriptString(line)}"`;
+  });
+
+  return `начало:\n${modeLine}${scriptLines.join("\n")}\nконец.\n`;
+}
+
+class KolibriWasmBridge implements KolibriBridge {
+  private readonly encoder = new TextEncoder();
+  private readonly decoder = new TextDecoder("utf-8");
+  private exports: KolibriWasmExports | null = null;
   readonly ready: Promise<void>;
 
   constructor() {
-    this.ready = Promise.resolve();
+    this.ready = this.initialise();
   }
 
-  async ask(prompt: string, mode = "Быстрый ответ"): Promise<string> {
-    await new Promise((resolve) => setTimeout(resolve, 600));
-    return `Режим «${mode}»: я услышал — «${prompt}». Совсем скоро Kolibri C11/WASM вернёт здесь эволюционировавшую формулу ответа.`;
+  private async instantiateWasm(): Promise<WebAssembly.Instance> {
+    const importObject: WebAssembly.Imports = {};
+
+    if ("instantiateStreaming" in WebAssembly) {
+      try {
+        const streamingResult = await WebAssembly.instantiateStreaming(fetch(WASM_RESOURCE_URL), importObject);
+        return streamingResult.instance;
+      } catch (error) {
+        // Fallback to ArrayBuffer path when MIME type is missing.
+        console.warn("Kolibri WASM streaming instantiation failed, retrying with ArrayBuffer.", error);
+      }
+    }
+
+    const response = await fetch(WASM_RESOURCE_URL);
+    if (!response.ok) {
+      throw new Error(`Не удалось загрузить kolibri.wasm: ${response.status} ${response.statusText}`);
+    }
+    const bytes = await response.arrayBuffer();
+    const { instance } = await WebAssembly.instantiate(bytes, importObject);
+    return instance;
+  }
+
+  private async initialise(): Promise<void> {
+    const instance = await this.instantiateWasm();
+    const exports = instance.exports as KolibriWasmExports;
+    if (typeof exports._kolibri_bridge_init !== "function") {
+      throw new Error("WASM-модуль не содержит kolibri_bridge_init");
+    }
+    const result = exports._kolibri_bridge_init();
+    if (result !== 0) {
+      throw new Error(`Не удалось инициализировать KolibriScript (код ${result})`);
+    }
+    this.exports = exports;
+  }
+
+  async ask(prompt: string, mode: string = DEFAULT_MODE): Promise<string> {
+    await this.ready;
+    if (!this.exports) {
+      throw new Error("Kolibri WASM мост не готов");
+    }
+
+    const exports = this.exports;
+    const script = buildScript(prompt, mode);
+    const scriptBytes = this.encoder.encode(script);
+    const programPtr = exports._malloc(scriptBytes.length + 1);
+    const outputPtr = exports._malloc(OUTPUT_CAPACITY);
+
+    if (!programPtr || !outputPtr) {
+      if (programPtr) {
+        exports._free(programPtr);
+      }
+      if (outputPtr) {
+        exports._free(outputPtr);
+      }
+      throw new Error("Недостаточно памяти для выполнения KolibriScript");
+    }
+
+    try {
+      const heap = new Uint8Array(exports.memory.buffer);
+      heap.set(scriptBytes, programPtr);
+      heap[programPtr + scriptBytes.length] = 0;
+
+      const written = exports._kolibri_bridge_execute(programPtr, outputPtr, OUTPUT_CAPACITY);
+      if (written < 0) {
+        throw new Error(this.describeExecutionError(written));
+      }
+
+      const outputBytes = heap.subarray(outputPtr, outputPtr + written);
+      const text = this.decoder.decode(outputBytes);
+      return text.trim().length === 0 ? "KolibriScript завершил работу без вывода." : text.trimEnd();
+    } finally {
+      exports._free(programPtr);
+      exports._free(outputPtr);
+    }
+  }
+
+  private describeExecutionError(code: number): string {
+    switch (code) {
+      case -1:
+        return "Не удалось инициализировать KolibriScript.";
+      case -2:
+        return "WASM-модуль не смог подготовить временный вывод.";
+      case -3:
+        return "KolibriScript сообщил об ошибке при разборе программы.";
+      case -4:
+        return "Во время выполнения KolibriScript произошла ошибка.";
+      case -5:
+        return "Некорректные аргументы вызова KolibriScript.";
+      default:
+        return `Неизвестная ошибка KolibriScript (код ${code}).`;
+    }
   }
 }
 
-const kolibriBridge: KolibriBridge = new MockKolibriBridge();
+const kolibriBridge: KolibriBridge = new KolibriWasmBridge();
 
 export default kolibriBridge;
