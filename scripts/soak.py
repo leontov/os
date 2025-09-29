@@ -7,6 +7,14 @@ import argparse
 import csv
 import json
 from pathlib import Path
+
+from typing import Sequence, cast
+
+from core.kolibri_sim import KolibriSim, MetricRecord, obnovit_soak_state
+
+
+def zapisat_csv(path: Path, metrika: Sequence[MetricRecord]) -> None:
+
 from typing import List, Optional, cast
 
 from core.kolibri_sim import (
@@ -18,6 +26,7 @@ from core.kolibri_sim import (
 
 
 def zapisat_csv(path: Path, metrika: List[MetricEntry]) -> None:
+
     """Сохраняет метрики прогона в CSV."""
     if not metrika:
         path.write_text("minute,formula,fitness,genome\n", encoding="utf-8")
@@ -51,6 +60,11 @@ def main() -> int:
     if not args.resume and state_path.exists():
         state_path.unlink()
 
+
+    sim = KolibriSim(zerno=args.seed)
+    rezultat = obnovit_soak_state(state_path, sim, minuti)
+    metrika = cast(Sequence[MetricRecord], rezultat.get("metrics", []))[-minuti:]
+
     log_dir = Path(args.log_dir) if args.log_dir is not None else Path("logs")
     trace_path = log_dir / f"kolibri_seed{args.seed}_events.jsonl"
     sim = KolibriSim(
@@ -61,6 +75,7 @@ def main() -> int:
     rezultat: SoakState = obnovit_soak_state(state_path, sim, minuti)
     metrics = rezultat.get("metrics", [])
     metrika = cast(List[MetricEntry], metrics)[-minuti:]
+
 
     if args.metrics_path:
         zapisat_csv(Path(args.metrics_path), metrika)
@@ -76,7 +91,7 @@ def main() -> int:
 
     print(json.dumps({
         "minutes": minuti,
-        "events": rezultat.get("events", 0),
+        "events": cast(int, rezultat.get("events", 0)),
         "metrics_written": len(metrika),
         "state_path": str(state_path),
         "trace_path": str(sim.poluchit_trace_path() or trace_path),
