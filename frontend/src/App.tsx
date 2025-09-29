@@ -48,10 +48,34 @@ const App = () => {
   }, []);
 
   const resetConversation = useCallback(() => {
-    setMessages([]);
-    setDraft("");
-    setIsProcessing(false);
-  }, []);
+    if (!bridgeReady) {
+      setMessages([]);
+      setDraft("");
+      setIsProcessing(false);
+      return;
+    }
+
+    void (async () => {
+      try {
+        await kolibriBridge.reset();
+        setMessages([]);
+        setDraft("");
+      } catch (error) {
+        const assistantMessage: ChatMessage = {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content:
+            error instanceof Error
+              ? `Не удалось сбросить KolibriScript: ${error.message}`
+              : "Не удалось сбросить KolibriScript.",
+          timestamp: new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }),
+        };
+        setMessages((prev) => [...prev, assistantMessage]);
+      } finally {
+        setIsProcessing(false);
+      }
+    })();
+  }, [bridgeReady]);
 
   const sendMessage = useCallback(async () => {
     const content = draft.trim();

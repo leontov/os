@@ -9,6 +9,7 @@
 export interface KolibriBridge {
   readonly ready: Promise<void>;
   ask(prompt: string, mode?: string): Promise<string>;
+  reset(): Promise<void>;
 }
 
 interface KolibriWasmExports extends WebAssembly.Exports {
@@ -145,6 +146,18 @@ class KolibriWasmBridge implements KolibriBridge {
     } finally {
       exports._free(programPtr);
       exports._free(outputPtr);
+    }
+  }
+
+  async reset(): Promise<void> {
+    await this.ready;
+    if (!this.exports) {
+      throw new Error("Kolibri WASM мост не готов");
+    }
+
+    const result = this.exports._kolibri_bridge_reset();
+    if (result !== 0) {
+      throw new Error(`Не удалось сбросить KolibriScript (код ${result})`);
     }
   }
 
