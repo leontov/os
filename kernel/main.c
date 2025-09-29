@@ -10,6 +10,9 @@
 #include "kolibri/genome.h"
 #include "kolibri/net.h"
 #include "kolibri/random.h"
+#include "ramdisk.h"
+#include "serial.h"
+#include "support.h"
 
 #define VGA_ADRES ((volatile uint16_t *)0xB8000U)
 #define VGA_SHIRINA 80U
@@ -60,6 +63,9 @@ static struct idt_zapis idt_tablica[256];
 static uint64_t schetchik_tickov = 0ULL;
 
 static KolibriFormulaPool kernel_pool;
+static KolibriSlipUdp net_interface;
+static KolibriGenome genome_context;
+static bool genome_ready = false;
 
 struct KolibriBootConfig {
     uint32_t seed;
@@ -70,6 +76,20 @@ struct KolibriBootConfig {
 
 extern void isr_timer(void);
 extern void isr_keyboard(void);
+
+static void serial_state(const char *message) {
+    serial_write_string("[STATE] ");
+    serial_write_string(message);
+    serial_write_char('\n');
+}
+
+static void serial_state_value(const char *label, uint32_t value) {
+    serial_write_string("[STATE] ");
+    serial_write_string(label);
+    serial_write_string(": ");
+    serial_write_hex32(value);
+    serial_write_char('\n');
+}
 
 /* Выполняет запись байта в аппаратный порт. */
 static inline void zapisat_port8(uint16_t port, uint8_t znachenie) {
@@ -137,20 +157,52 @@ static void kolibri_print_gene(const KolibriGene *gene) {
     vga_pechat_stroku("digits: ");
     if (!gene) {
         vga_pechat_stroku("<none>\n");
+        serial_write_string("[GENE ] <none>\n");
         return;
     }
+    serial_write_string("[GENE ] ");
     for (size_t i = 0; i < gene->length; ++i) {
         vga_pechat_chislo_u32(gene->digits[i]);
         if (i + 1U < gene->length) {
             vga_pechat_stroku(" ");
         }
+        serial_write_char((char)('0' + (gene->digits[i] % 10U)));
+        if (i + 1U < gene->length) {
+            serial_write_char(' ');
+        }
     }
     vga_pechat_stroku("\n");
+    serial_write_char('\n');
 }
 
 static void kolibri_autopilot(const struct KolibriBootConfig *cfg) {
-    uint32_t seed = cfg ? cfg->seed : 20250923U;
+    uint32_t seed = cfg && cfg->seed != 0U ? cfg->seed : 20250923U;
+    uint32_t node_id = cfg && cfg->node_id != 0U ? cfg->node_id : 1U;
+    uint16_t listen_port = cfg ? cfg->listen_port : 0U;
+
+    serial_state("autopilot.start");
+    serial_state_value("seed", seed);
+    serial_state_value("node", node_id);
+
+    ramdisk_init();
+    genome_ready = false;
+    if (kg_open(&genome_context, ramdisk_data(), ramdisk_capacity()) == 0) {
+        genome_ready = true;
+        genome_context.size = ramdisk_size();
+        if (genome_context.size > genome_context.capacity) {
+            genome_context.size = 0U;
+        }
+        serial_state_value("genome.entries", genome_context.next_index);
+        vga_pechat_stroku("[Kolibri] genome entries: ");
+        vga_pechat_chislo_u32(genome_context.next_index);
+        vga_pechat_stroku("\n");
+    } else {
+        serial_state("genome.open_failed");
+        vga_pechat_stroku("[Kolibri] genome unavailable\n");
+    }
+
     vga_pechat_stroku("[Kolibri] init RNG\n");
+    serial_state("rng.init");
     kf_pool_init(&kernel_pool, (uint64_t)seed);
     kf_pool_clear_examples(&kernel_pool);
 
@@ -162,11 +214,13 @@ static void kolibri_autopilot(const struct KolibriBootConfig *cfg) {
     }
 
     vga_pechat_stroku("[Kolibri] evolve\n");
+    serial_state("pool.tick");
     kf_pool_tick(&kernel_pool, 32);
 
     const KolibriFormula *best = kf_pool_best(&kernel_pool);
     if (!best) {
         vga_pechat_stroku("[Kolibri] pool empty\n");
+        serial_state("pool.empty");
         return;
     }
 
@@ -175,6 +229,9 @@ static void kolibri_autopilot(const struct KolibriBootConfig *cfg) {
         vga_pechat_stroku("[Kolibri] best: ");
         vga_pechat_stroku(description);
         vga_pechat_stroku("\n");
+        serial_write_string("[BEST ] ");
+        serial_write_string(description);
+        serial_write_char('\n');
     }
     kolibri_print_gene(&best->gene);
 
@@ -183,12 +240,31 @@ static void kolibri_autopilot(const struct KolibriBootConfig *cfg) {
         vga_pechat_stroku("f(4)=");
         vga_pechat_chislo_u32((uint32_t)preview);
         vga_pechat_stroku("\n");
+        serial_state_value("preview", (uint32_t)preview);
     }
 
-    if (cfg && cfg->listen_port != 0U) {
-        vga_pechat_stroku("[Kolibri] swarm bootstrap\n");
-        (void)cfg; /* реальный сетевой стек будет подключен позже */
+    if (genome_ready) {
+        char payload[128];
+        if (kf_formula_describe(best, payload, sizeof(payload)) != 0) {
+            k_strlcpy(payload, "unknown", sizeof(payload));
+        }
+        if (kg_append(&genome_context, "AUTOPILOT", payload, NULL) == 0) {
+            serial_state("genome.append");
+        }
+        ramdisk_commit(genome_context.size);
+        kg_close(&genome_context);
     }
+
+    if (listen_port != 0U) {
+        vga_pechat_stroku("[Kolibri] swarm bootstrap\n");
+        kn_slip_udp_init(&net_interface, listen_port);
+        kn_slip_udp_send_hello(&net_interface, node_id);
+        serial_state("network.hello_sent");
+    } else {
+        serial_state("network.disabled");
+    }
+
+    serial_state("autopilot.done");
 }
 
 /* Создаёт запись GDT с заданными параметрами. */
@@ -317,10 +393,13 @@ void obrabotat_klaviaturu(void) {
 /* Точка входа ядра Kolibri OS после загрузчика GRUB. */
 void kolibri_kernel_main(uint32_t multiboot_magic, uint32_t multiboot_info) {
     (void)multiboot_info;
+    serial_init(3U);
+    serial_state("boot.enter");
     vga_ochistit();
     vga_pechat_stroku("Kolibri OS ядро запущено\n");
     if (multiboot_magic != 0x36D76289U) {
         vga_pechat_stroku("[ОШИБКА] загрузчик не соответствует Multiboot2\n");
+        serial_state_value("boot.magic", multiboot_magic);
         for (;;) {
             __asm__ __volatile__("hlt");
         }
@@ -333,6 +412,7 @@ void kolibri_kernel_main(uint32_t multiboot_magic, uint32_t multiboot_info) {
 
     vga_pechat_stroku("Прерывания активируются...\n");
     __asm__ __volatile__("sti");
+    serial_state("interrupts.enabled");
 
     const struct KolibriBootConfig *config = (const struct KolibriBootConfig *)0x00008000U;
     kolibri_autopilot(config);
