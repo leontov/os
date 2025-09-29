@@ -86,6 +86,48 @@ if [ "$propustit_wasm" -eq 0 ]; then
     artifacts+=("$wasm_path" "$postroika/wasm/kolibri.wasm.sha256")
 fi
 
+"$kornevaya/scripts/build_iso.sh" --kernel-only
+
+kernel_bin="$postroika/kolibri.bin"
+if [ ! -f "$kernel_bin" ]; then
+    echo "[Ошибка] Не удалось найти $kernel_bin" >&2
+    exit 1
+fi
+
+boot_bin="$postroika/kolibri_boot.bin"
+nasm -f bin "$kornevaya/boot/kolibri.asm" -o "$boot_bin"
+
+kernel_size=$(stat -c '%s' "$kernel_bin")
+kernel_sectors=$(( (kernel_size + 511) / 512 ))
+
+python3 - "$boot_bin" "$kernel_size" "$kernel_sectors" <<'PY'
+import struct
+import sys
+
+boot_path, kernel_size, sectors = sys.argv[1:4]
+kernel_size = int(kernel_size)
+sectors = int(sectors)
+
+with open(boot_path, 'r+b') as boot:
+    data = boot.read()
+    marker = data.find(b'KSEC')
+    if marker == -1:
+        raise SystemExit('не найден маркер KSEC')
+    boot.seek(marker + 4)
+    boot.write(struct.pack('<H', sectors))
+    marker = data.find(b'KBYT')
+    if marker == -1:
+        raise SystemExit('не найден маркер KBYT')
+    boot.seek(marker + 4)
+    boot.write(struct.pack('<I', kernel_size))
+PY
+
+disk_image="$postroika/kolibri.img"
+dd if=/dev/zero of="$disk_image" bs=512 count=$((kernel_sectors + 1)) status=none
+dd if="$boot_bin" of="$disk_image" bs=512 count=1 conv=notrunc status=none
+dd if="$kernel_bin" of="$disk_image" bs=512 seek=1 conv=notrunc status=none
+artifacts+=("$disk_image")
+
 metadannye="$reliz_dir/METADATA.txt"
 commit=$(git -C "$kornevaya" rev-parse --verify HEAD)
 cat >"$metadannye" <<META
