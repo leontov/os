@@ -1,5 +1,5 @@
 import { Paperclip, Plus, RefreshCw, SendHorizontal } from "lucide-react";
-import { useId } from "react";
+import { type KeyboardEvent, useId } from "react";
 
 interface ChatInputProps {
   value: string;
@@ -15,6 +15,16 @@ const modes = ["Быстрый ответ", "Исследование", "Тво�
 
 const ChatInput = ({ value, mode, isBusy, onChange, onModeChange, onSubmit, onReset }: ChatInputProps) => {
   const textAreaId = useId();
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+
+      if (!isBusy && value.trim()) {
+        onSubmit();
+      }
+    }
+  };
 
   return (
     <div className="mt-6 flex flex-col gap-4 rounded-3xl bg-white/80 p-6 shadow-card">
@@ -45,6 +55,7 @@ const ChatInput = ({ value, mode, isBusy, onChange, onModeChange, onSubmit, onRe
         id={`${textAreaId}-textarea`}
         value={value}
         onChange={(event) => onChange(event.target.value)}
+        onKeyDown={handleKeyDown}
         placeholder="Сообщение для Колибри"
         className="min-h-[120px] w-full resize-none rounded-2xl border border-transparent bg-background-light/60 px-4 py-3 text-sm text-text-dark placeholder:text-text-light focus:border-primary focus:outline-none"
       />
