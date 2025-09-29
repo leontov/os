@@ -373,7 +373,7 @@ static void preobrazovat_bajt_v_hex(uint8_t znachenie, char *vyhod) {
 /* Обработчик аппаратного таймера. */
 void obrabotat_tajmer(void) {
     ++schetchik_tickov;
-    if (schetchik_tickov % 100ULL == 0ULL) {
+    if (((uint32_t)schetchik_tickov % 100U) == 0U) {
         vga_pechat_stroku("[TICK]\n");
     }
     poslati_eoi(0U);
