@@ -24,6 +24,6 @@ iso: kernel
 
 check: test iso wasm
 
-wasm:
-	./scripts/build_wasm.sh
+wasm: build
+        cmake --build build --target kolibri_wasm
 

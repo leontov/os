@@ -63,7 +63,12 @@ jobs:
         uses: mymindstorm/setup-emsdk@v13
         with:
           emsdk-version: latest
+      - name: Конфигурация CMake
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
       - name: Сборка kolibri.wasm
+
+        run: cmake --build build --target kolibri_wasm
+
         run: ./scripts/build_wasm.sh
       - name: Подготовка wasm для предпросмотра фронтенда
         run: |
@@ -76,6 +81,7 @@ jobs:
           path: preview-artifacts/kolibri.wasm
           if-no-files-found: error
           retention-days: 7
+
       - name: Публикация артефактов WASM
         uses: actions/upload-artifact@v4
         with:
