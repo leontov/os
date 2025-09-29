@@ -500,22 +500,19 @@ def obnovit_soak_state(path: Path, sim: KolibriSim, minuti: int) -> SoakState:
     tekuschee: SoakState = cast(SoakState, tekuschee_raw)
     itogi = sim.zapustit_soak(minuti)
 
-    metrics_list = cast(List[MetricRecord], tekuschee.setdefault("metrics", []))
-    metrics_list.extend(itogi["metrics"])
-    tekuschee["events"] = cast(int, tekuschee.get("events", 0)) + itogi["events"]
 
+    metrics_obj = tekuschee.get("metrics")
 
-    metrics: List[MetricEntry]
-    metrics_obj = tekuschee_raw.get("metrics")
     if isinstance(metrics_obj, list):
-        metrics: List[MetricEntry] = cast(List[MetricEntry], metrics_obj)
+        metrics = cast(List[MetricEntry], metrics_obj)
     else:
         metrics = []
         tekuschee["metrics"] = metrics
     metrics.extend(itogi["metrics"])
 
-    events_obj = tekuschee_raw.get("events")
-    events_prev = events_obj if isinstance(events_obj, int) else 0
+    events_prev = tekuschee.get("events")
+    if not isinstance(events_prev, int):
+        events_prev = 0
     tekuschee["events"] = events_prev + itogi["events"]
 
     sohranit_sostoyanie(path, tekuschee)
