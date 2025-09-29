@@ -9,9 +9,12 @@ import random
 import time
 import hashlib
 import hmac
+import os
 from pathlib import Path
 
 from typing import Dict, List, Mapping, Optional, Protocol, TypedDict, cast
+
+from .tracing import JsonLinesTracer
 
 
 class ZhurnalZapis(TypedDict):
@@ -103,7 +106,14 @@ def _poschitat_hmac(klyuch: bytes, pred_hash: str, payload: str) -> str:
 class KolibriSim:
     """Минималистичная симуляция узла Kolibri для сценариев CI и unit-тестов."""
 
-    def __init__(self, zerno: int = 0, hmac_klyuch: Optional[bytes] = None) -> None:
+    def __init__(
+        self,
+        zerno: int = 0,
+        hmac_klyuch: Optional[bytes] = None,
+        *,
+        trace_path: "Path | str | None" = None,
+        trace_include_genome: Optional[bool] = None,
+    ) -> None:
         self.zerno = zerno
         self.generator = random.Random(zerno)
         self.hmac_klyuch = hmac_klyuch or b"kolibri-hmac"
@@ -119,6 +129,8 @@ class KolibriSim:
         self.genom: List[ZapisBloka] = []
         self._tracer: Optional[ZhurnalTracer] = None
         self._tracer_include_genome = False
+        self._trace_path: Optional[Path] = None
+        self._nastroit_avto_tracer(trace_path, trace_include_genome)
         self._sozdanie_bloka("GENESIS", {"seed": zerno})
 
     # --- Вспомогательные методы ---
@@ -142,6 +154,59 @@ class KolibriSim:
         if isinstance(self.hmac_klyuch, str):
             self.hmac_klyuch = self.hmac_klyuch.encode("utf-8")
         return self.hmac_klyuch
+
+    def _nastroit_avto_tracer(
+        self,
+        trace_path: "Path | str | None",
+        trace_include_genome: Optional[bool],
+    ) -> None:
+        """Автоматически подключает JSONL-трассер, если он не отключён."""
+
+        path = self._vybrat_trace_path(trace_path)
+        if path is None:
+            return
+
+        include_genome = self._vybrat_trace_genome(trace_include_genome)
+        tracer = JsonLinesTracer(path, include_genome=include_genome)
+        self.ustanovit_tracer(tracer, vkljuchat_genom=include_genome)
+
+    def _vybrat_trace_path(self, trace_path: "Path | str | None") -> Optional[Path]:
+        """Определяет путь к JSONL-журналу с учётом переменных окружения."""
+
+        if not self._env_flag(os.getenv("KOLIBRI_TRACE"), default=True):
+            return None
+
+        if trace_path is not None:
+            if str(trace_path).strip() == "":
+                return None
+            return Path(trace_path)
+
+        env_path = os.getenv("KOLIBRI_TRACE_PATH")
+        if env_path is not None:
+            stripped = env_path.strip()
+            if stripped.lower() in {"", "0", "false", "no", "off"}:
+                return None
+            return Path(stripped)
+
+        log_dir_env = os.getenv("KOLIBRI_LOG_DIR")
+        base_dir = Path(log_dir_env) if log_dir_env else Path.cwd()
+        return base_dir / "kolibri_trace.jsonl"
+
+    @staticmethod
+    def _env_flag(value: Optional[str], *, default: bool) -> bool:
+        """Интерпретирует переменную окружения как логический флаг."""
+
+        if value is None:
+            return default
+        return value.strip().lower() not in {"", "0", "false", "no", "off"}
+
+    def _vybrat_trace_genome(self, trace_include_genome: Optional[bool]) -> bool:
+        """Определяет, нужно ли добавлять блоки генома в журнал."""
+
+        if trace_include_genome is not None:
+            return trace_include_genome
+        env_value = os.getenv("KOLIBRI_TRACE_GENOME")
+        return self._env_flag(env_value, default=False)
 
     def _registrirovat(self, tip: str, soobshenie: str) -> None:
         """Добавляет запись в оперативный журнал действий."""
@@ -330,6 +395,17 @@ class KolibriSim:
 
         self._tracer = tracer
         self._tracer_include_genome = bool(tracer) and vkljuchat_genom
+        if tracer is None:
+            self._trace_path = None
+        elif isinstance(tracer, JsonLinesTracer):
+            self._trace_path = tracer._path  # type: ignore[attr-defined]
+        else:
+            self._trace_path = None
+
+    def poluchit_trace_path(self) -> Optional[Path]:
+        """Возвращает путь к активному JSONL-журналу, если он настроен."""
+
+        return self._trace_path
 
 
     def massiv_cifr(self, kolichestvo: int) -> List[int]:
