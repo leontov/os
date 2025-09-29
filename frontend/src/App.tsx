@@ -93,7 +93,7 @@ const App = () => {
     } finally {
       setIsProcessing(false);
     }
-  }, [draft, isProcessing, mode]);
+  }, [bridgeReady, draft, isProcessing, mode]);
 
   const content = useMemo(() => {
     if (!messages.length) {
