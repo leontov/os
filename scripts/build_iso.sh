@@ -82,11 +82,14 @@ if "$CC" --version | grep -qi "gcc"; then
     dopolnitelnye_flagi+=("-m32")
 fi
 
-if ! "$CC" "${dopolnitelnye_flagi[@]}" -xc -o /dev/null - <<<'int main(void){return 0;}' 2>/tmp/kolibri_iso_cc.log; then
+cc_proverka_obj="$(mktemp "$yadro_dir/cc_check.XXXXXX.o")"
+if ! "$CC" "${dopolnitelnye_flagi[@]}" -xc -c -o "$cc_proverka_obj" - <<<'int main(void){return 0;}' 2>/tmp/kolibri_iso_cc.log; then
     cat /tmp/kolibri_iso_cc.log >&2
     echo "[ОШИБКА] Компилятор не поддерживает требуемый режим. Проверьте наличие gcc-multilib или cross-toolchain." >&2
+    rm -f "$cc_proverka_obj"
     exit 1
 fi
+rm -f "$cc_proverka_obj"
 
 if [[ "$LD" == *ld ]]; then
     if ! "$LD" -V 2>&1 | grep -q 'elf_i386'; then
@@ -112,7 +115,10 @@ kernel_sources=(
 kernel_objects=()
 for src in "${kernel_sources[@]}"; do
     obj="$yadro_dir/$(basename "${src%.c}").o"
-    "$CC" "${dopolnitelnye_flagi[@]}" -std=gnu99 -I"$proekt_koren/kernel" -c "$src" -o "$obj"
+    "$CC" "${dopolnitelnye_flagi[@]}" -std=gnu99 \
+        -I"$proekt_koren/kernel" \
+        -I"$proekt_koren/backend/include" \
+        -c "$src" -o "$obj"
     kernel_objects+=("$obj")
 done
 

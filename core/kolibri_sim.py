@@ -12,6 +12,14 @@ import hmac
 import os
 from pathlib import Path
 
+from typing import Any, Dict, List, Mapping, Optional, Sequence, TypedDict, cast
+
+
+class FormulaRecord(TypedDict):
+    """Структура формулы, эволюционирующей в KolibriSim."""
+
+
+
 from typing import Dict, List, Mapping, Optional, Protocol, TypedDict, cast
 
 from .tracing import JsonLinesTracer
@@ -37,13 +45,17 @@ class ZhurnalTracer(Protocol):
 
 
 class FormulaZapis(TypedDict):
+
     kod: str
     fitness: float
     parents: List[str]
     context: str
 
 
-class MetricEntry(TypedDict):
+
+class MetricRecord(TypedDict):
+    """Метрика одного шага soak-прогона."""
+    
     minute: int
     formula: str
     fitness: float
@@ -51,6 +63,12 @@ class MetricEntry(TypedDict):
 
 
 class SoakResult(TypedDict):
+
+    """Результат выполнения soak-сессии."""
+
+    events: int
+    metrics: List[MetricRecord]
+
     events: int
     metrics: List[MetricEntry]
 
@@ -123,7 +141,11 @@ class KolibriSim:
         self._zhurnal_sdvig = 0
 
         self.znanija: Dict[str, str] = {}
+
+        self.formuly: Dict[str, FormulaRecord] = {}
+
         self.formuly: Dict[str, FormulaZapis] = {}
+
         self.populyaciya: List[str] = []
         self.predel_populyacii = 24
         self.genom: List[ZapisBloka] = []
@@ -293,13 +315,21 @@ class KolibriSim:
     # --- Эволюция формул ---
     def evolyuciya_formul(self, kontekst: str) -> str:
         """Создаёт новую формулу, базируясь на имеющихся родителях."""
-        rod_stroki = list(self.formuly.keys())
-        roditeli = self.generator.sample(rod_stroki, k=min(2, len(rod_stroki))) if rod_stroki else []
+        rod_stroki: Sequence[str] = list(self.formuly.keys())
+        roditeli: List[str] = (
+            self.generator.sample(rod_stroki, k=min(2, len(rod_stroki)))
+            if rod_stroki
+            else []
+        )
         mnozhitel = self.generator.randint(1, 9)
         smeshchenie = self.generator.randint(0, 9)
         kod = f"f(x)={mnozhitel}*x+{smeshchenie}"
         nazvanie = f"F{len(self.formuly) + 1:04d}"
+
+        zapis: FormulaRecord = {
+
         zapis: FormulaZapis = {
+
             "kod": kod,
             "fitness": 0.0,
             "parents": roditeli,
@@ -415,7 +445,11 @@ class KolibriSim:
     def zapustit_soak(self, minuti: int, sobytiya_v_minutu: int = 4) -> SoakResult:
         """Имитация длительного прогона: создаёт формулы и записи генома."""
         nachalnyj_razmer = len(self.genom)
+
+        metrika: List[MetricRecord] = []
+
         metrika: List[MetricEntry] = []
+
         for minuta in range(minuti):
             nazvanie = self.evolyuciya_formul("soak")
             rezultat = self.ocenit_formulu(nazvanie, self.generator.random())
@@ -435,7 +469,7 @@ class KolibriSim:
         }
 
 
-def sohranit_sostoyanie(path: Path, sostoyanie: Mapping[str, object]) -> None:
+def sohranit_sostoyanie(path: Path, sostoyanie: Mapping[str, Any]) -> None:
     """Сохраняет состояние в JSON с переводом текстов в цифровой слой."""
     serializovannoe = {
         k: preobrazovat_tekst_v_cifry(json.dumps(v, ensure_ascii=False, sort_keys=True))
@@ -444,25 +478,31 @@ def sohranit_sostoyanie(path: Path, sostoyanie: Mapping[str, object]) -> None:
     path.write_text(json.dumps(serializovannoe, ensure_ascii=False, sort_keys=True), encoding="utf-8")
 
 
-def zagruzit_sostoyanie(path: Path) -> Dict[str, object]:
+def zagruzit_sostoyanie(path: Path) -> Dict[str, Any]:
     """Загружает состояние из цифровой формы и восстанавливает структуру."""
     if not path.exists():
         return {}
     dannye = json.loads(path.read_text(encoding="utf-8"))
-    rezultat: Dict[str, object] = {}
+    rezultat: Dict[str, Any] = {}
     for k, v in dannye.items():
         tekst = vosstanovit_tekst_iz_cifr(v)
         rezultat[k] = json.loads(tekst)
     return rezultat
 
 
+
+def obnovit_soak_state(path: Path, sim: KolibriSim, minuti: int) -> Dict[str, Any]:
+
 def obnovit_soak_state(path: Path, sim: KolibriSim, minuti: int) -> SoakState:
+
     """Читает, дополняет и сохраняет состояние длительных прогонов."""
     tekuschee_raw = zagruzit_sostoyanie(path)
     tekuschee: SoakState = cast(SoakState, tekuschee_raw)
     itogi = sim.zapustit_soak(minuti)
 
+
     metrics_obj = tekuschee.get("metrics")
+
     if isinstance(metrics_obj, list):
         metrics = cast(List[MetricEntry], metrics_obj)
     else:
@@ -474,6 +514,7 @@ def obnovit_soak_state(path: Path, sim: KolibriSim, minuti: int) -> SoakState:
     if not isinstance(events_prev, int):
         events_prev = 0
     tekuschee["events"] = events_prev + itogi["events"]
+
     sohranit_sostoyanie(path, tekuschee)
     return tekuschee
 

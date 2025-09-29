@@ -5,7 +5,8 @@
 #define KOLIBRI_FORMULA_CAPACITY (sizeof(((KolibriFormulaPool *)0)->formulas) / sizeof(KolibriFormula))
 
 static uint8_t random_digit(KolibriFormulaPool *pool) {
-    return (uint8_t)(k_rng_next(&pool->rng) % 10ULL);
+    uint32_t value = (uint32_t)k_rng_next(&pool->rng);
+    return (uint8_t)(value % 10U);
 }
 
 static void gene_randomize(KolibriFormulaPool *pool, KolibriGene *gene) {
@@ -59,7 +60,8 @@ static void mutate_gene(KolibriFormulaPool *pool, KolibriGene *gene) {
     if (!gene) {
         return;
     }
-    size_t index = (size_t)(k_rng_next(&pool->rng) % gene->length);
+    uint32_t value = (uint32_t)k_rng_next(&pool->rng);
+    size_t index = (size_t)(value % (gene->length ? gene->length : 1U));
     gene->digits[index] = random_digit(pool);
 }
 
