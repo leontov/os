@@ -65,6 +65,17 @@ jobs:
           emsdk-version: latest
       - name: Сборка kolibri.wasm
         run: ./scripts/build_wasm.sh
+      - name: Подготовка wasm для предпросмотра фронтенда
+        run: |
+          mkdir -p preview-artifacts
+          cp build/wasm/kolibri.wasm preview-artifacts/kolibri.wasm
+      - name: Публикация wasm для предпросмотра фронтенда
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-preview-wasm
+          path: preview-artifacts/kolibri.wasm
+          if-no-files-found: error
+          retention-days: 7
       - name: Публикация артефактов WASM
         uses: actions/upload-artifact@v4
         with:

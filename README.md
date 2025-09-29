@@ -24,7 +24,17 @@
    cmake -S . -B build -G "Ninja"  # или опустите -G, чтобы использовать Makefiles
    cmake --build build
    ```
-5. Запустите тесты:
+5. Для веб-интерфейса соберите wasm-ядро перед фронтендом:
+   ```bash
+   ./scripts/build_wasm.sh
+   ```
+6. Соберите фронтенд (после установки npm-зависимостей в `frontend/`):
+   ```bash
+   cd frontend
+   npm install
+   npm run build
+   ```
+7. Запустите тесты:
    ```bash
    pytest -q
    ctest --test-dir build
