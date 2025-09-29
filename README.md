@@ -10,12 +10,13 @@
 
 ## Быстрый старт
 1. Клонируйте репозиторий и перейдите в директорию проекта.
-2. Создайте виртуальное окружение:
+2. Подготовьте виртуальное окружение Python (поддерживаются версии 3.10+):
    ```bash
    python -m venv .venv
    source .venv/bin/activate  # Windows: .venv\\Scripts\\activate
+   python -m pip install --upgrade pip
    ```
-3. Установите зависимости Python:
+3. Установите инструменты, перечисленные в [`requirements.txt`](requirements.txt). Файл включает точные версии `pytest`, `coverage`, `ruff` и `pyright`, которые используются в CI.
    ```bash
    pip install -r requirements.txt
    ```
@@ -24,9 +25,23 @@
    cmake -S . -B build -G "Ninja"  # или опустите -G, чтобы использовать Makefiles
    cmake --build build
    ```
-5. Запустите тесты:
+
+5. Для веб-интерфейса соберите wasm-ядро перед фронтендом:
+   ```bash
+   ./scripts/build_wasm.sh
+   ```
+6. Соберите фронтенд (после установки npm-зависимостей в `frontend/`):
+   ```bash
+   cd frontend
+   npm install
+   npm run build
+   ```
+7. Запустите тесты:
+
    ```bash
    pytest -q
+   ruff check .
+   pyright
    ctest --test-dir build
    ```
 

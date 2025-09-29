@@ -54,26 +54,35 @@ struct KolibriBootConfig {
 ### 5.1 Kolibri AI Autopilot / Автоматический сценарий ядра / 自动化启动流程
 
 1. Ядро читает `KolibriBootConfig`, инициализирует RNG и пул формул (`kf_pool_init`).
-2. Если доступен `genome.dat` (RAM‑диск / встроенный блок), загружает его через `kg_open` и реплеит события (`kg_append`).
+2. Загружает RAM‑диск с `genome.dat` через `kg_open` поверх `ramdisk_init`, восстанавливая счётчики и реплей блоков; по завершении сессии журнал сбрасывается обратно через `ramdisk_commit`.
 3. Проводит короткую фазу обучения: вызывает `kf_pool_add_example` для встроенных примеров, затем `kf_pool_tick(pool, 32)`.
-4. Вычисляет предварительный ответ `kf_formula_apply(best, probe, &out)` для нескольких значений и печатает сводку на консоль.
-5. При активном сетевом интерфейсе отправляет приветствие (`kn_message_encode_hello`) и одну формулу (`kn_share_formula`).
+4. Вычисляет предварительный ответ `kf_formula_apply(best, probe, &out)` для нескольких значений и печатает сводку на консоль и на последовательный порт.
+5. При активном сетевом интерфейсе включает драйвер SLIP/UDP (`kn_slip_udp_init`) и отправляет приветствие `HELLO:<node>` по последовательному каналу.
 6. Переходит в REPL: принимает команды пользователя и периодически вызывает `kn_listener_poll`, сохраняя импортированные гены в пул.
 
 ---
 
 ## 6. Build & Emulation / Сборка и эмуляция / 构建与仿真
 
-1. Соберите ядро `make` → получите `build/kolibri_node`.
-2. Сформируйте бинарник для прошивки `objcopy -O binary build/kolibri_node build/kolibri.bin`.
-3. Ассемблируйте загрузчик `nasm -f bin kolibri.asm -o kolibri.img` (см. TODO).
-4. Запустите `qemu-system-x86_64 -drive format=raw,file=kolibri.img`.
+1. Запустите `scripts/package_release.sh` — он выполнит тесты, соберёт ядро (`scripts/build_iso.sh --kernel-only`), запакует загрузчик `boot/kolibri.asm` и положит образ `build/kolibri.img`.
+2. Для ручной отладки ядра достаточно `scripts/build_iso.sh --kernel-only`, затем `nasm -f bin boot/kolibri.asm -o build/kolibri_boot.bin` и `dd` для объединения загрузчика и `build/kolibri.bin`.
+3. Эмулируйте систему: `qemu-system-x86_64 -drive format=raw,file=build/kolibri.img,if=ide`.
 
 ---
 
-## 7. Roadmap / Дорожная карта / 路线图
+## 7. Telemetry & Serial Output / Телеметрия через последовательный порт / 串口遥测
 
-- [ ] Автоматическая упаковка бинарника и загрузчика в `kolibri.sh`.
-- [ ] Сетевой драйвер с поддержкой SLIP/UDP для обмена формулами прямо из Kolibri OS.
-- [ ] Минимальный файловый слой для хранения `genome.dat` на RAM-диске.
+| Префикс | Назначение | Пример |
+|---------|------------|--------|
+| `[STATE]` | Важные этапы загрузки и автопилота (`boot.enter`, `rng.init`, `autopilot.done`). | `[STATE] seed: 0x01312FBB` |
+| `[BEST ]` | Описание лучшей формулы из пула после эволюции. | `[BEST ] y=03*x+07` |
+| `[GENE ]` | Сырые цифры гена в одной строке. | `[GENE ] 1 2 3 4 5` |
+
+Каждый кадр SLIP/UDP начинается с `HELLO:<node>` и кодируется по стандарту SLIP (`0xC0` как граница, `0xDB 0xDC` и `0xDB 0xDD` для экранирования). Полезная нагрузка упакована в IPv4/UDP с портом из `KolibriBootConfig`.
+
+## 8. Roadmap / Дорожная карта / 路线图
+
+- [x] Автоматическая упаковка бинарника и загрузчика в `scripts/package_release.sh`.
+- [x] Сетевой драйвер с поддержкой SLIP/UDP для обмена формулами прямо из Kolibri OS.
+- [x] Минимальный файловый слой для хранения `genome.dat` на RAM-диске.
 - [ ] Интеграция с визуальным монитором через последовательный порт.

@@ -7,9 +7,14 @@ import argparse
 import csv
 import json
 from pathlib import Path
-from typing import List, cast
+from typing import List, Optional, cast
 
-from core.kolibri_sim import KolibriSim, MetricEntry, SoakState, obnovit_soak_state
+from core.kolibri_sim import (
+    KolibriSim,
+    MetricEntry,
+    SoakState,
+    obnovit_soak_state,
+)
 
 
 def zapisat_csv(path: Path, metrika: List[MetricEntry]) -> None:
@@ -32,6 +37,12 @@ def main() -> int:
     parser.add_argument("--resume", action="store_true", help="сохранять и продолжать существующее состояние")
     parser.add_argument("--state-path", default="soak_state.json", help="путь к файлу состояния")
     parser.add_argument("--metrics-path", default=None, help="путь к CSV с метриками")
+    parser.add_argument("--log-dir", type=Path, default=None, help="каталог для JSONL-журналов")
+    parser.add_argument(
+        "--keep-genome",
+        action="store_true",
+        help="сохранять снимок генома в каталоге журналов",
+    )
     parser.add_argument("--seed", type=int, default=0, help="зерно генератора KolibriSim")
     args = parser.parse_args()
 
@@ -40,7 +51,13 @@ def main() -> int:
     if not args.resume and state_path.exists():
         state_path.unlink()
 
-    sim = KolibriSim(zerno=args.seed)
+    log_dir = Path(args.log_dir) if args.log_dir is not None else Path("logs")
+    trace_path = log_dir / f"kolibri_seed{args.seed}_events.jsonl"
+    sim = KolibriSim(
+        zerno=args.seed,
+        trace_path=trace_path,
+        trace_include_genome=args.keep_genome,
+    )
     rezultat: SoakState = obnovit_soak_state(state_path, sim, minuti)
     metrics = rezultat.get("metrics", [])
     metrika = cast(List[MetricEntry], metrics)[-minuti:]
@@ -48,11 +65,22 @@ def main() -> int:
     if args.metrics_path:
         zapisat_csv(Path(args.metrics_path), metrika)
 
+    genome_path: Optional[Path] = None
+    if args.keep_genome:
+        log_dir.mkdir(parents=True, exist_ok=True)
+        genome_path = log_dir / f"kolibri_seed{args.seed}_genome.json"
+        genome_path.write_text(
+            json.dumps(sim.poluchit_genom_slovar(), ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
     print(json.dumps({
         "minutes": minuti,
         "events": rezultat.get("events", 0),
         "metrics_written": len(metrika),
         "state_path": str(state_path),
+        "trace_path": str(sim.poluchit_trace_path() or trace_path),
+        "genome_path": str(genome_path) if genome_path else None,
     }, ensure_ascii=False, indent=2))
     return 0
 

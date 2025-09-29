@@ -6,6 +6,20 @@ set -euo pipefail
 # на системные gcc/ld с поддержкой -m32. Все сообщения — на русском,
 # чтобы облегчить диагностику в CI и локально.
 
+kernel_only=0
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --kernel-only)
+            kernel_only=1
+            shift
+            ;;
+        *)
+            echo "Неизвестный параметр: $1" >&2
+            exit 1
+            ;;
+    esac
+done
+
 proekt_koren="$(cd "$(dirname "$0")/.." && pwd)"
 postroika_dir="$proekt_koren/build"
 yadro_dir="$postroika_dir/kernel"
@@ -42,11 +56,19 @@ fi
 
 # Проверяем доступность обязательных инструментов.
 otsutstvuet=()
-for instrument in "$CC" "$LD" "$AS" "$GRUB_MKRESCUE"; do
+for instrument in "$CC" "$LD" "$AS"; do
     if [[ -z "$instrument" ]] || ! command -v "$instrument" >/dev/null 2>&1; then
         otsutstvuet+=("$instrument")
     fi
 done
+
+if [[ $kernel_only -eq 0 ]]; then
+    for instrument in "$GRUB_MKRESCUE"; do
+        if [[ -z "$instrument" ]] || ! command -v "$instrument" >/dev/null 2>&1; then
+            otsutstvuet+=("$instrument")
+        fi
+    done
+fi
 
 if (( ${#otsutstvuet[@]} > 0 )); then
     echo "[ОШИБКА] Не найдены инструменты: ${otsutstvuet[*]}" >&2
@@ -76,20 +98,41 @@ fi
 set -x
 "$AS" -f elf32 "$proekt_koren/kernel/entry.asm" -o "$yadro_dir/entry.o"
 "$AS" -f elf32 "$proekt_koren/kernel/interrupts.asm" -o "$yadro_dir/interrupts.o"
-"$CC" "${dopolnitelnye_flagi[@]}" -std=gnu99 -c "$proekt_koren/kernel/main.c" -o "$yadro_dir/main.o"
+kernel_sources=(
+    "$proekt_koren/kernel/support.c"
+    "$proekt_koren/kernel/random.c"
+    "$proekt_koren/kernel/formula.c"
+    "$proekt_koren/kernel/genome.c"
+    "$proekt_koren/kernel/net.c"
+    "$proekt_koren/kernel/ramdisk.c"
+    "$proekt_koren/kernel/serial.c"
+    "$proekt_koren/kernel/main.c"
+)
+
+kernel_objects=()
+for src in "${kernel_sources[@]}"; do
+    obj="$yadro_dir/$(basename "${src%.c}").o"
+    "$CC" "${dopolnitelnye_flagi[@]}" -std=gnu99 -I"$proekt_koren/kernel" -c "$src" -o "$obj"
+    kernel_objects+=("$obj")
+done
+
 "$LD" -m elf_i386 -T "$proekt_koren/kernel/link.ld" -o "$postroika_dir/kolibri.bin" \
     "$yadro_dir/entry.o" \
     "$yadro_dir/interrupts.o" \
-    "$yadro_dir/main.o"
+    "${kernel_objects[@]}"
 set +x
 
-cp "$postroika_dir/kolibri.bin" "$iso_dir/boot/kolibri.bin"
-cp "$proekt_koren/boot/grub/grub.cfg" "$iso_dir/boot/grub/grub.cfg"
+if [[ $kernel_only -eq 0 ]]; then
+    cp "$postroika_dir/kolibri.bin" "$iso_dir/boot/kolibri.bin"
+    cp "$proekt_koren/boot/grub/grub.cfg" "$iso_dir/boot/grub/grub.cfg"
 
-set -x
-"$GRUB_MKRESCUE" -o "$postroika_dir/kolibri.iso" "$iso_dir"
-set +x
+    set -x
+    "$GRUB_MKRESCUE" -o "$postroika_dir/kolibri.iso" "$iso_dir"
+    set +x
 
-iso_razmer=$(stat -c '%s' "$postroika_dir/kolibri.iso")
-iso_mb=$(awk -v bytes="$iso_razmer" 'BEGIN {printf "%.2f", bytes/1048576}')
-printf '[ГОТОВО] Образ готов: %s (%s МБ)\n' "$postroika_dir/kolibri.iso" "$iso_mb"
+    iso_razmer=$(stat -c '%s' "$postroika_dir/kolibri.iso")
+    iso_mb=$(awk -v bytes="$iso_razmer" 'BEGIN {printf "%.2f", bytes/1048576}')
+    printf '[ГОТОВО] Образ готов: %s (%s МБ)\n' "$postroika_dir/kolibri.iso" "$iso_mb"
+else
+    printf '[ГОТОВО] Бинарник ядра собран: %s\n' "$postroika_dir/kolibri.bin"
+fi

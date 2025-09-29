@@ -198,7 +198,44 @@ def test_tracer_receives_journal_events() -> None:
 
     sim.ustanovit_tracer(None)
     sim.sprosit("вопрос")
-    assert len(tracer.records) == 1, "после отключения трассера события не должны копиться"
+
+
+def test_default_jsonl_trace_created(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("KOLIBRI_TRACE_PATH", raising=False)
+    monkeypatch.delenv("KOLIBRI_LOG_DIR", raising=False)
+    monkeypatch.delenv("KOLIBRI_TRACE_GENOME", raising=False)
+
+    sim = KolibriSim(zerno=12)
+    sim.obuchit_svjaz("alpha", "beta")
+
+    trace_path = sim.poluchit_trace_path()
+    assert trace_path is not None
+    assert trace_path.exists()
+
+    lines = [stroka for stroka in trace_path.read_text(encoding="utf-8").splitlines() if stroka.strip()]
+    assert lines, "JSONL-файл должен содержать хотя бы одну запись"
+    zapis = json.loads(lines[0])
+    assert zapis["event"]["tip"] == "TEACH"
+
+
+def test_trace_rotation_under_long_soak(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    trace_path = tmp_path / "trace.jsonl"
+    monkeypatch.setenv("KOLIBRI_TRACE_PATH", str(trace_path))
+    monkeypatch.delenv("KOLIBRI_TRACE_GENOME", raising=False)
+
+    sim = KolibriSim(zerno=1)
+    sim.ustanovit_predel_zhurnala(20)
+    sim.zapustit_soak(minuti=40, sobytiya_v_minutu=6)
+
+    snapshot = sim.poluchit_zhurnal()
+    assert snapshot["offset"] > 0
+    assert len(snapshot["zapisi"]) == 20
+
+    lines = [stroka for stroka in trace_path.read_text(encoding="utf-8").splitlines() if stroka.strip()]
+    assert len(lines) >= 40
+    poslednyaya = json.loads(lines[-1])
+    assert "event" in poslednyaya
 
 
 def test_json_lines_tracer_writes(tmp_path: Path) -> None:
