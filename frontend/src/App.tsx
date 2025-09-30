@@ -6,6 +6,7 @@ import ChatInput from "./components/ChatInput";
 import ChatView from "./components/ChatView";
 import type { ChatMessage } from "./types/chat";
 import kolibriBridge from "./core/kolibri-bridge";
+import { startTrace, trackEvent } from "./core/telemetry";
 
 const App = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -15,11 +16,20 @@ const App = () => {
   const [bridgeReady, setBridgeReady] = useState(false);
 
   useEffect(() => {
+    trackEvent("session.start");
+  }, []);
+
+  useEffect(() => {
+    const initTrace = startTrace("bridge.init");
     let cancelled = false;
+    let finished = false;
     kolibriBridge.ready
       .then(() => {
         if (!cancelled) {
           setBridgeReady(true);
+          trackEvent("bridge.ready");
+          finished = true;
+          initTrace.success({ status: 1 });
         }
       })
       .catch((error) => {
@@ -36,22 +46,36 @@ const App = () => {
           timestamp: new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }),
         };
         setMessages((prev) => [...prev, assistantMessage]);
+        finished = true;
+        initTrace.error(error);
       });
 
     return () => {
       cancelled = true;
+      if (!finished) {
+        initTrace.error(new Error("Kolibri bridge initialisation cancelled"), {
+          phase: "cleanup",
+        });
+      }
     };
   }, []);
 
   const handleSuggestionSelect = useCallback((prompt: string) => {
     setDraft(prompt);
+    trackEvent("chat.suggestion_select", {
+      metadata: { inputLength: prompt.trim().length },
+    });
   }, []);
 
   const resetConversation = useCallback(() => {
+    const trace = startTrace("chat.reset", {
+      metadata: { bridgeReady },
+    });
     if (!bridgeReady) {
       setMessages([]);
       setDraft("");
       setIsProcessing(false);
+      trace.success({ reason: "bridge_offline" });
       return;
     }
 
@@ -60,7 +84,9 @@ const App = () => {
         await kolibriBridge.reset();
         setMessages([]);
         setDraft("");
+        trace.success({ reason: "user" });
       } catch (error) {
+        trace.error(error);
         const assistantMessage: ChatMessage = {
           id: crypto.randomUUID(),
           role: "assistant",
@@ -77,12 +103,24 @@ const App = () => {
     })();
   }, [bridgeReady]);
 
+  const handleModeChange = useCallback(
+    (nextMode: string) => {
+      setMode(nextMode);
+      trackEvent("chat.mode_change", { metadata: { mode: nextMode } });
+    },
+    []
+  );
+
   const sendMessage = useCallback(async () => {
     const content = draft.trim();
     if (!content || isProcessing || !bridgeReady) {
       return;
     }
 
+    const trace = startTrace("chat.ask", {
+      traceHint: content,
+      metadata: { inputLength: content.length, mode },
+    });
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
       role: "user",
@@ -103,7 +141,9 @@ const App = () => {
         timestamp: new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }),
       };
       setMessages((prev) => [...prev, assistantMessage]);
+      trace.success({ outputLength: answer.length });
     } catch (error) {
+      trace.error(error);
       const assistantMessage: ChatMessage = {
         id: crypto.randomUUID(),
         role: "assistant",
@@ -135,7 +175,7 @@ const App = () => {
         mode={mode}
         isBusy={isProcessing || !bridgeReady}
         onChange={setDraft}
-        onModeChange={setMode}
+        onModeChange={handleModeChange}
         onSubmit={sendMessage}
         onReset={resetConversation}
       />

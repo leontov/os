@@ -15,6 +15,7 @@ add_library(kolibri_core
     backend/src/roy.c
     backend/src/script.c
     backend/src/net.c
+    backend/src/telemetry.c
 )
 
 target_include_directories(kolibri_core

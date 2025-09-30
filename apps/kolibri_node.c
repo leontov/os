@@ -6,6 +6,7 @@
 #include "kolibri/formula.h"
 #include "kolibri/genome.h"
 #include "kolibri/net.h"
+#include "kolibri/telemetry.h"
 #include <ctype.h>
 #include <inttypes.h>
 #include <stdbool.h>
@@ -156,11 +157,20 @@ static int node_record_event(KolibriNode *node, const char *event, const char *p
     if (!node || !node->genome_ready) {
         return -1;
     }
+
+    KolibriTelemetrySpan span;
+    kt_span_start(&span, "genome.append");
+
+    int status = -1;
     if (kg_append(&node->genome, event, payload ? payload : "", NULL) != 0) {
         fprintf(stderr, "[Геном] не удалось записать событие %s\n", event);
-        return -1;
+        status = -1;
+    } else {
+        status = 0;
     }
-    return 0;
+
+    kt_span_finish(&span, status == 0);
+    return status;
 }
 
 static void node_store_text(KolibriNode *node, const char *text) {
@@ -314,23 +324,31 @@ static void node_report_formula(const KolibriNode *node) {
 }
 
 static void node_share_formula(KolibriNode *node) {
+    KolibriTelemetrySpan span;
+    kt_span_start(&span, "node.share");
+    bool success = false;
+
     if (!node->options.peer_enabled) {
         printf("[Рой] соседи не заданы\n");
-        return;
+        goto done;
     }
     const KolibriFormula *best = kf_pool_best(&node->pool);
     if (!best) {
         printf("[Рой] подходящая формула отсутствует\n");
-        return;
+        goto done;
     }
     if (kn_share_formula(node->options.peer_host, node->options.peer_port,
                          node->options.node_id, best) == 0) {
         printf("[Рой] формула отправлена на %s:%u\n", node->options.peer_host,
                node->options.peer_port);
         node_record_event(node, "SYNC", "передан лучший ген");
+        success = true;
     } else {
         fprintf(stderr, "[Рой] не удалось отправить формулу\n");
     }
+
+done:
+    kt_span_finish(&span, success);
 }
 
 static void node_poll_listener(KolibriNode *node) {
@@ -338,7 +356,10 @@ static void node_poll_listener(KolibriNode *node) {
         return;
     }
     KolibriNetMessage message;
+    KolibriTelemetrySpan span;
+    kt_span_start(&span, "listener.poll");
     int status = kn_listener_poll(&node->listener, 0U, &message);
+    kt_span_finish(&span, status >= 0);
     if (status <= 0) {
         return;
     }
@@ -397,21 +418,36 @@ static void node_poll_listener(KolibriNode *node) {
 }
 
 static void node_handle_tick(KolibriNode *node, size_t generations) {
+    KolibriTelemetrySpan span;
+    kt_span_start(&span, "node.tick");
+    bool success = false;
+
     if (node->pool.examples == 0) {
         printf("[Формулы] нет обучающих примеров\n");
-        return;
+        goto done;
     }
     kf_pool_tick(&node->pool, generations);
     printf("[Формулы] выполнено поколений: %zu\n", generations);
     node_record_event(node, "EVOLVE", "цикл выполнен");
     node_reset_last_answer(node);
+    success = true;
+
+done:
+    kt_span_finish(&span, success);
 }
 
 static void node_handle_teach(KolibriNode *node, const char *payload) {
+    kt_set_trace_hint(payload);
+    KolibriTelemetrySpan span;
+    kt_span_start(&span, "node.teach");
+
+    bool success = false;
+
     if (!payload || payload[0] == '\0') {
         printf("[Учитель] требуется пример формата a->b\n");
-        return;
+        goto done;
     }
+
     char buffer[256];
     strncpy(buffer, payload, sizeof(buffer) - 1U);
     buffer[sizeof(buffer) - 1U] = '\0';
@@ -426,41 +462,53 @@ static void node_handle_teach(KolibriNode *node, const char *payload) {
         int target = 0;
         if (!parse_int32(buffer, &input) || !parse_int32(rhs, &target)) {
             printf("[Учитель] не удалось разобрать числа\n");
-            return;
+            goto done;
         }
         if (kf_pool_add_example(&node->pool, input, target) != 0) {
             printf("[Учитель] буфер примеров заполнен\n");
-            return;
+            goto done;
         }
         node_store_text(node, payload);
         node_record_event(node, "TEACH", "пример добавлен");
         node_handle_tick(node, 8);
-        return;
+        success = true;
+        goto done;
     }
+
     node_store_text(node, payload);
     node_record_event(node, "NOTE", "произвольный импульс сохранён");
     printf("[Учитель] сохранён числовой импульс\n");
+    success = true;
+
+done:
+    kt_span_finish(&span, success);
+    kt_clear_trace_hint();
 }
 
 static void node_handle_ask(KolibriNode *node, const char *payload) {
+    kt_set_trace_hint(payload);
+    KolibriTelemetrySpan span;
+    kt_span_start(&span, "node.ask");
+
+    bool success = false;
     if (!payload || payload[0] == '\0') {
         printf("[Вопрос] требуется аргумент\n");
-        return;
+        goto done;
     }
     int value = 0;
     if (!parse_int32(payload, &value)) {
         printf("[Вопрос] ожидалось целое число\n");
-        return;
+        goto done;
     }
     const KolibriFormula *best = kf_pool_best(&node->pool);
     if (!best) {
         printf("[Вопрос] эволюция ещё не дала формулы\n");
-        return;
+        goto done;
     }
     int result = 0;
     if (kf_formula_apply(best, value, &result) != 0) {
         printf("[Вопрос] формула не смогла ответить\n");
-        return;
+        goto done;
     }
     printf("[Ответ] f(%d) = %d\n", value, result);
     node->last_gene = best->gene;
@@ -472,6 +520,11 @@ static void node_handle_ask(KolibriNode *node, const char *payload) {
         printf("[Пояснение] %s\n", description);
     }
     node_record_event(node, "ASK", "вопрос обработан");
+    success = true;
+
+done:
+    kt_span_finish(&span, success);
+    kt_clear_trace_hint();
 }
 
 static void node_handle_verify(KolibriNode *node) {
@@ -647,11 +700,17 @@ int main(int argc, char **argv) {
     KolibriNodeOptions options;
     parse_options(argc, argv, &options);
     KolibriNode node;
+    if (kt_init("logs") != 0) {
+        fprintf(stderr,
+                "[Телеметрия] не удалось подготовить каталог логов Prometheus\n");
+    }
     if (node_init(&node, &options) != 0) {
+        kt_shutdown();
         return 1;
     }
     node_run(&node);
     node_shutdown(&node);
+    kt_shutdown();
     printf("Колибри узел %u завершил работу\n", options.node_id);
     return 0;
 }
