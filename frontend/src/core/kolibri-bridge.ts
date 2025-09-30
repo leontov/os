@@ -179,6 +179,57 @@ class KolibriWasmBridge implements KolibriBridge {
   }
 }
 
-const kolibriBridge: KolibriBridge = new KolibriWasmBridge();
+class KolibriFallbackBridge implements KolibriBridge {
+  readonly ready = Promise.resolve();
+  private readonly reason: string;
+
+  constructor(error: unknown) {
+    if (error instanceof Error && error.message) {
+      this.reason = error.message;
+    } else {
+      this.reason = String(error ?? "Неизвестная ошибка");
+    }
+  }
+
+  async ask(_prompt: string, _mode?: string): Promise<string> {
+    void _prompt;
+    void _mode;
+    return [
+      "KolibriScript недоступен: kolibri.wasm не был загружен.",
+      `Причина: ${this.reason}`,
+      "Запустите scripts/build_wasm.sh и перезапустите фронтенд, чтобы восстановить работоспособность ядра.",
+    ].join("\n");
+  }
+
+  async reset(): Promise<void> {
+    // Нет состояния для сброса в режим без WASM.
+  }
+}
+
+const createBridge = async (): Promise<KolibriBridge> => {
+  const wasmBridge = new KolibriWasmBridge();
+
+  try {
+    await wasmBridge.ready;
+    return wasmBridge;
+  } catch (error) {
+    console.warn("[kolibri-bridge] Переход в деградированный режим без WebAssembly.", error);
+    return new KolibriFallbackBridge(error);
+  }
+};
+
+const bridgePromise: Promise<KolibriBridge> = createBridge();
+
+const kolibriBridge: KolibriBridge = {
+  ready: bridgePromise.then(() => undefined),
+  async ask(prompt: string, mode?: string): Promise<string> {
+    const bridge = await bridgePromise;
+    return bridge.ask(prompt, mode);
+  },
+  async reset(): Promise<void> {
+    const bridge = await bridgePromise;
+    await bridge.reset();
+  },
+};
 
 export default kolibriBridge;

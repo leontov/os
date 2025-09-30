@@ -12,6 +12,7 @@ function copyKolibriWasm(): Plugin {
   const publicTarget = resolve(frontendDir, "public/kolibri.wasm");
   let copied = false;
   let buildPromise: Promise<void> | null = null;
+  let skippedForServe = false;
 
   const shouldAttemptAutoBuild = (() => {
     const value = process.env.KOLIBRI_SKIP_WASM_AUTOBUILD?.toLowerCase();
@@ -107,12 +108,30 @@ function copyKolibriWasm(): Plugin {
     }
   };
 
-  const performCopy = async () => {
-    if (copied) {
+  const performCopy = async (context: "serve" | "build") => {
+    if (copied || skippedForServe) {
       return;
     }
 
-    await ensureWasmPresent();
+    try {
+      await ensureWasmPresent();
+    } catch (error) {
+      if (context === "serve") {
+        skippedForServe = true;
+        const reason =
+          error instanceof Error && error.message
+            ? error.message
+            : String(error);
+        console.warn(`[copy-kolibri-wasm] kolibri.wasm не будет скопирован: ${reason}`);
+        console.warn(
+          "[copy-kolibri-wasm] Фронтенд запущен в деградированном режиме без WebAssembly. " +
+            "Запустите scripts/build_wasm.sh, чтобы восстановить полноценную функциональность."
+        );
+        return;
+      }
+
+      throw error;
+    }
 
     await mkdir(dirname(publicTarget), { recursive: true });
     await copyFile(wasmSource, publicTarget);
@@ -122,10 +141,10 @@ function copyKolibriWasm(): Plugin {
   return {
     name: "copy-kolibri-wasm",
     async buildStart() {
-      await performCopy();
+      await performCopy("build");
     },
     async configureServer() {
-      await performCopy();
+      await performCopy("serve");
     },
   };
 }
