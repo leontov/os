@@ -6,6 +6,8 @@
  * exported by the module, and exposes a single `ask` method used by the UI.
  */
 
+import { getWasiImports, resetWasi, setMemory } from "./wasi";
+
 export interface KolibriBridge {
   readonly ready: Promise<void>;
   ask(prompt: string, mode?: string): Promise<string>;
@@ -74,7 +76,7 @@ class KolibriWasmBridge implements KolibriBridge {
   }
 
   private async instantiateWasm(): Promise<WebAssembly.Instance> {
-    const importObject: WebAssembly.Imports = {};
+    const importObject: WebAssembly.Imports = { ...getWasiImports() };
 
     if ("instantiateStreaming" in WebAssembly) {
       try {
@@ -96,8 +98,13 @@ class KolibriWasmBridge implements KolibriBridge {
   }
 
   private async initialise(): Promise<void> {
+    resetWasi();
     const instance = await this.instantiateWasm();
     const exports = instance.exports as KolibriWasmExports;
+    if (!(exports.memory instanceof WebAssembly.Memory)) {
+      throw new Error("WASM-модуль не предоставил память");
+    }
+    setMemory(exports.memory);
     if (typeof exports._kolibri_bridge_init !== "function") {
       throw new Error("WASM-модуль не содержит kolibri_bridge_init");
     }
