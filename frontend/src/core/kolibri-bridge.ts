@@ -5,6 +5,7 @@
  * browser. The bridge loads `kolibri.wasm`, initialises the Kolibri runtime
  * exported by the module, and exposes a single `ask` method used by the UI.
  */
+import { createWasiContext } from "./wasi";
 
 export interface KolibriBridge {
   readonly ready: Promise<void>;
@@ -97,12 +98,22 @@ class KolibriWasmBridge implements KolibriBridge {
   }
 
   private async instantiateWasm(): Promise<WebAssembly.Instance> {
-    const importObject: WebAssembly.Imports = {};
+    const wasi = createWasiContext((text) => {
+      console.debug("[kolibri-bridge][wasi]", text);
+    });
+    const importObject: WebAssembly.Imports = {
+      wasi_snapshot_preview1: wasi.imports,
+    };
 
     if ("instantiateStreaming" in WebAssembly) {
       try {
         const streamingResult = await WebAssembly.instantiateStreaming(fetch(WASM_RESOURCE_URL), importObject);
-        return streamingResult.instance;
+        const instance = streamingResult.instance;
+        const exports = instance.exports as KolibriWasmExports;
+        if (exports.memory instanceof WebAssembly.Memory) {
+          wasi.setMemory(exports.memory);
+        }
+        return instance;
       } catch (error) {
         // Fallback to ArrayBuffer path when MIME type is missing.
         console.warn("Kolibri WASM streaming instantiation failed, retrying with ArrayBuffer.", error);
@@ -115,6 +126,10 @@ class KolibriWasmBridge implements KolibriBridge {
     }
     const bytes = await response.arrayBuffer();
     const { instance } = await WebAssembly.instantiate(bytes, importObject);
+    const exports = instance.exports as KolibriWasmExports;
+    if (exports.memory instanceof WebAssembly.Memory) {
+      wasi.setMemory(exports.memory);
+    }
     return instance;
   }
 
