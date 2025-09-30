@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Layout from "./components/Layout";
 import Sidebar from "./components/Sidebar";
 import WelcomeScreen from "./components/WelcomeScreen";
@@ -6,13 +6,18 @@ import ChatInput from "./components/ChatInput";
 import ChatView from "./components/ChatView";
 import type { ChatMessage } from "./types/chat";
 import kolibriBridge from "./core/kolibri-bridge";
+import { streamChatCompletion } from "./api/chatStream";
 
 const App = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [mode, setMode] = useState("Быстрый ответ");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [partialResponse, setPartialResponse] = useState("");
   const [bridgeReady, setBridgeReady] = useState(false);
+  const partialResponseRef = useRef("");
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const streamingMessageIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -47,19 +52,30 @@ const App = () => {
     setDraft(prompt);
   }, []);
 
+  const cancelStreaming = useCallback(() => {
+    const controller = abortControllerRef.current;
+    if (controller) {
+      controller.abort();
+      abortControllerRef.current = null;
+    }
+  }, []);
+
   const resetConversation = useCallback(() => {
+    cancelStreaming();
+    streamingMessageIdRef.current = null;
+    partialResponseRef.current = "";
+    setPartialResponse("");
+    setMessages([]);
+    setDraft("");
+    setIsProcessing(false);
+
     if (!bridgeReady) {
-      setMessages([]);
-      setDraft("");
-      setIsProcessing(false);
       return;
     }
 
     void (async () => {
       try {
         await kolibriBridge.reset();
-        setMessages([]);
-        setDraft("");
       } catch (error) {
         const assistantMessage: ChatMessage = {
           id: crypto.randomUUID(),
@@ -71,11 +87,9 @@ const App = () => {
           timestamp: new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }),
         };
         setMessages((prev) => [...prev, assistantMessage]);
-      } finally {
-        setIsProcessing(false);
       }
     })();
-  }, [bridgeReady]);
+  }, [bridgeReady, cancelStreaming]);
 
   const sendMessage = useCallback(async () => {
     const content = draft.trim();
@@ -94,38 +108,110 @@ const App = () => {
     setDraft("");
     setIsProcessing(true);
 
+    const assistantId = crypto.randomUUID();
+    const initialTimestamp = new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+    partialResponseRef.current = "";
+    setPartialResponse("");
+    streamingMessageIdRef.current = assistantId;
+
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: assistantId,
+        role: "assistant",
+        content: "",
+        timestamp: initialTimestamp,
+      },
+    ]);
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     try {
-      const answer = await kolibriBridge.ask(content, mode);
-      const assistantMessage: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: answer,
-        timestamp: new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }),
-      };
-      setMessages((prev) => [...prev, assistantMessage]);
+      await streamChatCompletion({
+        prompt: content,
+        mode,
+        signal: controller.signal,
+        onToken(token) {
+          if (streamingMessageIdRef.current !== assistantId) {
+            return;
+          }
+
+          partialResponseRef.current += token;
+          setPartialResponse(partialResponseRef.current);
+          setMessages((prev) =>
+            prev.map((message) =>
+              message.id === assistantId
+                ? { ...message, content: partialResponseRef.current }
+                : message,
+            ),
+          );
+        },
+        onComplete() {
+          if (streamingMessageIdRef.current !== assistantId) {
+            return;
+          }
+
+          const finalText = partialResponseRef.current.trimEnd();
+          const finalTimestamp = new Date().toLocaleTimeString("ru-RU", {
+            hour: "2-digit",
+            minute: "2-digit",
+          });
+          setMessages((prev) =>
+            prev.map((message) =>
+              message.id === assistantId
+                ? {
+                    ...message,
+                    content: finalText.length > 0 ? finalText : "KolibriScript завершил работу без вывода.",
+                    timestamp: finalTimestamp,
+                  }
+                : message,
+            ),
+          );
+        },
+      });
     } catch (error) {
-      const assistantMessage: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content:
-          error instanceof Error
-            ? `Не удалось получить ответ: ${error.message}`
-            : "Не удалось получить ответ от ядра Колибри.",
-        timestamp: new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }),
-      };
-      setMessages((prev) => [...prev, assistantMessage]);
+      const aborted = controller.signal.aborted || (error instanceof DOMException && error.name === "AbortError");
+      const timestamp = new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+      const messageText = aborted
+        ? "Поток ответа был прерван пользователем."
+        : error instanceof Error
+          ? `Не удалось получить ответ: ${error.message}`
+          : "Не удалось получить ответ от сервера.";
+
+      setMessages((prev) =>
+        prev.map((message) =>
+          message.id === assistantId
+            ? {
+                ...message,
+                content: messageText,
+                timestamp,
+              }
+            : message,
+        ),
+      );
     } finally {
+      abortControllerRef.current = null;
+      streamingMessageIdRef.current = null;
+      setPartialResponse("");
+      partialResponseRef.current = "";
       setIsProcessing(false);
     }
   }, [bridgeReady, draft, isProcessing, mode]);
+
+  useEffect(() => {
+    return () => {
+      cancelStreaming();
+    };
+  }, [cancelStreaming]);
 
   const content = useMemo(() => {
     if (!messages.length) {
       return <WelcomeScreen onSuggestionSelect={handleSuggestionSelect} />;
     }
 
-    return <ChatView messages={messages} isLoading={isProcessing} />;
-  }, [handleSuggestionSelect, isProcessing, messages]);
+    return <ChatView messages={messages} isLoading={isProcessing && partialResponse.length === 0} />;
+  }, [handleSuggestionSelect, isProcessing, messages, partialResponse]);
 
   return (
     <Layout sidebar={<Sidebar />}>
@@ -133,11 +219,13 @@ const App = () => {
       <ChatInput
         value={draft}
         mode={mode}
-        isBusy={isProcessing || !bridgeReady}
+        isBusy={!bridgeReady}
+        isStreaming={isProcessing}
         onChange={setDraft}
         onModeChange={setMode}
         onSubmit={sendMessage}
         onReset={resetConversation}
+        onCancel={cancelStreaming}
       />
     </Layout>
   );

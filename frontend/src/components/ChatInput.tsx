@@ -1,19 +1,21 @@
-import { Paperclip, Plus, RefreshCw, SendHorizontal } from "lucide-react";
+import { Paperclip, Plus, RefreshCw, SendHorizontal, XCircle } from "lucide-react";
 import { useId } from "react";
 
 interface ChatInputProps {
   value: string;
   mode: string;
   isBusy: boolean;
+  isStreaming: boolean;
   onChange: (value: string) => void;
   onModeChange: (mode: string) => void;
   onSubmit: () => void;
   onReset: () => void;
+  onCancel?: () => void;
 }
 
 const modes = ["Быстрый ответ", "Исследование", "Творческий"];
 
-const ChatInput = ({ value, mode, isBusy, onChange, onModeChange, onSubmit, onReset }: ChatInputProps) => {
+const ChatInput = ({ value, mode, isBusy, isStreaming, onChange, onModeChange, onSubmit, onReset, onCancel }: ChatInputProps) => {
   const textAreaId = useId();
 
   return (
@@ -31,7 +33,7 @@ const ChatInput = ({ value, mode, isBusy, onChange, onModeChange, onSubmit, onRe
             className="rounded-xl border border-transparent bg-background-light/60 px-3 py-2 text-sm font-medium text-text-dark focus:border-primary focus:outline-none"
             value={mode}
             onChange={(event) => onModeChange(event.target.value)}
-            disabled={isBusy}
+            disabled={isBusy || isStreaming}
           >
             {modes.map((item) => (
               <option key={item} value={item}>
@@ -53,7 +55,7 @@ const ChatInput = ({ value, mode, isBusy, onChange, onModeChange, onSubmit, onRe
           <button
             type="button"
             className="flex items-center gap-2 rounded-xl bg-background-light/60 px-3 py-2 text-xs font-semibold text-text-light transition-colors hover:text-text-dark"
-            disabled={isBusy}
+            disabled={isBusy || isStreaming}
           >
             <Paperclip className="h-4 w-4" />
             Вложить
@@ -62,6 +64,7 @@ const ChatInput = ({ value, mode, isBusy, onChange, onModeChange, onSubmit, onRe
             type="button"
             onClick={onReset}
             className="flex items-center gap-2 rounded-xl bg-background-light/60 px-3 py-2 text-xs font-semibold text-text-light transition-colors hover:text-text-dark"
+            disabled={isBusy || isStreaming}
           >
             <Plus className="h-4 w-4" />
             Новый диалог
@@ -72,20 +75,32 @@ const ChatInput = ({ value, mode, isBusy, onChange, onModeChange, onSubmit, onRe
             type="button"
             onClick={onReset}
             className="flex items-center gap-2 rounded-xl bg-background-light/60 px-4 py-2 text-sm font-medium text-text-light transition-colors hover:text-text-dark"
-            disabled={isBusy}
+            disabled={isBusy || isStreaming}
           >
             <RefreshCw className="h-4 w-4" />
             Сбросить
           </button>
-          <button
-            type="button"
-            onClick={onSubmit}
-            className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={isBusy || !value.trim()}
-          >
-            <SendHorizontal className="h-4 w-4" />
-            Отправить
-          </button>
+          {isStreaming ? (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="flex items-center gap-2 rounded-xl bg-accent-coral px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={!onCancel}
+            >
+              <XCircle className="h-4 w-4" />
+              Отменить
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onSubmit}
+              className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isBusy || !value.trim()}
+            >
+              <SendHorizontal className="h-4 w-4" />
+              Отправить
+            </button>
+          )}
         </div>
       </div>
     </div>
