@@ -1,0 +1,21 @@
+{
+  "name": "symbolic",
+  "description": "Symbol association recall and deterministic number projections for KolibriSim.",
+  "seed": 7,
+  "thresholds": {
+    "max_accuracy_regression": 0.0,
+    "max_fitness_delta_regression": 0.05
+  },
+  "setup": [
+    {"action": "teach", "stimulus": "π", "response": "3.1415"},
+    {"action": "teach", "stimulus": "логика", "response": "символы"}
+  ],
+  "cases": [
+    {"id": "pi_lookup", "action": "ask", "stimulus": "π"},
+    {"id": "logic_chat", "action": "chat", "command": "стимул", "argument": "логика"},
+    {"id": "digit_projection", "action": "digits", "count": 6}
+  ],
+  "fitness_cases": [
+    {"id": "symbolic_formula", "context": "symbolic", "success": 0.91}
+  ]
+}
