@@ -89,7 +89,21 @@ case "${1:-}" in
         cmake --build "$build_dir"
         build_frontend
         ensure_hmac_key
-        "$build_dir/kolibri_node" --hmac-key "$hmac_key_path"
+        server_port=${KOLIBRI_SERVER_PORT:-8080}
+        server_log="$build_dir/kolibri_server.log"
+        echo "[Kolibri] запускаю kolibri_server на порту $server_port (log: $server_log)"
+        "$build_dir/kolibri_server" --http-port "$server_port" \
+            >"$server_log" 2>&1 &
+        server_pid=$!
+        trap 'if [ -n "${server_pid:-}" ]; then kill "$server_pid" >/dev/null 2>&1 || true; fi' EXIT
+        "$build_dir/kolibri_node"
+        status=$?
+        if [ -n "${server_pid:-}" ]; then
+            kill "$server_pid" >/dev/null 2>&1 || true
+            wait "$server_pid" 2>/dev/null || true
+        fi
+        trap - EXIT
+        exit "$status"
         ;;
     build)
         cmake -S "$root_dir" -B "$build_dir" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
