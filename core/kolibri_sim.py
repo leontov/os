@@ -23,6 +23,7 @@ class FormulaRecord(TypedDict):
 from typing import Dict, List, Mapping, Optional, Protocol, TypedDict, cast
 
 from .tracing import JsonLinesTracer
+from .telemetry import get_backend_telemetry
 
 
 class ZhurnalZapis(TypedDict):
@@ -44,6 +45,19 @@ class ZhurnalTracer(Protocol):
 
 
 
+class BackendTelemetry(Protocol):
+    """Минимальный интерфейс телеметрии, используемый симулятором."""
+
+    def record_event(self, event_type: str, genome_blocks: int) -> None:
+        ...
+
+    def record_error(self, event_type: str) -> None:
+        ...
+
+    def record_soak(self, duration_seconds: float, events: int) -> None:
+        ...
+
+
 class FormulaZapis(TypedDict):
 
     kod: str
@@ -55,7 +69,16 @@ class FormulaZapis(TypedDict):
 
 class MetricRecord(TypedDict):
     """Метрика одного шага soak-прогона."""
-    
+
+    minute: int
+    formula: str
+    fitness: float
+    genome: int
+
+
+class MetricEntry(TypedDict):
+    """Запись метрик, сохраняемая в длительном состоянии soak."""
+
     minute: int
     formula: str
     fitness: float
@@ -65,9 +88,6 @@ class MetricRecord(TypedDict):
 class SoakResult(TypedDict):
 
     """Результат выполнения soak-сессии."""
-
-    events: int
-    metrics: List[MetricRecord]
 
     events: int
     metrics: List[MetricEntry]
@@ -149,6 +169,7 @@ class KolibriSim:
         self.populyaciya: List[str] = []
         self.predel_populyacii = 24
         self.genom: List[ZapisBloka] = []
+        self._telemetry: BackendTelemetry = get_backend_telemetry()
         self._tracer: Optional[ZhurnalTracer] = None
         self._tracer_include_genome = False
         self._trace_path: Optional[Path] = None
@@ -250,7 +271,10 @@ class KolibriSim:
                 blok_dlya_tracinga = blok if self._tracer_include_genome else None
                 tracer.zapisat(zapis, blok_dlya_tracinga)
             except Exception as oshibka:  # pragma: no cover - ошибки трассера должны быть видимы
+                self._telemetry.record_error("TRACE")
                 raise RuntimeError("KolibriSim tracer не смог обработать событие") from oshibka
+
+        self._telemetry.record_event(tip, len(self.genom))
 
        
 
@@ -286,6 +310,7 @@ class KolibriSim:
             rezultat = str(znachenie)
             self._registrirovat("EXPR", rezultat)
             return rezultat
+        self._telemetry.record_error("COMMAND")
         raise ValueError(f"неизвестная команда: {komanda}")
 
     def _bezopasnoe_vychislenie(self, vyrazhenie: str) -> int:
@@ -326,10 +351,7 @@ class KolibriSim:
         kod = f"f(x)={mnozhitel}*x+{smeshchenie}"
         nazvanie = f"F{len(self.formuly) + 1:04d}"
 
-        zapis: FormulaRecord = {
-
         zapis: FormulaZapis = {
-
             "kod": kod,
             "fitness": 0.0,
             "parents": roditeli,
@@ -445,6 +467,7 @@ class KolibriSim:
     def zapustit_soak(self, minuti: int, sobytiya_v_minutu: int = 4) -> SoakResult:
         """Имитация длительного прогона: создаёт формулы и записи генома."""
         nachalnyj_razmer = len(self.genom)
+        start = time.perf_counter()
 
         metrika: List[MetricRecord] = []
 
@@ -463,8 +486,11 @@ class KolibriSim:
                 stimul = f"stim-{minuta}-{_}"
                 otvet = f"resp-{self.generator.randint(0, 999)}"
                 self.obuchit_svjaz(stimul, otvet)
+        sobytija = len(self.genom) - nachalnyj_razmer
+        prodolzhitelnost = time.perf_counter() - start
+        self._telemetry.record_soak(prodolzhitelnost, sobytija)
         return {
-            "events": len(self.genom) - nachalnyj_razmer,
+            "events": sobytija,
             "metrics": metrika,
         }
 
@@ -490,8 +516,6 @@ def zagruzit_sostoyanie(path: Path) -> Dict[str, Any]:
     return rezultat
 
 
-
-def obnovit_soak_state(path: Path, sim: KolibriSim, minuti: int) -> Dict[str, Any]:
 
 def obnovit_soak_state(path: Path, sim: KolibriSim, minuti: int) -> SoakState:
 
