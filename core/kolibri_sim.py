@@ -326,8 +326,6 @@ class KolibriSim:
         kod = f"f(x)={mnozhitel}*x+{smeshchenie}"
         nazvanie = f"F{len(self.formuly) + 1:04d}"
 
-        zapis: FormulaRecord = {
-
         zapis: FormulaZapis = {
 
             "kod": kod,
@@ -489,12 +487,7 @@ def zagruzit_sostoyanie(path: Path) -> Dict[str, Any]:
         rezultat[k] = json.loads(tekst)
     return rezultat
 
-
-
-def obnovit_soak_state(path: Path, sim: KolibriSim, minuti: int) -> Dict[str, Any]:
-
 def obnovit_soak_state(path: Path, sim: KolibriSim, minuti: int) -> SoakState:
-
     """Читает, дополняет и сохраняет состояние длительных прогонов."""
     tekuschee_raw = zagruzit_sostoyanie(path)
     tekuschee: SoakState = cast(SoakState, tekuschee_raw)
