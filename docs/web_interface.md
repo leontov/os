@@ -63,9 +63,18 @@ export async function createKolibriCore() {
 
 ## 5. PWA Features / Возможности PWA / PWA 特性
 
-- Service Worker кэширует `index.html`, `kolibri.wasm`, статические ассеты.
-- Manifest описывает иконки, режим standalone, цветовую схему.
-- При отсутствии сети UI переключается в offline-маршрут с локальной визуализацией генома.
+- Service Worker (через `vite-plugin-pwa`) предкэширует `index.html`, `kolibri.wasm`, JS/CSS и статические ассеты, чтобы интерфейс и WASM-ядро были доступны без сети.
+- Manifest задаёт standalone-режим, цвета темы и иконку `kolibri.svg`, поэтому Kolibri можно установить на рабочий стол или мобильный экран.
+- Первый визит автоматически устанавливает сервис-воркер; при обновлении фронтенда он перерегистрируется в фоне, а свежая версия активируется после закрытия всех вкладок.
+- При отсутствии сети UI остаётся интерактивным: React-приложение обслуживается из кэша, WASM-ядро грузится из `kolibri.wasm`, и используется локальное состояние/IndexedDB.
+
+### Installation & Offline Flow / Установка и офлайн-режим / 安装与离线流程
+
+1. Откройте `https://<host>` в поддерживаемом браузере (Chrome, Edge, Safari 17+, Firefox Android).
+2. После полной загрузки страницы появится приглашение «Установить Kolibri» (`Add to Home Screen` / `Install App`).
+3. Подтвердите установку — Kolibri появится как отдельное приложение в режиме standalone.
+4. Для офлайн-использования откройте приложение хотя бы один раз в сети: сервис-воркер закэширует `index.html`, `kolibri.wasm` и ключевые ассеты.
+5. При следующих запусках без интернета Kolibri стартует из кэша и автоматически синхронизируется при восстановлении сети.
 
 ---
 
@@ -87,6 +96,7 @@ export async function createKolibriCore() {
 - `npm install` → `npm run build` (создаёт `dist/`).
 - Разместите `dist/` на статическом хостинге (GitHub Pages, Netlify).
 - Для локальной отладки используйте `npm run dev` с проксированием к локальному Kolibri Node.
+- Для проверки PWA и офлайн-режима выполните `npm run build`, затем `npm run preview`, откройте `http://localhost:4173` и используйте DevTools > Application > Service Workers / Lighthouse.
 
 ---
 

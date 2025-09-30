@@ -1,5 +1,6 @@
 import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
+import { VitePWA } from "vite-plugin-pwa";
 import { copyFile, mkdir, access } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { dirname, resolve } from "node:path";
@@ -150,7 +151,55 @@ function copyKolibriWasm(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), copyKolibriWasm()],
+  plugins: [
+    react(),
+    copyKolibriWasm(),
+    VitePWA({
+      registerType: "autoUpdate",
+      injectRegister: "auto",
+      includeAssets: ["kolibri.wasm", "kolibri.svg"],
+      manifest: {
+        name: "Kolibri Core",
+        short_name: "Kolibri",
+        description:
+          "Kolibri fractal memory interface with offline-ready WASM core.",
+        theme_color: "#0f172a",
+        background_color: "#0f172a",
+        display: "standalone",
+        start_url: ".",
+        icons: [
+          {
+            src: "kolibri.svg",
+            sizes: "192x192",
+            type: "image/svg+xml",
+            purpose: "any",
+          },
+          {
+            src: "kolibri.svg",
+            sizes: "512x512",
+            type: "image/svg+xml",
+            purpose: "any",
+          },
+        ],
+      },
+      workbox: {
+        globPatterns: ["**/*.{js,css,html,ico,png,svg,wasm}", "manifest.webmanifest"],
+        navigateFallback: "index.html",
+        runtimeCaching: [
+          {
+            urlPattern: /\/kolibri\.wasm$/,
+            handler: "CacheFirst",
+            options: {
+              cacheName: "kolibri-wasm",
+              expiration: {
+                maxEntries: 1,
+              },
+            },
+          },
+        ],
+      },
+    }),
+  ],
   server: {
     port: 5173,
   },
