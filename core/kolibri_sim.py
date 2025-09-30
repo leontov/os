@@ -23,6 +23,7 @@ class FormulaRecord(TypedDict):
 from typing import Dict, List, Mapping, Optional, Protocol, TypedDict, cast
 
 from .tracing import JsonLinesTracer
+from .memory import VektorPamjat
 
 
 class ZhurnalZapis(TypedDict):
@@ -55,11 +56,14 @@ class FormulaZapis(TypedDict):
 
 class MetricRecord(TypedDict):
     """Метрика одного шага soak-прогона."""
-    
+
     minute: int
     formula: str
     fitness: float
     genome: int
+
+
+MetricEntry = MetricRecord
 
 
 class SoakResult(TypedDict):
@@ -141,6 +145,7 @@ class KolibriSim:
         self._zhurnal_sdvig = 0
 
         self.znanija: Dict[str, str] = {}
+        self._pamyat = VektorPamjat()
 
         self.formuly: Dict[str, FormulaRecord] = {}
 
@@ -259,11 +264,16 @@ class KolibriSim:
     def obuchit_svjaz(self, stimul: str, otvet: str) -> None:
         """Добавляет ассоциацию в память и фиксирует событие в геноме."""
         self.znanija[stimul] = otvet
+        self._pamyat.dobavit(stimul, otvet)
         self._registrirovat("TEACH", f"{stimul}->{otvet}")
 
     def sprosit(self, stimul: str) -> str:
         """Возвращает ответ из памяти или многоточие, если знания нет."""
-        otvet = self.znanija.get(stimul, "...")
+        if stimul in self.znanija:
+            otvet = self.znanija[stimul]
+        else:
+            rezultat = self._pamyat.poisk(stimul)
+            otvet = rezultat[1] if rezultat is not None else "..."
         self._registrirovat("ASK", f"{stimul}->{otvet}")
         return otvet
 
@@ -326,8 +336,6 @@ class KolibriSim:
         kod = f"f(x)={mnozhitel}*x+{smeshchenie}"
         nazvanie = f"F{len(self.formuly) + 1:04d}"
 
-        zapis: FormulaRecord = {
-
         zapis: FormulaZapis = {
 
             "kod": kod,
@@ -382,8 +390,9 @@ class KolibriSim:
         dobavleno = 0
         for stimul, otvet in sostoyanie.items():
             if stimul not in self.znanija:
-                self.znanija[stimul] = otvet
                 dobavleno += 1
+            self.znanija[stimul] = otvet
+            self._pamyat.dobavit(stimul, otvet)
         self._registrirovat("SYNC", f"imported={dobavleno}")
         return dobavleno
 
@@ -490,8 +499,6 @@ def zagruzit_sostoyanie(path: Path) -> Dict[str, Any]:
     return rezultat
 
 
-
-def obnovit_soak_state(path: Path, sim: KolibriSim, minuti: int) -> Dict[str, Any]:
 
 def obnovit_soak_state(path: Path, sim: KolibriSim, minuti: int) -> SoakState:
 

@@ -43,6 +43,12 @@ def test_t2_teach_and_ask() -> None:
     assert sim.sprosit("неизвестно") == "..."
 
 
+def test_t2_vector_memory_similarity() -> None:
+    sim = KolibriSim(zerno=7)
+    sim.obuchit_svjaz("кот любит молоко", "мурлыкание")
+    assert sim.sprosit("кошка любит молоко") == "мурлыкание"
+
+
 def test_t3_formula_evolution() -> None:
     sim = KolibriSim(zerno=1)
     f1 = sim.evolyuciya_formul("math")
@@ -70,6 +76,14 @@ def test_t5_sync_merges_state() -> None:
     imported = sim_a.sinhronizaciya(sim_b.vzjat_sostoyanie())
     assert imported == 1
     assert sim_a.sprosit("c") == "d"
+
+
+def test_t5_vector_memory_after_sync() -> None:
+    sim_a = KolibriSim(zerno=10)
+    sim_b = KolibriSim(zerno=11)
+    sim_b.obuchit_svjaz("кот любит молоко", "мурлыкание")
+    sim_a.sinhronizaciya(sim_b.vzjat_sostoyanie())
+    assert sim_a.sprosit("кошка любит молоко") == "мурлыкание"
 
 
 def test_t6_canvas_structure() -> None:
