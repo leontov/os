@@ -14,6 +14,7 @@ USAGE
 root_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 build_dir="$root_dir/build"
 hmac_key_path="$root_dir/root.key"
+frontend_dir="$root_dir/frontend"
 
 generate_hmac_key() {
     if command -v openssl >/dev/null 2>&1; then
@@ -38,10 +39,48 @@ ensure_hmac_key() {
     generate_hmac_key >"$hmac_key_path"
 }
 
+ensure_frontend_prerequisites() {
+    if ! command -v npm >/dev/null 2>&1; then
+        echo "[Kolibri] npm не найден. Установите Node.js и npm для сборки фронтенда." >&2
+        exit 1
+    fi
+}
+
+install_frontend_dependencies() {
+    local lockfile="$frontend_dir/package-lock.json"
+    local stamp="$frontend_dir/node_modules/.kolibri-ci-stamp"
+
+    if [ -f "$stamp" ] && [ "$lockfile" -ot "$stamp" ]; then
+        return
+    fi
+
+    echo "[Kolibri] устанавливаю зависимости фронтенда"
+    npm --prefix "$frontend_dir" ci
+    touch "$stamp"
+}
+
+ensure_frontend_wasm() {
+    local wasm_path="$build_dir/wasm/kolibri.wasm"
+    if [ -f "$wasm_path" ]; then
+        return
+    fi
+    echo "[Kolibri] kolibri.wasm не найден, запускаю scripts/build_wasm.sh"
+    "$root_dir/scripts/build_wasm.sh"
+}
+
+build_frontend() {
+    ensure_frontend_prerequisites
+    install_frontend_dependencies
+    ensure_frontend_wasm
+    echo "[Kolibri] собираю фронтенд"
+    npm --prefix "$frontend_dir" run build
+}
+
 case "${1:-}" in
     up)
         cmake -S "$root_dir" -B "$build_dir" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
         cmake --build "$build_dir"
+        build_frontend
         ensure_hmac_key
         "$build_dir/kolibri_node" --hmac-key "$hmac_key_path"
         ;;

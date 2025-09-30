@@ -11,9 +11,40 @@ vyhod_dir="$proekt_koren/build/wasm"
 mkdir -p "$vyhod_dir"
 
 EMCC="${EMCC:-emcc}"
-if ! command -v "$EMCC" >/dev/null 2>&1; then
-    echo "[ОШИБКА] Не найден emcc. Установите Emscripten или задайте путь через переменную EMCC." >&2
-    exit 1
+
+ensure_emcc() {
+    if command -v "$EMCC" >/dev/null 2>&1; then
+        return 0
+    fi
+
+    if [[ "${KOLIBRI_WASM_INVOKED_VIA_DOCKER:-0}" == "1" ]]; then
+        echo "[ОШИБКА] Не найден emcc внутри Docker-окружения. Проверьте образ ${KOLIBRI_WASM_DOCKER_IMAGE:-emscripten/emsdk:3.1.61}." >&2
+        return 1
+    fi
+
+    if command -v docker >/dev/null 2>&1; then
+        docker_image="${KOLIBRI_WASM_DOCKER_IMAGE:-emscripten/emsdk:3.1.61}"
+        echo "[Kolibri] emcc не найден. Пытаюсь собрать kolibri.wasm через Docker (${docker_image})."
+        docker run --rm \
+            -v "$proekt_koren":/project \
+            -w /project/scripts \
+            -e KOLIBRI_WASM_INVOKED_VIA_DOCKER=1 \
+            -e KOLIBRI_WASM_INCLUDE_GENOME \
+            -e KOLIBRI_WASM_GENERATE_MAP \
+            "$docker_image" \
+            bash -lc "./build_wasm.sh"
+        return $?
+    fi
+
+    echo "[ОШИБКА] Не найден emcc. Установите Emscripten, задайте путь через EMCC или установите Docker для автоматической сборки." >&2
+    return 1
+}
+
+ensure_emcc || exit 1
+
+if [[ "${KOLIBRI_WASM_INVOKED_VIA_DOCKER:-0}" != "1" ]] && ! command -v "$EMCC" >/dev/null 2>&1; then
+    # Docker fallback already built the artifact; nothing else to do on the host.
+    exit 0
 fi
 
 istochniki=(
