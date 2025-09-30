@@ -1,0 +1,667 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`FractalMemory > renders layers from KolibriSim 1`] = `
+<div>
+  <section
+    class="rounded-3xl bg-white/80 p-6 shadow-card"
+  >
+    <div
+      class="flex flex-wrap items-start justify-between gap-4"
+    >
+      <div>
+        <h2
+          class="text-xl font-semibold text-text-dark"
+        >
+          Фрактальная память
+        </h2>
+        <p
+          class="mt-1 text-sm text-text-light"
+        >
+          Слои цифрового роя, полученные из KolibriSim.poluchit_canvas.
+        </p>
+      </div>
+      <button
+        class="flex items-center gap-2 rounded-xl border border-transparent bg-background-light/60 px-4 py-2 text-sm font-medium text-text-dark transition-colors hover:border-primary disabled:cursor-not-allowed disabled:opacity-60"
+        type="button"
+      >
+        <svg
+          class="lucide lucide-refresh-cw h-4 w-4"
+          fill="none"
+          height="24"
+          stroke="currentColor"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          viewBox="0 0 24 24"
+          width="24"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"
+          />
+          <path
+            d="M21 3v5h-5"
+          />
+          <path
+            d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"
+          />
+          <path
+            d="M8 16H3v5"
+          />
+        </svg>
+        Обновить
+      </button>
+    </div>
+    <div
+      class="mt-6"
+    >
+      <div
+        class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
+      >
+        <div
+          class="flex flex-col gap-3 rounded-2xl border border-white/60 bg-white/60 p-4 shadow-sm"
+        >
+          <div
+            class="flex items-baseline justify-between gap-2"
+          >
+            <h3
+              class="text-sm font-semibold text-text-dark"
+            >
+              Слой 
+              1
+            </h3>
+            <span
+              class="text-xs uppercase tracking-wide text-text-light"
+            >
+              глубина 
+              1
+            </span>
+          </div>
+          <div
+            class="grid grid-cols-5 gap-2"
+          >
+            <div
+              class="flex h-12 flex-col items-center justify-center rounded-xl border text-sm font-semibold shadow-sm transition-transform duration-200 hover:-translate-y-0.5 bg-cyan-50 text-cyan-900 border-cyan-100"
+            >
+              <span
+                class="text-lg leading-none"
+              >
+                0
+              </span>
+              <span
+                class="text-[10px] uppercase tracking-wide text-text-light"
+              >
+                #
+                1
+              </span>
+            </div>
+            <div
+              class="flex h-12 flex-col items-center justify-center rounded-xl border text-sm font-semibold shadow-sm transition-transform duration-200 hover:-translate-y-0.5 bg-teal-50 text-teal-900 border-teal-100"
+            >
+              <span
+                class="text-lg leading-none"
+              >
+                1
+              </span>
+              <span
+                class="text-[10px] uppercase tracking-wide text-text-light"
+              >
+                #
+                2
+              </span>
+            </div>
+            <div
+              class="flex h-12 flex-col items-center justify-center rounded-xl border text-sm font-semibold shadow-sm transition-transform duration-200 hover:-translate-y-0.5 bg-emerald-50 text-emerald-900 border-emerald-100"
+            >
+              <span
+                class="text-lg leading-none"
+              >
+                2
+              </span>
+              <span
+                class="text-[10px] uppercase tracking-wide text-text-light"
+              >
+                #
+                3
+              </span>
+            </div>
+            <div
+              class="flex h-12 flex-col items-center justify-center rounded-xl border text-sm font-semibold shadow-sm transition-transform duration-200 hover:-translate-y-0.5 bg-green-50 text-green-900 border-green-100"
+            >
+              <span
+                class="text-lg leading-none"
+              >
+                3
+              </span>
+              <span
+                class="text-[10px] uppercase tracking-wide text-text-light"
+              >
+                #
+                4
+              </span>
+            </div>
+            <div
+              class="flex h-12 flex-col items-center justify-center rounded-xl border text-sm font-semibold shadow-sm transition-transform duration-200 hover:-translate-y-0.5 bg-lime-50 text-lime-900 border-lime-100"
+            >
+              <span
+                class="text-lg leading-none"
+              >
+                4
+              </span>
+              <span
+                class="text-[10px] uppercase tracking-wide text-text-light"
+              >
+                #
+                5
+              </span>
+            </div>
+            <div
+              class="flex h-12 flex-col items-center justify-center rounded-xl border text-sm font-semibold shadow-sm transition-transform duration-200 hover:-translate-y-0.5 bg-yellow-50 text-yellow-900 border-yellow-100"
+            >
+              <span
+                class="text-lg leading-none"
+              >
+                5
+              </span>
+              <span
+                class="text-[10px] uppercase tracking-wide text-text-light"
+              >
+                #
+                6
+              </span>
+            </div>
+            <div
+              class="flex h-12 flex-col items-center justify-center rounded-xl border text-sm font-semibold shadow-sm transition-transform duration-200 hover:-translate-y-0.5 bg-amber-50 text-amber-900 border-amber-100"
+            >
+              <span
+                class="text-lg leading-none"
+              >
+                6
+              </span>
+              <span
+                class="text-[10px] uppercase tracking-wide text-text-light"
+              >
+                #
+                7
+              </span>
+            </div>
+            <div
+              class="flex h-12 flex-col items-center justify-center rounded-xl border text-sm font-semibold shadow-sm transition-transform duration-200 hover:-translate-y-0.5 bg-orange-50 text-orange-900 border-orange-100"
+            >
+              <span
+                class="text-lg leading-none"
+              >
+                7
+              </span>
+              <span
+                class="text-[10px] uppercase tracking-wide text-text-light"
+              >
+                #
+                8
+              </span>
+            </div>
+            <div
+              class="flex h-12 flex-col items-center justify-center rounded-xl border text-sm font-semibold shadow-sm transition-transform duration-200 hover:-translate-y-0.5 bg-rose-50 text-rose-900 border-rose-100"
+            >
+              <span
+                class="text-lg leading-none"
+              >
+                8
+              </span>
+              <span
+                class="text-[10px] uppercase tracking-wide text-text-light"
+              >
+                #
+                9
+              </span>
+            </div>
+            <div
+              class="flex h-12 flex-col items-center justify-center rounded-xl border text-sm font-semibold shadow-sm transition-transform duration-200 hover:-translate-y-0.5 bg-purple-50 text-purple-900 border-purple-100"
+            >
+              <span
+                class="text-lg leading-none"
+              >
+                9
+              </span>
+              <span
+                class="text-[10px] uppercase tracking-wide text-text-light"
+              >
+                #
+                10
+              </span>
+            </div>
+          </div>
+          <div
+            class="rounded-xl bg-background-light/60 px-3 py-2 text-[13px] font-mono text-text-light"
+          >
+            0 1 2 3 4 5 6 7 8 9
+          </div>
+        </div>
+        <div
+          class="flex flex-col gap-3 rounded-2xl border border-white/60 bg-white/60 p-4 shadow-sm"
+        >
+          <div
+            class="flex items-baseline justify-between gap-2"
+          >
+            <h3
+              class="text-sm font-semibold text-text-dark"
+            >
+              Слой 
+              2
+            </h3>
+            <span
+              class="text-xs uppercase tracking-wide text-text-light"
+            >
+              глубина 
+              2
+            </span>
+          </div>
+          <div
+            class="grid grid-cols-5 gap-2"
+          >
+            <div
+              class="flex h-12 flex-col items-center justify-center rounded-xl border text-sm font-semibold shadow-sm transition-transform duration-200 hover:-translate-y-0.5 bg-teal-50 text-teal-900 border-teal-100"
+            >
+              <span
+                class="text-lg leading-none"
+              >
+                1
+              </span>
+              <span
+                class="text-[10px] uppercase tracking-wide text-text-light"
+              >
+                #
+                1
+              </span>
+            </div>
+            <div
+              class="flex h-12 flex-col items-center justify-center rounded-xl border text-sm font-semibold shadow-sm transition-transform duration-200 hover:-translate-y-0.5 bg-green-50 text-green-900 border-green-100"
+            >
+              <span
+                class="text-lg leading-none"
+              >
+                3
+              </span>
+              <span
+                class="text-[10px] uppercase tracking-wide text-text-light"
+              >
+                #
+                2
+              </span>
+            </div>
+            <div
+              class="flex h-12 flex-col items-center justify-center rounded-xl border text-sm font-semibold shadow-sm transition-transform duration-200 hover:-translate-y-0.5 bg-yellow-50 text-yellow-900 border-yellow-100"
+            >
+              <span
+                class="text-lg leading-none"
+              >
+                5
+              </span>
+              <span
+                class="text-[10px] uppercase tracking-wide text-text-light"
+              >
+                #
+                3
+              </span>
+            </div>
+            <div
+              class="flex h-12 flex-col items-center justify-center rounded-xl border text-sm font-semibold shadow-sm transition-transform duration-200 hover:-translate-y-0.5 bg-orange-50 text-orange-900 border-orange-100"
+            >
+              <span
+                class="text-lg leading-none"
+              >
+                7
+              </span>
+              <span
+                class="text-[10px] uppercase tracking-wide text-text-light"
+              >
+                #
+                4
+              </span>
+            </div>
+            <div
+              class="flex h-12 flex-col items-center justify-center rounded-xl border text-sm font-semibold shadow-sm transition-transform duration-200 hover:-translate-y-0.5 bg-purple-50 text-purple-900 border-purple-100"
+            >
+              <span
+                class="text-lg leading-none"
+              >
+                9
+              </span>
+              <span
+                class="text-[10px] uppercase tracking-wide text-text-light"
+              >
+                #
+                5
+              </span>
+            </div>
+            <div
+              class="flex h-12 flex-col items-center justify-center rounded-xl border text-sm font-semibold shadow-sm transition-transform duration-200 hover:-translate-y-0.5 bg-cyan-50 text-cyan-900 border-cyan-100"
+            >
+              <span
+                class="text-lg leading-none"
+              >
+                0
+              </span>
+              <span
+                class="text-[10px] uppercase tracking-wide text-text-light"
+              >
+                #
+                6
+              </span>
+            </div>
+            <div
+              class="flex h-12 flex-col items-center justify-center rounded-xl border text-sm font-semibold shadow-sm transition-transform duration-200 hover:-translate-y-0.5 bg-emerald-50 text-emerald-900 border-emerald-100"
+            >
+              <span
+                class="text-lg leading-none"
+              >
+                2
+              </span>
+              <span
+                class="text-[10px] uppercase tracking-wide text-text-light"
+              >
+                #
+                7
+              </span>
+            </div>
+            <div
+              class="flex h-12 flex-col items-center justify-center rounded-xl border text-sm font-semibold shadow-sm transition-transform duration-200 hover:-translate-y-0.5 bg-lime-50 text-lime-900 border-lime-100"
+            >
+              <span
+                class="text-lg leading-none"
+              >
+                4
+              </span>
+              <span
+                class="text-[10px] uppercase tracking-wide text-text-light"
+              >
+                #
+                8
+              </span>
+            </div>
+            <div
+              class="flex h-12 flex-col items-center justify-center rounded-xl border text-sm font-semibold shadow-sm transition-transform duration-200 hover:-translate-y-0.5 bg-amber-50 text-amber-900 border-amber-100"
+            >
+              <span
+                class="text-lg leading-none"
+              >
+                6
+              </span>
+              <span
+                class="text-[10px] uppercase tracking-wide text-text-light"
+              >
+                #
+                9
+              </span>
+            </div>
+            <div
+              class="flex h-12 flex-col items-center justify-center rounded-xl border text-sm font-semibold shadow-sm transition-transform duration-200 hover:-translate-y-0.5 bg-rose-50 text-rose-900 border-rose-100"
+            >
+              <span
+                class="text-lg leading-none"
+              >
+                8
+              </span>
+              <span
+                class="text-[10px] uppercase tracking-wide text-text-light"
+              >
+                #
+                10
+              </span>
+            </div>
+          </div>
+          <div
+            class="rounded-xl bg-background-light/60 px-3 py-2 text-[13px] font-mono text-text-light"
+          >
+            1 3 5 7 9 0 2 4 6 8
+          </div>
+        </div>
+        <div
+          class="flex flex-col gap-3 rounded-2xl border border-white/60 bg-white/60 p-4 shadow-sm"
+        >
+          <div
+            class="flex items-baseline justify-between gap-2"
+          >
+            <h3
+              class="text-sm font-semibold text-text-dark"
+            >
+              Слой 
+              3
+            </h3>
+            <span
+              class="text-xs uppercase tracking-wide text-text-light"
+            >
+              глубина 
+              3
+            </span>
+          </div>
+          <div
+            class="grid grid-cols-5 gap-2"
+          >
+            <div
+              class="flex h-12 flex-col items-center justify-center rounded-xl border text-sm font-semibold shadow-sm transition-transform duration-200 hover:-translate-y-0.5 bg-purple-50 text-purple-900 border-purple-100"
+            >
+              <span
+                class="text-lg leading-none"
+              >
+                9
+              </span>
+              <span
+                class="text-[10px] uppercase tracking-wide text-text-light"
+              >
+                #
+                1
+              </span>
+            </div>
+            <div
+              class="flex h-12 flex-col items-center justify-center rounded-xl border text-sm font-semibold shadow-sm transition-transform duration-200 hover:-translate-y-0.5 bg-rose-50 text-rose-900 border-rose-100"
+            >
+              <span
+                class="text-lg leading-none"
+              >
+                8
+              </span>
+              <span
+                class="text-[10px] uppercase tracking-wide text-text-light"
+              >
+                #
+                2
+              </span>
+            </div>
+            <div
+              class="flex h-12 flex-col items-center justify-center rounded-xl border text-sm font-semibold shadow-sm transition-transform duration-200 hover:-translate-y-0.5 bg-orange-50 text-orange-900 border-orange-100"
+            >
+              <span
+                class="text-lg leading-none"
+              >
+                7
+              </span>
+              <span
+                class="text-[10px] uppercase tracking-wide text-text-light"
+              >
+                #
+                3
+              </span>
+            </div>
+            <div
+              class="flex h-12 flex-col items-center justify-center rounded-xl border text-sm font-semibold shadow-sm transition-transform duration-200 hover:-translate-y-0.5 bg-amber-50 text-amber-900 border-amber-100"
+            >
+              <span
+                class="text-lg leading-none"
+              >
+                6
+              </span>
+              <span
+                class="text-[10px] uppercase tracking-wide text-text-light"
+              >
+                #
+                4
+              </span>
+            </div>
+            <div
+              class="flex h-12 flex-col items-center justify-center rounded-xl border text-sm font-semibold shadow-sm transition-transform duration-200 hover:-translate-y-0.5 bg-yellow-50 text-yellow-900 border-yellow-100"
+            >
+              <span
+                class="text-lg leading-none"
+              >
+                5
+              </span>
+              <span
+                class="text-[10px] uppercase tracking-wide text-text-light"
+              >
+                #
+                5
+              </span>
+            </div>
+            <div
+              class="flex h-12 flex-col items-center justify-center rounded-xl border text-sm font-semibold shadow-sm transition-transform duration-200 hover:-translate-y-0.5 bg-lime-50 text-lime-900 border-lime-100"
+            >
+              <span
+                class="text-lg leading-none"
+              >
+                4
+              </span>
+              <span
+                class="text-[10px] uppercase tracking-wide text-text-light"
+              >
+                #
+                6
+              </span>
+            </div>
+            <div
+              class="flex h-12 flex-col items-center justify-center rounded-xl border text-sm font-semibold shadow-sm transition-transform duration-200 hover:-translate-y-0.5 bg-green-50 text-green-900 border-green-100"
+            >
+              <span
+                class="text-lg leading-none"
+              >
+                3
+              </span>
+              <span
+                class="text-[10px] uppercase tracking-wide text-text-light"
+              >
+                #
+                7
+              </span>
+            </div>
+            <div
+              class="flex h-12 flex-col items-center justify-center rounded-xl border text-sm font-semibold shadow-sm transition-transform duration-200 hover:-translate-y-0.5 bg-emerald-50 text-emerald-900 border-emerald-100"
+            >
+              <span
+                class="text-lg leading-none"
+              >
+                2
+              </span>
+              <span
+                class="text-[10px] uppercase tracking-wide text-text-light"
+              >
+                #
+                8
+              </span>
+            </div>
+            <div
+              class="flex h-12 flex-col items-center justify-center rounded-xl border text-sm font-semibold shadow-sm transition-transform duration-200 hover:-translate-y-0.5 bg-teal-50 text-teal-900 border-teal-100"
+            >
+              <span
+                class="text-lg leading-none"
+              >
+                1
+              </span>
+              <span
+                class="text-[10px] uppercase tracking-wide text-text-light"
+              >
+                #
+                9
+              </span>
+            </div>
+            <div
+              class="flex h-12 flex-col items-center justify-center rounded-xl border text-sm font-semibold shadow-sm transition-transform duration-200 hover:-translate-y-0.5 bg-cyan-50 text-cyan-900 border-cyan-100"
+            >
+              <span
+                class="text-lg leading-none"
+              >
+                0
+              </span>
+              <span
+                class="text-[10px] uppercase tracking-wide text-text-light"
+              >
+                #
+                10
+              </span>
+            </div>
+          </div>
+          <div
+            class="rounded-xl bg-background-light/60 px-3 py-2 text-[13px] font-mono text-text-light"
+          >
+            9 8 7 6 5 4 3 2 1 0
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+`;
+
+exports[`FractalMemory > renders placeholder when KolibriSim is missing 1`] = `
+<div>
+  <section
+    class="rounded-3xl bg-white/80 p-6 shadow-card"
+  >
+    <div
+      class="flex flex-wrap items-start justify-between gap-4"
+    >
+      <div>
+        <h2
+          class="text-xl font-semibold text-text-dark"
+        >
+          Фрактальная память
+        </h2>
+        <p
+          class="mt-1 text-sm text-text-light"
+        >
+          Слои цифрового роя, полученные из KolibriSim.poluchit_canvas.
+        </p>
+      </div>
+      <button
+        class="flex items-center gap-2 rounded-xl border border-transparent bg-background-light/60 px-4 py-2 text-sm font-medium text-text-dark transition-colors hover:border-primary disabled:cursor-not-allowed disabled:opacity-60"
+        type="button"
+      >
+        <svg
+          class="lucide lucide-refresh-cw h-4 w-4"
+          fill="none"
+          height="24"
+          stroke="currentColor"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          viewBox="0 0 24 24"
+          width="24"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"
+          />
+          <path
+            d="M21 3v5h-5"
+          />
+          <path
+            d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"
+          />
+          <path
+            d="M8 16H3v5"
+          />
+        </svg>
+        Обновить
+      </button>
+    </div>
+    <div
+      class="mt-6"
+    >
+      <div
+        class="rounded-2xl bg-accent-coral/10 px-4 py-6 text-sm text-accent-coral"
+      >
+        KolibriSim недоступен: функция poluchit_canvas не найдена.
+      </div>
+    </div>
+  </section>
+</div>
+`;

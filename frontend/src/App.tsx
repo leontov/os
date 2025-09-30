@@ -4,6 +4,7 @@ import Sidebar from "./components/Sidebar";
 import WelcomeScreen from "./components/WelcomeScreen";
 import ChatInput from "./components/ChatInput";
 import ChatView from "./components/ChatView";
+import FractalMemory from "./components/FractalMemory";
 import type { ChatMessage } from "./types/chat";
 import kolibriBridge from "./core/kolibri-bridge";
 
@@ -13,6 +14,7 @@ const App = () => {
   const [mode, setMode] = useState("Быстрый ответ");
   const [isProcessing, setIsProcessing] = useState(false);
   const [bridgeReady, setBridgeReady] = useState(false);
+  const [activePanel, setActivePanel] = useState<"chat" | "memory">("chat");
 
   useEffect(() => {
     let cancelled = false;
@@ -129,16 +131,55 @@ const App = () => {
 
   return (
     <Layout sidebar={<Sidebar />}>
-      <div className="flex-1">{content}</div>
-      <ChatInput
-        value={draft}
-        mode={mode}
-        isBusy={isProcessing || !bridgeReady}
-        onChange={setDraft}
-        onModeChange={setMode}
-        onSubmit={sendMessage}
-        onReset={resetConversation}
-      />
+      <div className="flex flex-1 flex-col gap-6">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl bg-white/80 p-2 shadow-card sm:p-3">
+          <nav className="flex flex-wrap gap-2" aria-label="Основные панели">
+            {[
+              { id: "chat" as const, label: "Чат" },
+              { id: "memory" as const, label: "Фрактальная память" },
+            ].map((tab) => {
+              const isActive = activePanel === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActivePanel(tab.id)}
+                  className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
+                    isActive
+                      ? "bg-primary text-white shadow-sm"
+                      : "bg-background-light/60 text-text-light hover:text-text-dark"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </nav>
+          <div className="text-xs text-text-light">
+            {activePanel === "chat"
+              ? "Общайтесь с Колибри и учите его новым знаниям."
+              : "Наблюдайте, как ответы формируют цифровую память."}
+          </div>
+        </div>
+        <div className="flex-1">
+          {activePanel === "chat" ? (
+            content
+          ) : (
+            <FractalMemory isReady={bridgeReady} refreshToken={messages.length} />
+          )}
+        </div>
+      </div>
+      {activePanel === "chat" ? (
+        <ChatInput
+          value={draft}
+          mode={mode}
+          isBusy={isProcessing || !bridgeReady}
+          onChange={setDraft}
+          onModeChange={setMode}
+          onSubmit={sendMessage}
+          onReset={resetConversation}
+        />
+      ) : null}
     </Layout>
   );
 };
