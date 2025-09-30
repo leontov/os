@@ -48,6 +48,7 @@ int kn_share_formula(const char *host, uint16_t port, uint32_t node_id, const Ko
 typedef struct {
     int socket_fd;
     uint16_t port;
+    void *tls_ctx;
 } KolibriNetListener;
 
 int kn_listener_start(KolibriNetListener *listener, uint16_t port);
