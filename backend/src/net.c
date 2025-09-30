@@ -3,6 +3,7 @@
  */
 
 #include "kolibri/net.h"
+#include "kolibri/telemetry.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -238,9 +239,13 @@ int kn_share_formula(const char *host, uint16_t port, uint32_t node_id,
     return -1;
   }
 
+  KolibriTelemetrySpan span;
+  kt_span_start(&span, "net.share_formula");
+  bool success = false;
+
   int sockfd = socket(AF_INET, SOCK_STREAM, 0);
   if (sockfd < 0) {
-    return -1;
+    goto done;
   }
 
   struct sockaddr_in addr;
@@ -249,29 +254,33 @@ int kn_share_formula(const char *host, uint16_t port, uint32_t node_id,
   addr.sin_port = htons(port);
   if (inet_pton(AF_INET, host, &addr.sin_addr) <= 0) {
     close(sockfd);
-    return -1;
+    goto done;
   }
 
   if (connect(sockfd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
     close(sockfd);
-    return -1;
+    goto done;
   }
 
   uint8_t buffer[KOLIBRI_HEADER_SIZE + KOLIBRI_MAX_PAYLOAD];
   size_t len = kn_message_encode_hello(buffer, sizeof(buffer), node_id);
   if (len == 0 || kn_send_message(sockfd, buffer, len) != 0) {
     close(sockfd);
-    return -1;
+    goto done;
   }
 
   len = kn_message_encode_formula(buffer, sizeof(buffer), node_id, formula);
   if (len == 0 || kn_send_message(sockfd, buffer, len) != 0) {
     close(sockfd);
-    return -1;
+    goto done;
   }
 
   close(sockfd);
-  return 0;
+  success = true;
+
+done:
+  kt_span_finish(&span, success);
+  return success ? 0 : -1;
 }
 
 int kn_listener_start(KolibriNetListener *listener, uint16_t port) {
