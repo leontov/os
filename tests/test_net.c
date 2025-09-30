@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <math.h>
 #include <string.h>
+#include <sys/time.h>
 
 void test_net(void) {
   uint8_t buffer[64];
@@ -36,4 +37,19 @@ void test_net(void) {
   assert(kn_message_decode(buffer, len, &message) == 0);
   assert(message.type == KOLIBRI_MSG_ACK);
   assert(message.data.ack.status == 0x5AU);
+
+  KolibriNetListener listener;
+  listener.socket_fd = -1;
+  assert(kn_listener_start(&listener, 0U) == 0);
+  struct timeval before;
+  struct timeval after;
+  assert(gettimeofday(&before, NULL) == 0);
+  int poll_status = kn_listener_poll(&listener, 0U, &message);
+  assert(gettimeofday(&after, NULL) == 0);
+  double elapsed_ms = (double)(after.tv_sec - before.tv_sec) * 1000.0 +
+                      (double)(after.tv_usec - before.tv_usec) / 1000.0;
+  assert(poll_status == 0);
+  assert(elapsed_ms >= 0.0);
+  assert(elapsed_ms < 50.0);
+  kn_listener_close(&listener);
 }
