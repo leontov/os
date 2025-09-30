@@ -4,23 +4,49 @@ from __future__ import annotations
 
 import ast
 import dataclasses
-import json
-import random
-import time
 import hashlib
 import hmac
+import json
 import os
+import random
+import time
 from pathlib import Path
 
-from typing import Any, Dict, List, Mapping, Optional, Sequence, TypedDict, cast
+from typing import Any, Dict, List, Mapping, Optional, Protocol, Sequence, TypedDict, cast
 
 
 class FormulaRecord(TypedDict):
     """Структура формулы, эволюционирующей в KolibriSim."""
 
+    kod: str
+    fitness: float
+    parents: List[str]
+    context: str
 
 
-from typing import Dict, List, Mapping, Optional, Protocol, TypedDict, cast
+class MetricRecord(TypedDict):
+    """Метрика одного шага soak-прогона."""
+
+    minute: int
+    formula: str
+    fitness: float
+    genome: int
+
+
+MetricEntry = MetricRecord  # Сохранён для обратной совместимости
+
+
+class SoakResult(TypedDict):
+    """Результат выполнения soak-сессии."""
+
+    events: int
+    metrics: List[MetricRecord]
+
+
+class SoakState(TypedDict, total=False):
+    events: int
+    metrics: List[MetricRecord]
+
 
 from .tracing import JsonLinesTracer
 
@@ -42,40 +68,6 @@ class ZhurnalTracer(Protocol):
     def zapisat(self, zapis: ZhurnalZapis, blok: "ZapisBloka | None" = None) -> None:
         """Получает уведомление о новой записи журнала и соответствующем блоке."""
 
-
-
-class FormulaZapis(TypedDict):
-
-    kod: str
-    fitness: float
-    parents: List[str]
-    context: str
-
-
-
-class MetricRecord(TypedDict):
-    """Метрика одного шага soak-прогона."""
-    
-    minute: int
-    formula: str
-    fitness: float
-    genome: int
-
-
-class SoakResult(TypedDict):
-
-    """Результат выполнения soak-сессии."""
-
-    events: int
-    metrics: List[MetricRecord]
-
-    events: int
-    metrics: List[MetricEntry]
-
-
-class SoakState(TypedDict, total=False):
-    events: int
-    metrics: List[MetricEntry]
 
 
 def preobrazovat_tekst_v_cifry(tekst: str) -> str:
@@ -143,8 +135,6 @@ class KolibriSim:
         self.znanija: Dict[str, str] = {}
 
         self.formuly: Dict[str, FormulaRecord] = {}
-
-        self.formuly: Dict[str, FormulaZapis] = {}
 
         self.populyaciya: List[str] = []
         self.predel_populyacii = 24
@@ -327,9 +317,6 @@ class KolibriSim:
         nazvanie = f"F{len(self.formuly) + 1:04d}"
 
         zapis: FormulaRecord = {
-
-        zapis: FormulaZapis = {
-
             "kod": kod,
             "fitness": 0.0,
             "parents": roditeli,
@@ -448,8 +435,6 @@ class KolibriSim:
 
         metrika: List[MetricRecord] = []
 
-        metrika: List[MetricEntry] = []
-
         for minuta in range(minuti):
             nazvanie = self.evolyuciya_formul("soak")
             rezultat = self.ocenit_formulu(nazvanie, self.generator.random())
@@ -491,8 +476,6 @@ def zagruzit_sostoyanie(path: Path) -> Dict[str, Any]:
 
 
 
-def obnovit_soak_state(path: Path, sim: KolibriSim, minuti: int) -> Dict[str, Any]:
-
 def obnovit_soak_state(path: Path, sim: KolibriSim, minuti: int) -> SoakState:
 
     """Читает, дополняет и сохраняет состояние длительных прогонов."""
@@ -502,9 +485,8 @@ def obnovit_soak_state(path: Path, sim: KolibriSim, minuti: int) -> SoakState:
 
 
     metrics_obj = tekuschee.get("metrics")
-
     if isinstance(metrics_obj, list):
-        metrics = cast(List[MetricEntry], metrics_obj)
+        metrics = cast(List[MetricRecord], metrics_obj)
     else:
         metrics = []
         tekuschee["metrics"] = metrics

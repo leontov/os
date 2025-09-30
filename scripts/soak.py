@@ -1,5 +1,4 @@
-#!/usr/bin/env python3
-"""Длительные прогоны KolibriSim с сохранением состояния и метрик."""
+"""Утилита запуска soak-сессий KolibriSim и выгрузки результатов."""
 
 from __future__ import annotations
 
@@ -7,31 +6,21 @@ import argparse
 import csv
 import json
 from pathlib import Path
+from typing import List, Optional, Sequence, cast
 
-from typing import Sequence, cast
-
-from core.kolibri_sim import KolibriSim, MetricRecord, obnovit_soak_state
+from core.kolibri_sim import KolibriSim, MetricRecord, SoakState, obnovit_soak_state
 
 
 def zapisat_csv(path: Path, metrika: Sequence[MetricRecord]) -> None:
-
-from typing import List, Optional, cast
-
-from core.kolibri_sim import (
-    KolibriSim,
-    MetricEntry,
-    SoakState,
-    obnovit_soak_state,
-)
-
-
-def zapisat_csv(path: Path, metrika: List[MetricEntry]) -> None:
-
     """Сохраняет метрики прогона в CSV."""
-    if not metrika:
-        path.write_text("minute,formula,fitness,genome\n", encoding="utf-8")
-        return
     fieldnames = ["minute", "formula", "fitness", "genome"]
+    if not metrika:
+        path.write_text(
+            ",".join(fieldnames) + "\n",
+            encoding="utf-8",
+        )
+        return
+
     with path.open("w", newline="", encoding="utf-8") as csvfile:
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
@@ -39,13 +28,24 @@ def zapisat_csv(path: Path, metrika: List[MetricEntry]) -> None:
             writer.writerow({pole: zapis.get(pole) for pole in fieldnames})
 
 
+def _poluchit_minuti(hours: float, minutes: Optional[int]) -> int:
+    if minutes is not None:
+        return max(1, minutes)
+    return max(1, int(hours * 60))
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Kolibri soak runner")
     parser.add_argument("--hours", type=float, default=4.0, help="длительность чанка в часах")
-    parser.add_argument("--minutes", type=int, default=None, help="длительность чанка в минутах (приоритетнее, чем часы)")
-    parser.add_argument("--resume", action="store_true", help="сохранять и продолжать существующее состояние")
-    parser.add_argument("--state-path", default="soak_state.json", help="путь к файлу состояния")
-    parser.add_argument("--metrics-path", default=None, help="путь к CSV с метриками")
+    parser.add_argument(
+        "--minutes",
+        type=int,
+        default=None,
+        help="длительность чанка в минутах (приоритетнее, чем часы)",
+    )
+    parser.add_argument("--resume", action="store_true", help="продолжить существующее состояние")
+    parser.add_argument("--state-path", default="soak_state.json", help="путь к JSON-файлу состояния")
+    parser.add_argument("--metrics-path", default=None, help="куда выгрузить CSV с метриками")
     parser.add_argument("--log-dir", type=Path, default=None, help="каталог для JSONL-журналов")
     parser.add_argument(
         "--keep-genome",
@@ -55,48 +55,53 @@ def main() -> int:
     parser.add_argument("--seed", type=int, default=0, help="зерно генератора KolibriSim")
     args = parser.parse_args()
 
-    minuti = args.minutes if args.minutes is not None else max(1, int(args.hours * 60))
+    minuti = _poluchit_minuti(args.hours, args.minutes)
+
     state_path = Path(args.state_path)
     if not args.resume and state_path.exists():
         state_path.unlink()
 
-
-    sim = KolibriSim(zerno=args.seed)
-    rezultat = obnovit_soak_state(state_path, sim, minuti)
-    metrika = cast(Sequence[MetricRecord], rezultat.get("metrics", []))[-minuti:]
-
     log_dir = Path(args.log_dir) if args.log_dir is not None else Path("logs")
-    trace_path = log_dir / f"kolibri_seed{args.seed}_events.jsonl"
+    trace_path: Optional[Path] = None
+    if args.log_dir is not None or args.keep_genome:
+        log_dir.mkdir(parents=True, exist_ok=True)
+        trace_path = log_dir / f"kolibri_seed{args.seed}_events.jsonl"
+
     sim = KolibriSim(
         zerno=args.seed,
         trace_path=trace_path,
         trace_include_genome=args.keep_genome,
     )
-    rezultat: SoakState = obnovit_soak_state(state_path, sim, minuti)
-    metrics = rezultat.get("metrics", [])
-    metrika = cast(List[MetricEntry], metrics)[-minuti:]
 
+    rezultat: SoakState = obnovit_soak_state(state_path, sim, minuti)
+    metrics_value = rezultat.get("metrics", [])
+    metrika = cast(List[MetricRecord], metrics_value)[-minuti:]
 
     if args.metrics_path:
         zapisat_csv(Path(args.metrics_path), metrika)
 
     genome_path: Optional[Path] = None
     if args.keep_genome:
-        log_dir.mkdir(parents=True, exist_ok=True)
         genome_path = log_dir / f"kolibri_seed{args.seed}_genome.json"
         genome_path.write_text(
             json.dumps(sim.poluchit_genom_slovar(), ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
 
-    print(json.dumps({
-        "minutes": minuti,
-        "events": cast(int, rezultat.get("events", 0)),
-        "metrics_written": len(metrika),
-        "state_path": str(state_path),
-        "trace_path": str(sim.poluchit_trace_path() or trace_path),
-        "genome_path": str(genome_path) if genome_path else None,
-    }, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {
+                "minutes": minuti,
+                "events": cast(int, rezultat.get("events", 0)),
+                "metrics_written": len(metrika),
+                "state_path": str(state_path),
+                "trace_path": str(sim.poluchit_trace_path() or trace_path),
+                "genome_path": str(genome_path) if genome_path else None,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
     return 0
 
 
