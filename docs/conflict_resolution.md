@@ -7,8 +7,8 @@
 
 ### Быстрый путь с `scripts/resolve_conflicts.py`
 1. Обновите ссылки на удалённые ветки: `git fetch --all --prune`.
-2. Запустите автоматизированный скрипт: `python scripts/resolve_conflicts.py --base origin/main --head work`.
-3. Изучите сгенерированный JSON-отчёт в `build/conflict-report.json`, убедитесь, что все файлы промаркированы как `resolved`.
+2. Запустите автоматизированный скрипт: `python scripts/resolve_conflicts.py --base origin/main --head work`. Он проверит merge-base, выполнит `git rebase origin/main` для ветки `work` и попытается автоматически снять конфликтные маркеры.
+3. Изучите сгенерированный JSON-отчёт в `build/conflict-report.json` (можно переопределить через `--report`), убедитесь, что все файлы промаркированы как `resolved`.
 4. Выполните `make`, `make test`, `./kolibri.sh up` для проверки целостности и работоспособности.
 5. Просмотрите дифф и зафиксируйте изменения коммитом с пометкой `[autofix conflicts]`.
 
@@ -34,8 +34,8 @@ This guide captures the recommended sequence for resolving merge conflicts while
 
 ### Fast path with `scripts/resolve_conflicts.py`
 1. Refresh remotes: `git fetch --all --prune`.
-2. Run the helper: `python scripts/resolve_conflicts.py --base origin/main --head work`.
-3. Inspect the generated report `build/conflict-report.json` and verify that every entry is marked `resolved`.
+2. Run the helper: `python scripts/resolve_conflicts.py --base origin/main --head work`. The script computes the merge-base, rebases `work` onto `origin/main`, and clears conflict markers using Kolibri heuristics.
+3. Inspect the generated report `build/conflict-report.json` (override via `--report` if necessary) and verify that every entry is marked `resolved`.
 4. Execute `make`, `make test`, and `./kolibri.sh up` to validate the fix.
 5. Review the diff and create a commit tagged `[autofix conflicts]` once satisfied.
 
@@ -61,8 +61,8 @@ This guide captures the recommended sequence for resolving merge conflicts while
 
 ### 使用 `scripts/resolve_conflicts.py` 的快速流程
 1. 刷新远端：`git fetch --all --prune`。
-2. 运行辅助脚本：`python scripts/resolve_conflicts.py --base origin/main --head work`。
-3. 查看 `build/conflict-report.json`，确认所有条目标记为 `resolved`。
+2. 运行辅助脚本：`python scripts/resolve_conflicts.py --base origin/main --head work`。脚本会先计算 merge-base，再对 `work` 执行 `git rebase origin/main` 并尝试清理冲突标记。
+3. 查看 `build/conflict-report.json`（可通过 `--report` 指定其他路径），确认所有条目标记为 `resolved`。
 4. 依次执行 `make`、`make test`、`./kolibri.sh up` 验证修复结果。
 5. 检查差异并在满意后创建带有 `[autofix conflicts]` 标记的提交。
 

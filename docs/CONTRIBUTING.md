@@ -25,7 +25,7 @@
 - Для локальной подготовки окружения используйте `scripts/ci_bootstrap.sh`.
 
 ## Скрипты
-- `scripts/resolve_conflicts.py` — авторазрешение конфликтов с генерацией JSON-отчёта.
+- `scripts/resolve_conflicts.py` — авторазрешение конфликтов (`--base`, `--head`, отчёт по умолчанию пишется в `build/conflict-report.json`).
 - `scripts/soak.py` — длительные прогоны симуляции Kolibri с накоплением метрик.
 - `scripts/post_pr_comment.py` — добавление комментариев в PR и формирование сторожевых отчётов.
 - Все скрипты должны быть исполняемыми (`chmod +x`).

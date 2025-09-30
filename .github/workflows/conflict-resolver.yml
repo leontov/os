@@ -34,8 +34,20 @@ jobs:
           git config rerere.enabled true
       - name: Run conflict resolver
         id: run_conflict_resolver
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
-          python scripts/resolve_conflicts.py --report conflict-report.json
+          set -euo pipefail
+          BASE="${BASE_REF:-origin/main}"
+          if [[ "$BASE" != origin/* ]]; then
+            BASE="origin/$BASE"
+          fi
+          HEAD="${HEAD_REF:-work}"
+          BASE_NAME="${BASE#origin/}"
+          git fetch origin "$BASE_NAME":"$BASE_NAME"
+          git fetch origin "$HEAD:$HEAD"
+          python scripts/resolve_conflicts.py --base "$BASE" --head "$HEAD" --report conflict-report.json
       - name: Run bootstrap checks
         id: bootstrap
         run: |
