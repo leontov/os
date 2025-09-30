@@ -1,0 +1,20 @@
+[
+  {
+    "id": "readme-overview",
+    "title": "Kolibri OS — обзор платформы",
+    "source": "README.md",
+    "content": "Kolibri OS — легковесная экспериментальная платформа, объединяющая KolibriScript, симулятор и набор утилит для отладки цифровых сценариев. Чтобы запустить окружение разработчика, требуется Python 3.10+, pip, virtualenv и компилятор C/C++ с CMake 3.20+. После подготовки виртуального окружения необходимо установить зависимости из requirements.txt, собрать C-компоненты через cmake -S . -B build и cmake --build build, а также собрать wasm-ядро скриптом scripts/build_wasm.sh перед сборкой фронтенда." 
+  },
+  {
+    "id": "readme-quality-checks",
+    "title": "Проверки качества Kolibri OS",
+    "source": "README.md",
+    "content": "Для проверки качества проекта предусмотрены линтеры Python (ruff check, pyright), политики проекта (python scripts/policy_validate.py) и сборка тестов ctest --test-dir build. Фронтенд собирается через npm run build после установки npm-зависимостей." 
+  },
+  {
+    "id": "docs-integrated-prototype",
+    "title": "Kolibri Integrated Prototype — архитектура",
+    "source": "docs/kolibri_integrated_prototype.md",
+    "content": "Документ Kolibri Integrated Prototype описывает эволюцию Kolibri AI от фрактальной десятичной логики к экспериментам с C/WASM ядром и PWA-интерфейсом. Он выделяет Kolibri Chain как микроблокчейн для обмена знаниями, кластерные узлы для синхронизации знаний и план развития до масштабирования кластеров до 128 узлов к 2026 году." 
+  }
+]
