@@ -95,7 +95,11 @@ static int ks_zapisat_sobytiye(KolibriScript *skript, const char *event,
     if (!skript || !event || !skript->genome) {
         return 0;
     }
-    return kg_append(skript->genome, event, payload ? payload : "", NULL);
+    char encoded[KOLIBRI_PAYLOAD_SIZE];
+    if (kg_encode_payload(payload, encoded, sizeof(encoded)) != 0) {
+        return -1;
+    }
+    return kg_append(skript->genome, event, encoded, NULL);
 }
 
 int ks_load_text(KolibriScript *skript, const char *text) {

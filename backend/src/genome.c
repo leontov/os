@@ -4,6 +4,8 @@
 
 #include "kolibri/genome.h"
 
+#include "kolibri/decimal.h"
+
 #include <openssl/hmac.h>
 #include <openssl/sha.h>
 
@@ -13,33 +15,8 @@
 #include <string.h>
 #include <time.h>
 
-static void bytes_to_hex(const unsigned char *bytes, size_t len, char *out,
-                         size_t out_len) {
-  static const char hex[] = "0123456789abcdef";
-  if (out_len < len * 2 + 1) {
-    return;
-  }
-  for (size_t i = 0; i < len; ++i) {
-    out[i * 2] = hex[(bytes[i] >> 4) & 0xF];
-    out[i * 2 + 1] = hex[bytes[i] & 0xF];
-  }
-  out[len * 2] = '\0';
-}
-
-static int hex_to_bytes(const char *hex, unsigned char *out, size_t out_len) {
-  size_t len = strlen(hex);
-  if (len % 2 != 0 || len / 2 != out_len) {
-    return -1;
-  }
-  for (size_t i = 0; i < out_len; ++i) {
-    unsigned int value = 0;
-    if (sscanf(hex + i * 2, "%02x", &value) != 1) {
-      return -1;
-    }
-    out[i] = (unsigned char)value;
-  }
-  return 0;
-}
+#define KOLIBRI_HMAC_INPUT_SIZE                                                \
+  (KOLIBRI_BLOCK_SIZE - KOLIBRI_HASH_SIZE)
 
 static void reset_context(KolibriGenome *ctx) {
   if (!ctx) {
@@ -47,10 +24,141 @@ static void reset_context(KolibriGenome *ctx) {
   }
   ctx->file = NULL;
   memset(ctx->last_hash, 0, sizeof(ctx->last_hash));
+  memset(ctx->last_block, 0, sizeof(ctx->last_block));
   memset(ctx->hmac_key, 0, sizeof(ctx->hmac_key));
   ctx->hmac_key_len = 0;
   memset(ctx->path, 0, sizeof(ctx->path));
   ctx->next_index = 0;
+  ctx->has_last_block = 0;
+}
+
+static void encode_u64_be(uint64_t value, unsigned char *out) {
+  for (int i = 0; i < 8; ++i) {
+    out[i] = (unsigned char)((value >> (56 - (i * 8))) & 0xFFU);
+  }
+}
+
+static uint64_t decode_u64_be(const unsigned char *data) {
+  uint64_t value = 0;
+  for (int i = 0; i < 8; ++i) {
+    value = (value << 8) | (uint64_t)data[i];
+  }
+  return value;
+}
+
+static void serialize_block(const ReasonBlock *block, unsigned char *out) {
+  encode_u64_be(block->index, out);
+  encode_u64_be(block->timestamp, out + 8);
+  memcpy(out + 16, block->prev_hash, KOLIBRI_HASH_SIZE);
+  memcpy(out + 16 + KOLIBRI_HASH_SIZE, block->hmac, KOLIBRI_HASH_SIZE);
+  memcpy(out + 16 + KOLIBRI_HASH_SIZE * 2, block->event_type,
+         KOLIBRI_EVENT_TYPE_SIZE);
+  memcpy(out + 16 + KOLIBRI_HASH_SIZE * 2 + KOLIBRI_EVENT_TYPE_SIZE,
+         block->payload, KOLIBRI_PAYLOAD_SIZE);
+}
+
+static void deserialize_block(const unsigned char *data, ReasonBlock *block) {
+  memset(block, 0, sizeof(*block));
+  block->index = decode_u64_be(data);
+  block->timestamp = decode_u64_be(data + 8);
+  memcpy(block->prev_hash, data + 16, KOLIBRI_HASH_SIZE);
+  memcpy(block->hmac, data + 16 + KOLIBRI_HASH_SIZE, KOLIBRI_HASH_SIZE);
+  memcpy(block->event_type, data + 16 + KOLIBRI_HASH_SIZE * 2,
+         KOLIBRI_EVENT_TYPE_SIZE);
+  memcpy(block->payload,
+         data + 16 + KOLIBRI_HASH_SIZE * 2 + KOLIBRI_EVENT_TYPE_SIZE,
+         KOLIBRI_PAYLOAD_SIZE);
+}
+
+static void build_hmac_message(const ReasonBlock *block, unsigned char *out) {
+  encode_u64_be(block->index, out);
+  encode_u64_be(block->timestamp, out + 8);
+  memcpy(out + 16, block->prev_hash, KOLIBRI_HASH_SIZE);
+  memcpy(out + 16 + KOLIBRI_HASH_SIZE, block->event_type,
+         KOLIBRI_EVENT_TYPE_SIZE);
+  memcpy(out + 16 + KOLIBRI_HASH_SIZE + KOLIBRI_EVENT_TYPE_SIZE, block->payload,
+         KOLIBRI_PAYLOAD_SIZE);
+}
+
+static int payload_is_digits(const char *payload) {
+  if (!payload) {
+    return 0;
+  }
+  for (size_t i = 0; i < KOLIBRI_PAYLOAD_SIZE; ++i) {
+    char ch = payload[i];
+    if (ch == '\0') {
+      return 1;
+    }
+    if (ch < '0' || ch > '9') {
+      return 0;
+    }
+  }
+  return 0;
+}
+
+static uint64_t current_time_ns(void) {
+#if defined(CLOCK_REALTIME)
+  struct timespec ts;
+  if (clock_gettime(CLOCK_REALTIME, &ts) == 0) {
+    return (uint64_t)ts.tv_sec * 1000000000ULL + (uint64_t)ts.tv_nsec;
+  }
+#endif
+  time_t seconds = time(NULL);
+  if (seconds < 0) {
+    seconds = 0;
+  }
+  return (uint64_t)seconds * 1000000000ULL;
+}
+
+static int parse_and_verify_block(const unsigned char *bytes,
+                                  const unsigned char *key, size_t key_len,
+                                  uint64_t expected_index,
+                                  const unsigned char *expected_prev,
+                                  ReasonBlock *out_block,
+                                  unsigned char *out_hash) {
+  ReasonBlock block;
+  deserialize_block(bytes, &block);
+
+  if (!memchr(block.event_type, '\0', KOLIBRI_EVENT_TYPE_SIZE) ||
+      !memchr(block.payload, '\0', KOLIBRI_PAYLOAD_SIZE)) {
+    return -1;
+  }
+
+  if (block.index != expected_index) {
+    return -1;
+  }
+
+  if (memcmp(block.prev_hash, expected_prev, KOLIBRI_HASH_SIZE) != 0) {
+    return -1;
+  }
+
+  unsigned char message[KOLIBRI_HMAC_INPUT_SIZE];
+  build_hmac_message(&block, message);
+
+  unsigned char computed[KOLIBRI_HASH_SIZE];
+  unsigned int hmac_len = 0;
+  unsigned char *result =
+      HMAC(EVP_sha256(), key, (int)key_len, message, sizeof(message), computed,
+           &hmac_len);
+  if (!result || hmac_len != KOLIBRI_HASH_SIZE) {
+    return -1;
+  }
+
+  if (memcmp(computed, block.hmac, KOLIBRI_HASH_SIZE) != 0) {
+    return -1;
+  }
+
+  if (out_block) {
+    *out_block = block;
+  }
+
+  if (out_hash) {
+    if (!SHA256(bytes, KOLIBRI_BLOCK_SIZE, out_hash)) {
+      return -1;
+    }
+  }
+
+  return 0;
 }
 
 int kg_open(KolibriGenome *ctx, const char *path, const unsigned char *key,
@@ -62,47 +170,59 @@ int kg_open(KolibriGenome *ctx, const char *path, const unsigned char *key,
 
   reset_context(ctx);
 
-  ctx->file = fopen(path, "a+b");
-  if (!ctx->file) {
-    return -1;
+  FILE *file = fopen(path, "r+b");
+  if (!file) {
+    file = fopen(path, "w+b");
+    if (!file) {
+      return -1;
+    }
   }
 
+  ctx->file = file;
   strncpy(ctx->path, path, sizeof(ctx->path) - 1);
   memcpy(ctx->hmac_key, key, key_len);
   ctx->hmac_key_len = key_len;
 
-  fflush(ctx->file);
-  fseek(ctx->file, 0, SEEK_SET);
+  unsigned char expected_prev[KOLIBRI_HASH_SIZE];
+  memset(expected_prev, 0, sizeof(expected_prev));
+  uint64_t expected_index = 0;
 
-  char line[1024];
-  ReasonBlock block;
-  while (fgets(line, sizeof(line), ctx->file)) {
-    char prev_hash_hex[KOLIBRI_HASH_SIZE * 2 + 1];
-    char hmac_hex[KOLIBRI_HASH_SIZE * 2 + 1];
-    char event[KOLIBRI_EVENT_TYPE_SIZE];
-    char payload[KOLIBRI_PAYLOAD_SIZE];
-    unsigned long long index = 0ULL;
-    unsigned long long timestamp = 0ULL;
-    int matched =
-        sscanf(line, "%llu,%llu,%64[^,],%64[^,],%31[^,],%255[^\n]", &index,
-               &timestamp, prev_hash_hex, hmac_hex, event, payload);
-    if (matched == 6) {
-      block.index = (uint64_t)index;
-      block.timestamp = (uint64_t)timestamp;
-      strncpy(block.event_type, event, sizeof(block.event_type) - 1);
-      block.event_type[sizeof(block.event_type) - 1] = '\0';
-      strncpy(block.payload, payload, sizeof(block.payload) - 1);
-      block.payload[sizeof(block.payload) - 1] = '\0';
-      if (hex_to_bytes(prev_hash_hex, block.prev_hash, KOLIBRI_HASH_SIZE) ==
-              0 &&
-          hex_to_bytes(hmac_hex, block.hmac, KOLIBRI_HASH_SIZE) == 0) {
-        memcpy(ctx->last_hash, block.hmac, KOLIBRI_HASH_SIZE);
-        ctx->next_index = block.index + 1;
-      }
+  unsigned char bytes[KOLIBRI_BLOCK_SIZE];
+  size_t read = 0;
+  while ((read = fread(bytes, 1, KOLIBRI_BLOCK_SIZE, ctx->file)) ==
+         KOLIBRI_BLOCK_SIZE) {
+    unsigned char block_hash[KOLIBRI_HASH_SIZE];
+    ReasonBlock block;
+    if (parse_and_verify_block(bytes, key, key_len, expected_index,
+                               expected_prev, &block, block_hash) != 0) {
+      kg_close(ctx);
+      return -1;
     }
+
+    memcpy(ctx->last_hash, block.hmac, KOLIBRI_HASH_SIZE);
+    memcpy(ctx->last_block, bytes, KOLIBRI_BLOCK_SIZE);
+    ctx->has_last_block = 1;
+    memcpy(expected_prev, block_hash, KOLIBRI_HASH_SIZE);
+    expected_index = block.index + 1;
   }
 
-  fseek(ctx->file, 0, SEEK_END);
+  if (read != 0) {
+    kg_close(ctx);
+    return -1;
+  }
+
+  if (ferror(ctx->file)) {
+    kg_close(ctx);
+    return -1;
+  }
+
+  ctx->next_index = expected_index;
+
+  if (fseek(ctx->file, 0, SEEK_END) != 0) {
+    kg_close(ctx);
+    return -1;
+  }
+
   return 0;
 }
 
@@ -115,72 +235,91 @@ void kg_close(KolibriGenome *ctx) {
     ctx->file = NULL;
   }
   memset(ctx->last_hash, 0, sizeof(ctx->last_hash));
+  memset(ctx->last_block, 0, sizeof(ctx->last_block));
   memset(ctx->hmac_key, 0, sizeof(ctx->hmac_key));
   ctx->hmac_key_len = 0;
   memset(ctx->path, 0, sizeof(ctx->path));
   ctx->next_index = 0;
+  ctx->has_last_block = 0;
 }
 
-static void build_payload_buffer(const ReasonBlock *block,
-                                 unsigned char *buffer, size_t *out_len) {
-  size_t offset = 0;
-  memcpy(buffer + offset, &block->index, sizeof(block->index));
-  offset += sizeof(block->index);
-  memcpy(buffer + offset, &block->timestamp, sizeof(block->timestamp));
-  offset += sizeof(block->timestamp);
-  memcpy(buffer + offset, block->prev_hash, KOLIBRI_HASH_SIZE);
-  offset += KOLIBRI_HASH_SIZE;
-  memcpy(buffer + offset, block->event_type, sizeof(block->event_type));
-  offset += sizeof(block->event_type);
-  memcpy(buffer + offset, block->payload, sizeof(block->payload));
-  offset += sizeof(block->payload);
-  *out_len = offset;
+int kg_encode_payload(const char *utf8, char *out, size_t out_len) {
+  if (!out || out_len == 0) {
+    return -1;
+  }
+  memset(out, 0, out_len);
+  if (!utf8 || utf8[0] == '\0') {
+    return 0;
+  }
+  size_t required = k_encode_text_length(strlen(utf8));
+  if (required > out_len) {
+    return -1;
+  }
+  return k_encode_text(utf8, out, out_len);
 }
 
 int kg_append(KolibriGenome *ctx, const char *event_type, const char *payload,
               ReasonBlock *out_block) {
-  if (!ctx || !ctx->file || !event_type || !payload) {
+  if (!ctx || !ctx->file || !event_type) {
+    return -1;
+  }
+
+  const char *digits = payload ? payload : "";
+  if (!payload_is_digits(digits)) {
+    return -1;
+  }
+
+  size_t event_len = strnlen(event_type, KOLIBRI_EVENT_TYPE_SIZE);
+  if (event_len >= KOLIBRI_EVENT_TYPE_SIZE) {
     return -1;
   }
 
   ReasonBlock block;
   memset(&block, 0, sizeof(block));
-  block.index = ctx->next_index++;
-  block.timestamp = (uint64_t)time(NULL);
-  memcpy(block.prev_hash, ctx->last_hash, KOLIBRI_HASH_SIZE);
-  strncpy(block.event_type, event_type, sizeof(block.event_type) - 1);
-  strncpy(block.payload, payload, sizeof(block.payload) - 1);
 
-  unsigned char buffer[sizeof(block.index) + sizeof(block.timestamp) +
-                       KOLIBRI_HASH_SIZE + sizeof(block.event_type) +
-                       sizeof(block.payload)];
-  size_t buffer_len = 0;
-  build_payload_buffer(&block, buffer, &buffer_len);
+  block.index = ctx->next_index;
+  block.timestamp = current_time_ns();
+
+  if (ctx->has_last_block) {
+    if (!SHA256(ctx->last_block, KOLIBRI_BLOCK_SIZE, block.prev_hash)) {
+      return -1;
+    }
+  } else {
+    memset(block.prev_hash, 0, KOLIBRI_HASH_SIZE);
+  }
+
+  memcpy(block.event_type, event_type, event_len);
+  size_t payload_len = strnlen(digits, KOLIBRI_PAYLOAD_SIZE);
+  if (payload_len >= KOLIBRI_PAYLOAD_SIZE) {
+    return -1;
+  }
+  memcpy(block.payload, digits, payload_len);
+
+  unsigned char message[KOLIBRI_HMAC_INPUT_SIZE];
+  build_hmac_message(&block, message);
 
   unsigned int hmac_len = 0;
-  unsigned char *result =
-      HMAC(EVP_sha256(), ctx->hmac_key, (int)ctx->hmac_key_len, buffer,
-           buffer_len, block.hmac, &hmac_len);
-  if (!result || hmac_len != KOLIBRI_HASH_SIZE) {
+  if (!HMAC(EVP_sha256(), ctx->hmac_key, (int)ctx->hmac_key_len, message,
+            sizeof(message), block.hmac, &hmac_len) ||
+      hmac_len != KOLIBRI_HASH_SIZE) {
+    return -1;
+  }
+
+  unsigned char bytes[KOLIBRI_BLOCK_SIZE];
+  serialize_block(&block, bytes);
+
+  if (fwrite(bytes, 1, KOLIBRI_BLOCK_SIZE, ctx->file) != KOLIBRI_BLOCK_SIZE) {
+    return -1;
+  }
+
+  if (fflush(ctx->file) != 0) {
     return -1;
   }
 
   memcpy(ctx->last_hash, block.hmac, KOLIBRI_HASH_SIZE);
-
-  char prev_hex[KOLIBRI_HASH_SIZE * 2 + 1];
-  char hmac_hex[KOLIBRI_HASH_SIZE * 2 + 1];
-  bytes_to_hex(block.prev_hash, KOLIBRI_HASH_SIZE, prev_hex, sizeof(prev_hex));
-  bytes_to_hex(block.hmac, KOLIBRI_HASH_SIZE, hmac_hex, sizeof(hmac_hex));
-
-  int written = fprintf(ctx->file, "%llu,%llu,%s,%s,%s,%s\n",
-                        (unsigned long long)block.index,
-                        (unsigned long long)block.timestamp, prev_hex, hmac_hex,
-                        block.event_type, block.payload);
-  if (written < 0) {
-    return -1;
-  }
-
-  fflush(ctx->file);
+  memcpy(ctx->last_block, bytes, KOLIBRI_BLOCK_SIZE);
+  ctx->has_last_block = 1;
+  ctx->next_index = block.index + 1;
 
   if (out_block) {
     *out_block = block;
@@ -207,69 +346,28 @@ int kg_verify_file(const char *path, const unsigned char *key,
   memset(expected_prev, 0, sizeof(expected_prev));
   uint64_t expected_index = 0;
 
-  char line[1024];
-  while (fgets(line, sizeof(line), file)) {
-    ReasonBlock block;
-    memset(&block, 0, sizeof(block));
-
-    char prev_hash_hex[KOLIBRI_HASH_SIZE * 2 + 1];
-    char hmac_hex[KOLIBRI_HASH_SIZE * 2 + 1];
-    char event[KOLIBRI_EVENT_TYPE_SIZE];
-    char payload[KOLIBRI_PAYLOAD_SIZE];
-    unsigned long long index = 0ULL;
-    unsigned long long timestamp = 0ULL;
-
-    int matched = sscanf(line, "%llu,%llu,%64[^,],%64[^,],%31[^,],%255[^\n]",
-                         &index, &timestamp, prev_hash_hex, hmac_hex, event,
-                         payload);
-    if (matched != 6) {
+  unsigned char bytes[KOLIBRI_BLOCK_SIZE];
+  size_t read = 0;
+  while ((read = fread(bytes, 1, KOLIBRI_BLOCK_SIZE, file)) ==
+         KOLIBRI_BLOCK_SIZE) {
+    unsigned char block_hash[KOLIBRI_HASH_SIZE];
+    if (parse_and_verify_block(bytes, key, key_len, expected_index,
+                               expected_prev, NULL, block_hash) != 0) {
       fclose(file);
       return -1;
     }
+    memcpy(expected_prev, block_hash, KOLIBRI_HASH_SIZE);
+    expected_index += 1;
+  }
 
-    block.index = (uint64_t)index;
-    block.timestamp = (uint64_t)timestamp;
-    strncpy(block.event_type, event, sizeof(block.event_type) - 1);
-    strncpy(block.payload, payload, sizeof(block.payload) - 1);
+  if (read != 0) {
+    fclose(file);
+    return -1;
+  }
 
-    if (block.index != expected_index) {
-      fclose(file);
-      return -1;
-    }
-
-    if (hex_to_bytes(prev_hash_hex, block.prev_hash, KOLIBRI_HASH_SIZE) != 0 ||
-        hex_to_bytes(hmac_hex, block.hmac, KOLIBRI_HASH_SIZE) != 0) {
-      fclose(file);
-      return -1;
-    }
-
-    if (memcmp(block.prev_hash, expected_prev, KOLIBRI_HASH_SIZE) != 0) {
-      fclose(file);
-      return -1;
-    }
-
-    unsigned char buffer[sizeof(block.index) + sizeof(block.timestamp) +
-                         KOLIBRI_HASH_SIZE + sizeof(block.event_type) +
-                         sizeof(block.payload)];
-    size_t buffer_len = 0;
-    build_payload_buffer(&block, buffer, &buffer_len);
-
-    unsigned char computed[KOLIBRI_HASH_SIZE];
-    unsigned int hmac_len = 0;
-    unsigned char *result = HMAC(EVP_sha256(), key, (int)key_len, buffer,
-                                 buffer_len, computed, &hmac_len);
-    if (!result || hmac_len != KOLIBRI_HASH_SIZE) {
-      fclose(file);
-      return -1;
-    }
-
-    if (memcmp(computed, block.hmac, KOLIBRI_HASH_SIZE) != 0) {
-      fclose(file);
-      return -1;
-    }
-
-    memcpy(expected_prev, block.hmac, KOLIBRI_HASH_SIZE);
-    expected_index = block.index + 1;
+  if (ferror(file)) {
+    fclose(file);
+    return -1;
   }
 
   fclose(file);

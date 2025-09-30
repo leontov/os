@@ -156,7 +156,12 @@ static int node_record_event(KolibriNode *node, const char *event, const char *p
     if (!node || !node->genome_ready) {
         return -1;
     }
-    if (kg_append(&node->genome, event, payload ? payload : "", NULL) != 0) {
+    char encoded[KOLIBRI_PAYLOAD_SIZE];
+    if (kg_encode_payload(payload, encoded, sizeof(encoded)) != 0) {
+        fprintf(stderr, "[Геном] не удалось закодировать событие %s\n", event);
+        return -1;
+    }
+    if (kg_append(&node->genome, event, encoded, NULL) != 0) {
         fprintf(stderr, "[Геном] не удалось записать событие %s\n", event);
         return -1;
     }
