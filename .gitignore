@@ -2,6 +2,7 @@
 frontend/*.tsbuildinfo
 frontend/vite.config.js
 frontend/vite.config.d.ts
+frontend/public/kolibri.wasm
 *.o
 *.a
 *.log

@@ -10,16 +10,79 @@ proekt_koren="$(cd "$(dirname "$0")/.." && pwd)"
 vyhod_dir="$proekt_koren/build/wasm"
 mkdir -p "$vyhod_dir"
 
-EMCC="${EMCC:-emcc}"
+vyhod_wasm="$vyhod_dir/kolibri.wasm"
+vremennaja_map="$vyhod_dir/kolibri.map"
+vremennaja_js="$vyhod_dir/kolibri.js"
 
-ensure_emcc() {
-    if command -v "$EMCC" >/dev/null 2>&1; then
+EMCC="${EMCC:-emcc}"
+sozdat_zaglushku=0
+
+vychislit_sha256_stroku() {
+    local file="$1"
+
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$file"
         return 0
     fi
 
+    if command -v shasum >/dev/null 2>&1; then
+        shasum -a 256 "$file"
+        return 0
+    fi
+
+    if command -v python3 >/dev/null 2>&1; then
+        python3 - "$file" <<'PY'
+import hashlib
+import os
+import sys
+
+path = sys.argv[1]
+with open(path, "rb") as handle:
+    digest = hashlib.sha256(handle.read()).hexdigest()
+
+print(f"{digest}  {os.path.basename(path)}")
+PY
+        return 0
+    fi
+
+    return 1
+}
+
+zapisat_sha256() {
+    local file="$1"
+    local target="$2"
+
+    if vychislit_sha256_stroku "$file" >"$target.tmp"; then
+        mv "$target.tmp" "$target"
+        return 0
+    fi
+
+    rm -f "$target.tmp"
+    cat >"$target" <<EOF
+sha256 недоступна: отсутствуют утилиты sha256sum/shasum и python3
+EOF
+    echo "[ПРЕДУПРЕЖДЕНИЕ] Не удалось вычислить SHA256 для $file: отсутствуют необходимые утилиты." >&2
+    return 1
+}
+
+sozdat_stub_wasm() {
+    printf '\x00asm\x01\x00\x00\x00' >"$vyhod_wasm"
+    cat >"$vyhod_dir/kolibri.wasm.txt" <<'EOF_INFO'
+kolibri.wasm: заглушка (WebAssembly ядро недоступно)
+В окружении не найден компилятор Emscripten (emcc) и отсутствует Docker для
+автосборки. Фронтенд Kolibri будет работать в деградированном режиме без WASM.
+Установите Emscripten или Docker и повторно запустите scripts/build_wasm.sh,
+чтобы получить полноценный модуль kolibri.wasm.
+EOF_INFO
+    zapisat_sha256 "$vyhod_wasm" "$vyhod_dir/kolibri.wasm.sha256"
+    rm -f "$vremennaja_js" "$vremennaja_map"
+    echo "[ПРЕДУПРЕЖДЕНИЕ] kolibri.wasm заменён заглушкой. Установите Emscripten или Docker для полноценной сборки." >&2
+}
+
+if ! command -v "$EMCC" >/dev/null 2>&1; then
     if [[ "${KOLIBRI_WASM_INVOKED_VIA_DOCKER:-0}" == "1" ]]; then
         echo "[ОШИБКА] Не найден emcc внутри Docker-окружения. Проверьте образ ${KOLIBRI_WASM_DOCKER_IMAGE:-emscripten/emsdk:3.1.61}." >&2
-        return 1
+        exit 1
     fi
 
     if command -v docker >/dev/null 2>&1; then
@@ -33,17 +96,14 @@ ensure_emcc() {
             -e KOLIBRI_WASM_GENERATE_MAP \
             "$docker_image" \
             bash -lc "./build_wasm.sh"
-        return $?
+        exit $?
     fi
 
-    echo "[ОШИБКА] Не найден emcc. Установите Emscripten, задайте путь через EMCC или установите Docker для автоматической сборки." >&2
-    return 1
-}
+    sozdat_zaglushku=1
+fi
 
-ensure_emcc || exit 1
-
-if [[ "${KOLIBRI_WASM_INVOKED_VIA_DOCKER:-0}" != "1" ]] && ! command -v "$EMCC" >/dev/null 2>&1; then
-    # Docker fallback already built the artifact; nothing else to do on the host.
+if (( sozdat_zaglushku )); then
+    sozdat_stub_wasm
     exit 0
 fi
 
@@ -59,10 +119,6 @@ istochniki=(
 if [[ "${KOLIBRI_WASM_INCLUDE_GENOME:-0}" == "1" ]]; then
     istochniki+=("$proekt_koren/backend/src/genome.c")
 fi
-
-vyhod_wasm="$vyhod_dir/kolibri.wasm"
-vremennaja_map="$vyhod_dir/kolibri.map"
-vremennaja_js="$vyhod_dir/kolibri.js"
 
 flags=(
     -Os
@@ -99,7 +155,7 @@ kolibri.wasm: $(awk -v b="$razmer" 'BEGIN {printf "%.2f МБ", b/1048576}')
 поддержку HMAC в окружении.
 EOF_INFO
 
-sha256sum "$vyhod_wasm" > "$vyhod_dir/kolibri.wasm.sha256"
+zapisat_sha256 "$vyhod_wasm" "$vyhod_dir/kolibri.wasm.sha256"
 
 rm -f "$vremennaja_js" "$vremennaja_map"
 
