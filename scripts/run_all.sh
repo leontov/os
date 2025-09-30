@@ -81,6 +81,13 @@ cmake --build "$postroika"
 zapisat_shag "Запуск модульных тестов"
 ctest --test-dir "$postroika" --output-on-failure
 
+zapisat_shag "Запуск фронтенд-тестов"
+(
+    cd "$kornevaya/frontend"
+    npm ci
+    npm run test
+)
+
 if [ "$propustit_wasm" -eq 0 ]; then
     zapisat_shag "Сборка kolibri.wasm"
     "$kornevaya/scripts/build_wasm.sh"
