@@ -60,11 +60,14 @@ class FormulaZapis(TypedDict):
 
 class MetricRecord(TypedDict):
     """Метрика одного шага soak-прогона."""
-    
+
     minute: int
     formula: str
     fitness: float
     genome: int
+
+
+MetricEntry = MetricRecord
 
 
 class SoakResult(TypedDict):
