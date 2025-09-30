@@ -2,7 +2,9 @@ const WASI_ERRNO_SUCCESS = 0;
 const WASI_ERRNO_BADF = 8;
 const WASI_ERRNO_INVAL = 28;
 const WASI_FILETYPE_CHARACTER_DEVICE = 2;
+
 const FDSTAT_SIZE = 24;
+
 
 interface WasiContext {
   imports: Record<string, WebAssembly.ImportValue>;
@@ -23,6 +25,7 @@ function getRandomBytes(buffer: Uint8Array): void {
 
 export function createWasiContext(onStdout?: (text: string) => void): WasiContext {
   let memory: WebAssembly.Memory | null = null;
+
   let memoryView: DataView | null = null;
 
   const ensureView = (): DataView => {
@@ -30,6 +33,7 @@ export function createWasiContext(onStdout?: (text: string) => void): WasiContex
       throw new Error("WASI memory не инициализирована");
     }
     return memoryView;
+
   };
 
   const readBytes = (ptr: number, length: number): Uint8Array => {
@@ -40,6 +44,7 @@ export function createWasiContext(onStdout?: (text: string) => void): WasiContex
   };
 
   const writeU32 = (ptr: number, value: number): void => {
+
     if (!memoryView) {
       return;
     }
@@ -51,6 +56,7 @@ export function createWasiContext(onStdout?: (text: string) => void): WasiContex
       return;
     }
     memoryView.setBigUint64(ptr, value, true);
+
   };
 
   const imports: Record<string, WebAssembly.ImportValue> = {
@@ -62,12 +68,14 @@ export function createWasiContext(onStdout?: (text: string) => void): WasiContex
       if (fd < 0) {
         return WASI_ERRNO_BADF;
       }
+
       if (!memory || !memoryView) {
         return WASI_ERRNO_INVAL;
       }
       const view = memoryView;
       const buffer = new Uint8Array(memory.buffer, statPtr, FDSTAT_SIZE);
       buffer.fill(0);
+
       view.setUint8(statPtr, WASI_FILETYPE_CHARACTER_DEVICE);
       view.setUint16(statPtr + 2, 0, true);
       view.setBigUint64(statPtr + 8, 0n, true);
@@ -87,10 +95,12 @@ export function createWasiContext(onStdout?: (text: string) => void): WasiContex
       return WASI_ERRNO_SUCCESS;
     },
     fd_write: (fd: number, iovsPtr: number, iovsLen: number, nwrittenPtr: number): number => {
+
       if (!memory || !memoryView) {
         return WASI_ERRNO_INVAL;
       }
       const view = ensureView();
+
       let bytesWritten = 0;
       let aggregated = "";
       for (let index = 0; index < iovsLen; index += 1) {
@@ -138,7 +148,9 @@ export function createWasiContext(onStdout?: (text: string) => void): WasiContex
       if (!memory) {
         return WASI_ERRNO_INVAL;
       }
+
       const buffer = new Uint8Array(memory.buffer, ptr, len);
+
       getRandomBytes(buffer);
       return WASI_ERRNO_SUCCESS;
     },
@@ -152,6 +164,7 @@ export function createWasiContext(onStdout?: (text: string) => void): WasiContex
     setMemory(newMemory: WebAssembly.Memory): void {
       memory = newMemory;
       memoryView = new DataView(newMemory.buffer);
+
     },
   };
 }

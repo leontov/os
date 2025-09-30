@@ -73,6 +73,13 @@ build_frontend() {
     install_frontend_dependencies
     ensure_frontend_wasm
     echo "[Kolibri] собираю фронтенд"
+    local wasm_info="$build_dir/wasm/kolibri.wasm.txt"
+    if [ -f "$wasm_info" ] && grep -qi 'kolibri\.wasm: заглушка' "$wasm_info"; then
+        echo "[Kolibri] kolibri.wasm собран как заглушка — включаю деградированный режим фронтенда."
+        echo "[Kolibri] Установите Emscripten или Docker и пересоберите scripts/build_wasm.sh для полноценного режима."
+        KOLIBRI_ALLOW_WASM_STUB=1 npm --prefix "$frontend_dir" run build
+        return
+    fi
     npm --prefix "$frontend_dir" run build
 }
 
