@@ -1,13 +1,14 @@
 import { useEffect, useRef } from "react";
-import type { ChatMessage } from "../types/chat";
+import type { ChatMessage, FeedbackRating } from "../types/chat";
 import ChatMessageView from "./ChatMessage";
 
 interface ChatViewProps {
   messages: ChatMessage[];
   isLoading: boolean;
+  onFeedbackSubmit?: (messageId: string, rating: FeedbackRating, comment?: string) => void;
 }
 
-const ChatView = ({ messages, isLoading }: ChatViewProps) => {
+const ChatView = ({ messages, isLoading, onFeedbackSubmit }: ChatViewProps) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -24,7 +25,15 @@ const ChatView = ({ messages, isLoading }: ChatViewProps) => {
     <section className="flex h-full flex-col rounded-3xl bg-white/70 p-8 shadow-card">
       <div className="flex-1 space-y-6 overflow-y-auto pr-2" ref={containerRef}>
         {messages.map((message) => (
-          <ChatMessageView key={message.id} message={message} />
+          <ChatMessageView
+            key={message.id}
+            message={message}
+            onFeedbackSubmit={
+              message.role === "assistant"
+                ? (rating, comment) => onFeedbackSubmit?.(message.id, rating, comment)
+                : undefined
+            }
+          />
         ))}
         {isLoading && (
           <div className="flex items-center gap-3 text-sm text-text-light">
