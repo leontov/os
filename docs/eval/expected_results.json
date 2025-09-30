@@ -1,0 +1,61 @@
+{
+  "numerical": {
+    "cases": {
+      "arithmetic_eval": "19",
+      "digits_only": "127",
+      "memory_lookup": "цифры",
+      "series_shift": "4567890123",
+      "symbol_lookup": "цифры"
+    },
+    "fitness": {
+      "math_formula": {
+        "after": 0.49799999999999994,
+        "delta": 0.49799999999999994
+      }
+    },
+    "metrics": {
+      "accuracy": 1.0,
+      "fitness_delta": 0.49799999999999994
+    }
+  },
+  "swarm": {
+    "cases": {
+      "alpha_knows_yug": "тепло",
+      "post_sync_known": "полюс",
+      "pre_sync_unknown": "...",
+      "reverse_sync": "1",
+      "sync_transfer": "1"
+    },
+    "fitness": {
+      "alpha_formula": {
+        "after": 0.46199999999999997,
+        "delta": 0.46199999999999997
+      },
+      "beta_formula": {
+        "after": 0.396,
+        "delta": 0.396
+      }
+    },
+    "metrics": {
+      "accuracy": 1.0,
+      "fitness_delta": 0.429
+    }
+  },
+  "symbolic": {
+    "cases": {
+      "digit_projection": "5 2 6 0 1 8",
+      "logic_chat": "символы",
+      "pi_lookup": "3.1415"
+    },
+    "fitness": {
+      "symbolic_formula": {
+        "after": 0.546,
+        "delta": 0.546
+      }
+    },
+    "metrics": {
+      "accuracy": 1.0,
+      "fitness_delta": 0.546
+    }
+  }
+}
