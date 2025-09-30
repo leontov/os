@@ -24,6 +24,7 @@ interface KolibriWasmExports extends WebAssembly.Exports {
 const OUTPUT_CAPACITY = 8192;
 const DEFAULT_MODE = "Быстрый ответ";
 const WASM_RESOURCE_URL = "/kolibri.wasm";
+const WASM_INFO_URL = "/kolibri.wasm.txt";
 
 const COMMAND_PATTERN = /^(показать|обучить|спросить|тикнуть|сохранить)/i;
 const PROGRAM_START_PATTERN = /начало\s*:/i;
@@ -61,6 +62,28 @@ function buildScript(prompt: string, mode: string): string {
   });
 
   return `начало:\n${modeLine}${scriptLines.join("\n")}\nконец.\n`;
+}
+
+async function describeWasmFailure(error: unknown): Promise<string> {
+  const baseReason =
+    error instanceof Error && error.message ? error.message : String(error ?? "Неизвестная ошибка");
+
+  try {
+    const response = await fetch(WASM_INFO_URL);
+    if (!response.ok) {
+      return baseReason;
+    }
+
+    const infoText = (await response.text()).trim();
+    if (!infoText) {
+      return baseReason;
+    }
+
+    return `${baseReason}\n\n${infoText}`;
+  } catch (infoError) {
+    console.debug("[kolibri-bridge] Не удалось получить информацию о kolibri.wasm.", infoError);
+    return baseReason;
+  }
 }
 
 class KolibriWasmBridge implements KolibriBridge {
@@ -214,7 +237,8 @@ const createBridge = async (): Promise<KolibriBridge> => {
     return wasmBridge;
   } catch (error) {
     console.warn("[kolibri-bridge] Переход в деградированный режим без WebAssembly.", error);
-    return new KolibriFallbackBridge(error);
+    const reason = await describeWasmFailure(error);
+    return new KolibriFallbackBridge(reason);
   }
 };
 
