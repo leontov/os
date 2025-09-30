@@ -26,6 +26,9 @@ typedef struct {
     uint16_t peer_port;
     bool verify_genome;
     char genome_path[260];
+    char hmac_key_path[260];
+    unsigned char hmac_key[KOLIBRI_HMAC_KEY_SIZE];
+    size_t hmac_key_len;
 } KolibriNodeOptions;
 
 typedef struct {
@@ -43,7 +46,113 @@ typedef struct {
     int last_answer;
 } KolibriNode;
 
-static const unsigned char KOLIBRI_HMAC_KEY[] = "kolibri-secret-key";
+static const unsigned char DEFAULT_HMAC_KEY[] = "kolibri-secret-key";
+static const size_t DEFAULT_HMAC_KEY_LEN = sizeof(DEFAULT_HMAC_KEY) - 1U;
+
+static int kolibri_hex_value(int ch) {
+    if (ch >= '0' && ch <= '9') {
+        return ch - '0';
+    }
+    if (ch >= 'a' && ch <= 'f') {
+        return 10 + (ch - 'a');
+    }
+    if (ch >= 'A' && ch <= 'F') {
+        return 10 + (ch - 'A');
+    }
+    return -1;
+}
+
+static void options_set_default_hmac_key(KolibriNodeOptions *options) {
+    if (!options) {
+        return;
+    }
+    memset(options->hmac_key, 0, sizeof(options->hmac_key));
+    memcpy(options->hmac_key, DEFAULT_HMAC_KEY, DEFAULT_HMAC_KEY_LEN);
+    options->hmac_key_len = DEFAULT_HMAC_KEY_LEN;
+    options->hmac_key_path[0] = '\0';
+}
+
+static int options_load_hmac_key(const char *path, unsigned char *key, size_t *out_len) {
+    if (!path || !key || !out_len) {
+        return -1;
+    }
+    memset(key, 0, KOLIBRI_HMAC_KEY_SIZE);
+    FILE *file = fopen(path, "rb");
+    if (!file) {
+        fprintf(stderr, "[Безопасность] не удалось открыть HMAC-ключ %s\n", path);
+        return -1;
+    }
+    if (fseek(file, 0, SEEK_END) != 0) {
+        fclose(file);
+        return -1;
+    }
+    long size = ftell(file);
+    if (size < 0 || size > 2048) {
+        fclose(file);
+        return -1;
+    }
+    if (fseek(file, 0, SEEK_SET) != 0) {
+        fclose(file);
+        return -1;
+    }
+    size_t buffer_size = (size_t)size;
+    unsigned char *buffer = (unsigned char *)calloc(buffer_size + 1U, sizeof(unsigned char));
+    if (!buffer) {
+        fclose(file);
+        return -1;
+    }
+    size_t read = fread(buffer, 1U, buffer_size, file);
+    fclose(file);
+    size_t digits = 0U;
+    bool invalid = false;
+    for (size_t idx = 0; idx < read; ++idx) {
+        int value = kolibri_hex_value(buffer[idx]);
+        if (value >= 0) {
+            digits++;
+            continue;
+        }
+        if (buffer[idx] == ' ' || buffer[idx] == '\t' || buffer[idx] == '\n' || buffer[idx] == '\r') {
+            continue;
+        }
+        invalid = true;
+        break;
+    }
+    if (!invalid && digits > 0U && digits % 2U == 0U && digits <= KOLIBRI_HMAC_KEY_SIZE * 2U) {
+        size_t produced = digits / 2U;
+        if (produced == 0U) {
+            free(buffer);
+            return -1;
+        }
+        if (produced > KOLIBRI_HMAC_KEY_SIZE) {
+            produced = KOLIBRI_HMAC_KEY_SIZE;
+        }
+        size_t out_index = 0U;
+        int high = -1;
+        for (size_t idx = 0; idx < read && out_index < produced; ++idx) {
+            int value = kolibri_hex_value(buffer[idx]);
+            if (value < 0) {
+                continue;
+            }
+            if (high < 0) {
+                high = value;
+            } else {
+                key[out_index++] = (unsigned char)((high << 4) | value);
+                high = -1;
+            }
+        }
+        *out_len = out_index;
+        free(buffer);
+        return 0;
+    }
+    if (read == 0U || read > KOLIBRI_HMAC_KEY_SIZE) {
+        free(buffer);
+        return -1;
+    }
+    memcpy(key, buffer, read);
+    *out_len = read;
+    free(buffer);
+    return 0;
+}
 
 static void options_init(KolibriNodeOptions *options) {
     options->seed = 20250923ULL;
@@ -56,9 +165,10 @@ static void options_init(KolibriNodeOptions *options) {
     options->verify_genome = false;
     strncpy(options->genome_path, "genome.dat", sizeof(options->genome_path) - 1);
     options->genome_path[sizeof(options->genome_path) - 1] = '\0';
+    options_set_default_hmac_key(options);
 }
 
-static void parse_options(int argc, char **argv, KolibriNodeOptions *options) {
+static int parse_options(int argc, char **argv, KolibriNodeOptions *options) {
     options_init(options);
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "--seed") == 0 && i + 1 < argc) {
@@ -104,7 +214,27 @@ static void parse_options(int argc, char **argv, KolibriNodeOptions *options) {
             options->verify_genome = true;
             continue;
         }
+        if (strcmp(argv[i], "--hmac-key") == 0) {
+            if (i + 1 >= argc) {
+                fprintf(stderr, "[Параметры] для --hmac-key требуется путь к файлу\n");
+                return -1;
+            }
+            strncpy(options->hmac_key_path, argv[i + 1],
+                    sizeof(options->hmac_key_path) - 1U);
+            options->hmac_key_path[sizeof(options->hmac_key_path) - 1U] = '\0';
+            if (options_load_hmac_key(options->hmac_key_path, options->hmac_key,
+                                      &options->hmac_key_len) != 0) {
+                fprintf(stderr, "[Безопасность] не удалось загрузить HMAC-ключ из %s\n",
+                        options->hmac_key_path);
+                return -1;
+            }
+            printf("[Безопасность] загружен HMAC-ключ из %s\n",
+                   options->hmac_key_path);
+            ++i;
+            continue;
+        }
     }
+    return 0;
 }
 
 static void trim_newline(char *line) {
@@ -236,8 +366,8 @@ static int node_open_genome(KolibriNode *node) {
         return -1;
     }
     if (node->options.verify_genome) {
-        int status = kg_verify_file(node->options.genome_path, KOLIBRI_HMAC_KEY,
-                                    sizeof(KOLIBRI_HMAC_KEY) - 1U);
+        int status = kg_verify_file(node->options.genome_path, node->options.hmac_key,
+                                    node->options.hmac_key_len);
         if (status == 1) {
             printf("[Геном] существующий журнал отсутствует, создаём новый\n");
         } else if (status != 0) {
@@ -247,8 +377,8 @@ static int node_open_genome(KolibriNode *node) {
             printf("[Геном] целостность подтверждена\n");
         }
     }
-    if (kg_open(&node->genome, node->options.genome_path, KOLIBRI_HMAC_KEY,
-                sizeof(KOLIBRI_HMAC_KEY) - 1U) != 0) {
+    if (kg_open(&node->genome, node->options.genome_path, node->options.hmac_key,
+                node->options.hmac_key_len) != 0) {
         fprintf(stderr, "[Геном] не удалось открыть %s\n", node->options.genome_path);
         return -1;
     }
@@ -324,7 +454,8 @@ static void node_share_formula(KolibriNode *node) {
         return;
     }
     if (kn_share_formula(node->options.peer_host, node->options.peer_port,
-                         node->options.node_id, best) == 0) {
+                         node->options.node_id, best, node->options.hmac_key,
+                         node->options.hmac_key_len) == 0) {
         printf("[Рой] формула отправлена на %s:%u\n", node->options.peer_host,
                node->options.peer_port);
         node_record_event(node, "SYNC", "передан лучший ген");
@@ -475,8 +606,8 @@ static void node_handle_ask(KolibriNode *node, const char *payload) {
 }
 
 static void node_handle_verify(KolibriNode *node) {
-    int status = kg_verify_file(node->options.genome_path, KOLIBRI_HMAC_KEY,
-                                sizeof(KOLIBRI_HMAC_KEY) - 1U);
+    int status = kg_verify_file(node->options.genome_path, node->options.hmac_key,
+                                node->options.hmac_key_len);
     if (status == 0) {
         printf("[Геном] проверка завершилась успехом\n");
     } else if (status == 1) {
@@ -604,7 +735,8 @@ static int node_start_listener(KolibriNode *node) {
     if (!node->options.listen_enabled) {
         return 0;
     }
-    if (kn_listener_start(&node->listener, node->options.listen_port) != 0) {
+    if (kn_listener_start(&node->listener, node->options.listen_port,
+                          node->options.hmac_key, node->options.hmac_key_len) != 0) {
         fprintf(stderr, "[Рой] не удалось открыть порт %u\n",
                 node->options.listen_port);
         return -1;
@@ -645,7 +777,9 @@ static void node_shutdown(KolibriNode *node) {
 
 int main(int argc, char **argv) {
     KolibriNodeOptions options;
-    parse_options(argc, argv, &options);
+    if (parse_options(argc, argv, &options) != 0) {
+        return 1;
+    }
     KolibriNode node;
     if (node_init(&node, &options) != 0) {
         return 1;

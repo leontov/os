@@ -7,6 +7,8 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <netinet/in.h>
+#include <openssl/evp.h>
+#include <openssl/hmac.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -63,6 +65,59 @@ static int kolibri_send_all(int sockfd, const uint8_t *data, size_t len) {
       return -1;
     }
     sent_total += (size_t)sent;
+  }
+  return 0;
+}
+
+static int kolibri_compute_hmac(const unsigned char *key, size_t key_len,
+                                const uint8_t *data, size_t data_len,
+                                unsigned char *out) {
+  if (!key || key_len == 0 || !data || data_len == 0 || !out) {
+    return -1;
+  }
+  unsigned int mac_len = 0U;
+  unsigned char *result =
+      HMAC(EVP_sha256(), key, (int)key_len, data, data_len, out, &mac_len);
+  if (!result || mac_len < KOLIBRI_NET_HMAC_SIZE) {
+    return -1;
+  }
+  if (mac_len > KOLIBRI_NET_HMAC_SIZE) {
+    mac_len = KOLIBRI_NET_HMAC_SIZE;
+  }
+  /* Ensure we zero any trailing bytes when OpenSSL produced more data. */
+  for (unsigned int i = mac_len; i < KOLIBRI_NET_HMAC_SIZE; ++i) {
+    out[i] = 0U;
+  }
+  return 0;
+}
+
+static int kolibri_hmac_equal(const unsigned char *a,
+                              const unsigned char *b) {
+  if (!a || !b) {
+    return 0;
+  }
+  unsigned char diff = 0U;
+  for (size_t i = 0; i < KOLIBRI_NET_HMAC_SIZE; ++i) {
+    diff |= (unsigned char)(a[i] ^ b[i]);
+  }
+  return diff == 0U ? 1 : 0;
+}
+
+static int kolibri_send_frame(int sockfd, uint8_t *buffer, size_t message_len,
+                              const unsigned char *hmac_key,
+                              size_t hmac_key_len) {
+  if (kolibri_send_all(sockfd, buffer, message_len) != 0) {
+    return -1;
+  }
+  if (hmac_key && hmac_key_len > 0U) {
+    unsigned char mac[KOLIBRI_NET_HMAC_SIZE];
+    if (kolibri_compute_hmac(hmac_key, hmac_key_len, buffer, message_len,
+                             mac) != 0) {
+      return -1;
+    }
+    if (kolibri_send_all(sockfd, mac, KOLIBRI_NET_HMAC_SIZE) != 0) {
+      return -1;
+    }
   }
   return 0;
 }
@@ -225,15 +280,9 @@ int kn_message_decode(const uint8_t *buffer, size_t buffer_len,
   return 0;
 }
 
-static int kn_send_message(int sockfd, const uint8_t *buffer, size_t len) {
-  if (!buffer || len == 0) {
-    return -1;
-  }
-  return kolibri_send_all(sockfd, buffer, len);
-}
-
 int kn_share_formula(const char *host, uint16_t port, uint32_t node_id,
-                     const KolibriFormula *formula) {
+                     const KolibriFormula *formula,
+                     const unsigned char *hmac_key, size_t hmac_key_len) {
   if (!host || !formula) {
     return -1;
   }
@@ -259,13 +308,15 @@ int kn_share_formula(const char *host, uint16_t port, uint32_t node_id,
 
   uint8_t buffer[KOLIBRI_HEADER_SIZE + KOLIBRI_MAX_PAYLOAD];
   size_t len = kn_message_encode_hello(buffer, sizeof(buffer), node_id);
-  if (len == 0 || kn_send_message(sockfd, buffer, len) != 0) {
+  if (len == 0 ||
+      kolibri_send_frame(sockfd, buffer, len, hmac_key, hmac_key_len) != 0) {
     close(sockfd);
     return -1;
   }
 
   len = kn_message_encode_formula(buffer, sizeof(buffer), node_id, formula);
-  if (len == 0 || kn_send_message(sockfd, buffer, len) != 0) {
+  if (len == 0 ||
+      kolibri_send_frame(sockfd, buffer, len, hmac_key, hmac_key_len) != 0) {
     close(sockfd);
     return -1;
   }
@@ -274,7 +325,8 @@ int kn_share_formula(const char *host, uint16_t port, uint32_t node_id,
   return 0;
 }
 
-int kn_listener_start(KolibriNetListener *listener, uint16_t port) {
+int kn_listener_start(KolibriNetListener *listener, uint16_t port,
+                      const unsigned char *hmac_key, size_t hmac_key_len) {
   if (!listener) {
     return -1;
   }
@@ -312,6 +364,16 @@ int kn_listener_start(KolibriNetListener *listener, uint16_t port) {
 
   listener->socket_fd = sockfd;
   listener->port = port;
+  if (hmac_key && hmac_key_len > 0U) {
+    if (hmac_key_len > KOLIBRI_NET_KEY_SIZE) {
+      hmac_key_len = KOLIBRI_NET_KEY_SIZE;
+    }
+    memcpy(listener->hmac_key, hmac_key, hmac_key_len);
+    listener->hmac_key_len = hmac_key_len;
+  } else {
+    listener->hmac_key_len = 0U;
+    memset(listener->hmac_key, 0, sizeof(listener->hmac_key));
+  }
   return 0;
 }
 
@@ -369,6 +431,21 @@ int kn_listener_poll(KolibriNetListener *listener, uint32_t timeout_ms,
       break;
     }
     size_t message_len = KOLIBRI_HEADER_SIZE + payload_len;
+    if (listener->hmac_key_len > 0U) {
+      unsigned char received_mac[KOLIBRI_NET_HMAC_SIZE];
+      unsigned char computed_mac[KOLIBRI_NET_HMAC_SIZE];
+      if (kolibri_recv_all(client_fd, received_mac, KOLIBRI_NET_HMAC_SIZE) !=
+          0) {
+        break;
+      }
+      if (kolibri_compute_hmac(listener->hmac_key, listener->hmac_key_len,
+                               buffer, message_len, computed_mac) != 0) {
+        break;
+      }
+      if (!kolibri_hmac_equal(received_mac, computed_mac)) {
+        continue;
+      }
+    }
     KolibriNetMessage decoded;
     if (kn_message_decode(buffer, message_len, &decoded) == 0) {
       has_last = true;

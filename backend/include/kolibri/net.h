@@ -7,6 +7,9 @@
 
 #include "kolibri/formula.h"
 
+#define KOLIBRI_NET_HMAC_SIZE 32U
+#define KOLIBRI_NET_KEY_SIZE 64U
+
 #include <stdint.h>
 #include <stddef.h>
 
@@ -43,14 +46,18 @@ size_t kn_message_encode_formula(uint8_t *buffer, size_t buffer_len, uint32_t no
 size_t kn_message_encode_ack(uint8_t *buffer, size_t buffer_len, uint8_t status);
 int kn_message_decode(const uint8_t *buffer, size_t buffer_len, KolibriNetMessage *out_message);
 
-int kn_share_formula(const char *host, uint16_t port, uint32_t node_id, const KolibriFormula *formula);
+int kn_share_formula(const char *host, uint16_t port, uint32_t node_id, const KolibriFormula *formula,
+                     const unsigned char *hmac_key, size_t hmac_key_len);
 
 typedef struct {
     int socket_fd;
     uint16_t port;
+    unsigned char hmac_key[KOLIBRI_NET_KEY_SIZE];
+    size_t hmac_key_len;
 } KolibriNetListener;
 
-int kn_listener_start(KolibriNetListener *listener, uint16_t port);
+int kn_listener_start(KolibriNetListener *listener, uint16_t port,
+                      const unsigned char *hmac_key, size_t hmac_key_len);
 int kn_listener_poll(KolibriNetListener *listener, uint32_t timeout_ms, KolibriNetMessage *out_message);
 void kn_listener_close(KolibriNetListener *listener);
 
