@@ -1,0 +1,22 @@
+{
+  "name": "numerical",
+  "description": "Arithmetic and numeric prompt exercises executed through KolibriSim chat commands.",
+  "seed": 17,
+  "thresholds": {
+    "max_accuracy_regression": 0.0,
+    "max_fitness_delta_regression": 0.05
+  },
+  "setup": [
+    {"action": "teach", "stimulus": "числа", "response": "цифры"}
+  ],
+  "cases": [
+    {"id": "arithmetic_eval", "action": "chat", "command": "выражение", "argument": "5+7*2"},
+    {"id": "series_shift", "action": "chat", "command": "серия", "argument": "4"},
+    {"id": "digits_only", "action": "chat", "command": "число", "argument": "12a7"},
+    {"id": "symbol_lookup", "action": "chat", "command": "стимул", "argument": "числа"},
+    {"id": "memory_lookup", "action": "ask", "stimulus": "числа"}
+  ],
+  "fitness_cases": [
+    {"id": "math_formula", "context": "numerical", "success": 0.83}
+  ]
+}
