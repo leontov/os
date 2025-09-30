@@ -15,7 +15,6 @@ vremennaja_map="$vyhod_dir/kolibri.map"
 vremennaja_js="$vyhod_dir/kolibri.js"
 
 EMCC="${EMCC:-emcc}"
-<<<<<<< ours
 sozdat_zaglushku=0
 
 vychislit_sha256_stroku() {
@@ -80,12 +79,6 @@ EOF_INFO
     echo "[ПРЕДУПРЕЖДЕНИЕ] kolibri.wasm заменён заглушкой. Установите Emscripten или Docker для полноценной сборки." >&2
 }
 
-if ! command -v "$EMCC" >/dev/null 2>&1; then
-    if [[ "${KOLIBRI_WASM_INVOKED_VIA_DOCKER:-0}" == "1" ]]; then
-        echo "[ОШИБКА] Не найден emcc внутри Docker-окружения. Проверьте образ ${KOLIBRI_WASM_DOCKER_IMAGE:-emscripten/emsdk:3.1.61}." >&2
-        exit 1
-=======
-
 ensure_emcc() {
     if command -v "$EMCC" >/dev/null 2>&1; then
         return 0
@@ -94,7 +87,6 @@ ensure_emcc() {
     if [[ "${KOLIBRI_WASM_INVOKED_VIA_DOCKER:-0}" == "1" ]]; then
         echo "[ОШИБКА] Не найден emcc внутри Docker-окружения. Проверьте образ ${KOLIBRI_WASM_DOCKER_IMAGE:-emscripten/emsdk:3.1.61}." >&2
         return 1
->>>>>>> theirs
     fi
 
     if command -v docker >/dev/null 2>&1; then
@@ -108,28 +100,22 @@ ensure_emcc() {
             -e KOLIBRI_WASM_GENERATE_MAP \
             "$docker_image" \
             bash -lc "./build_wasm.sh"
-<<<<<<< ours
-        exit $?
-    fi
-
-    sozdat_zaglushku=1
-fi
-
-if (( sozdat_zaglushku )); then
-    sozdat_stub_wasm
-=======
         return $?
     fi
 
-    echo "[ОШИБКА] Не найден emcc. Установите Emscripten, задайте путь через EMCC или установите Docker для автоматической сборки." >&2
-    return 1
+    sozdat_zaglushku=1
+    sozdat_stub_wasm
+    return 0
 }
 
 ensure_emcc || exit 1
 
+if (( sozdat_zaglushku )); then
+    exit 0
+fi
+
 if [[ "${KOLIBRI_WASM_INVOKED_VIA_DOCKER:-0}" != "1" ]] && ! command -v "$EMCC" >/dev/null 2>&1; then
     # Docker fallback already built the artifact; nothing else to do on the host.
->>>>>>> theirs
     exit 0
 fi
 
