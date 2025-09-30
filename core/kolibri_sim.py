@@ -22,6 +22,11 @@ class FormulaRecord(TypedDict):
 
 from typing import Dict, List, Mapping, Optional, Protocol, TypedDict, cast
 
+from .kolibri_script.genome import (
+    KolibriGenomeLedger,
+    SecretsConfig,
+    load_secrets_config,
+)
 from .tracing import JsonLinesTracer
 
 
@@ -131,6 +136,9 @@ class KolibriSim:
         *,
         trace_path: "Path | str | None" = None,
         trace_include_genome: Optional[bool] = None,
+        genome_path: "Path | str | None" = None,
+        secrets_config: "SecretsConfig | None" = None,
+        secrets_path: "Path | str | None" = None,
     ) -> None:
         self.zerno = zerno
         self.generator = random.Random(zerno)
@@ -152,8 +160,18 @@ class KolibriSim:
         self._tracer: Optional[ZhurnalTracer] = None
         self._tracer_include_genome = False
         self._trace_path: Optional[Path] = None
+        self._genome_writer: Optional[KolibriGenomeLedger] = None
+        if genome_path is not None:
+            secrets = secrets_config or load_secrets_config(secrets_path)
+            self._genome_writer = KolibriGenomeLedger(Path(genome_path), secrets)
         self._nastroit_avto_tracer(trace_path, trace_include_genome)
-        self._sozdanie_bloka("GENESIS", {"seed": zerno})
+        genesis_block = self._sozdanie_bloka("GENESIS", {"seed": zerno})
+        writer = self._genome_writer
+        if writer is not None and not writer.records:
+            writer.append(
+                genesis_block,
+                {"tip": "GENESIS", "soobshenie": f"seed={zerno}", "metka": time.time()},
+            )
 
     # --- Вспомогательные методы ---
     def _sozdanie_bloka(self, tip: str, dannye: Mapping[str, object]) -> ZapisBloka:
@@ -244,6 +262,9 @@ class KolibriSim:
             self._zhurnal_sdvig += sdvig
 
         blok = self._sozdanie_bloka(tip, zapis)
+        writer = self._genome_writer
+        if writer is not None:
+            writer.append(blok, zapis)
         tracer = self._tracer
         if tracer is not None:
             try:
@@ -325,8 +346,6 @@ class KolibriSim:
         smeshchenie = self.generator.randint(0, 9)
         kod = f"f(x)={mnozhitel}*x+{smeshchenie}"
         nazvanie = f"F{len(self.formuly) + 1:04d}"
-
-        zapis: FormulaRecord = {
 
         zapis: FormulaZapis = {
 
@@ -489,9 +508,6 @@ def zagruzit_sostoyanie(path: Path) -> Dict[str, Any]:
         rezultat[k] = json.loads(tekst)
     return rezultat
 
-
-
-def obnovit_soak_state(path: Path, sim: KolibriSim, minuti: int) -> Dict[str, Any]:
 
 def obnovit_soak_state(path: Path, sim: KolibriSim, minuti: int) -> SoakState:
 

@@ -28,6 +28,7 @@ const App = () => {
   const [mode, setMode] = useState("Быстрый ответ");
   const [isProcessing, setIsProcessing] = useState(false);
   const [bridgeReady, setBridgeReady] = useState(false);
+  const [conversationId, setConversationId] = useState(() => crypto.randomUUID());
 
   useEffect(() => {
     let cancelled = false;
@@ -66,6 +67,7 @@ const App = () => {
     if (!bridgeReady) {
       setMessages([]);
       setDraft("");
+      setConversationId(crypto.randomUUID());
       setIsProcessing(false);
       return;
     }
@@ -75,6 +77,7 @@ const App = () => {
         await kolibriBridge.reset();
         setMessages([]);
         setDraft("");
+        setConversationId(crypto.randomUUID());
       } catch (error) {
         const assistantMessage: ChatMessage = {
           id: crypto.randomUUID(),
@@ -132,6 +135,7 @@ const App = () => {
         role: "assistant",
         content: answer,
         timestamp: new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }),
+        mode,
       };
       if (knowledgeContext.length) {
         assistantMessage.context = knowledgeContext;
@@ -161,8 +165,14 @@ const App = () => {
       return <WelcomeScreen onSuggestionSelect={handleSuggestionSelect} />;
     }
 
-    return <ChatView messages={messages} isLoading={isProcessing} />;
-  }, [handleSuggestionSelect, isProcessing, messages]);
+    return (
+      <ChatView
+        messages={messages}
+        isLoading={isProcessing}
+        conversationId={conversationId}
+      />
+    );
+  }, [conversationId, handleSuggestionSelect, isProcessing, messages]);
 
   return (
     <Layout sidebar={<Sidebar />}>

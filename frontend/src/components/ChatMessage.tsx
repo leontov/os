@@ -1,4 +1,8 @@
+
 import { useState } from "react";
+
+
+
 import type { ChatMessage as ChatMessageModel } from "../types/chat";
 
 const formatScore = (value: number): string => {
@@ -10,9 +14,11 @@ const formatScore = (value: number): string => {
 
 interface ChatMessageProps {
   message: ChatMessageModel;
+  conversationId: string;
+  latestUserMessage?: ChatMessageModel;
 }
 
-const ChatMessage = ({ message }: ChatMessageProps) => {
+const ChatMessage = ({ message, conversationId, latestUserMessage }: ChatMessageProps) => {
   const isUser = message.role === "user";
   const [isContextExpanded, setIsContextExpanded] = useState(false);
   const hasContext = !isUser && Boolean(message.context?.length);
@@ -30,6 +36,7 @@ const ChatMessage = ({ message }: ChatMessageProps) => {
       <div className="rounded-2xl bg-white/80 p-4 shadow-card">
         <p className="whitespace-pre-line text-sm leading-relaxed text-text-dark">{message.content}</p>
         <p className="mt-2 text-xs text-text-light">{message.timestamp}</p>
+
         {!isUser && (hasContext || message.contextError) && (
           <div className="mt-3 space-y-3 border-t border-dashed border-text-light/40 pt-3 text-xs text-text-dark">
             {hasContext && (
@@ -70,6 +77,7 @@ const ChatMessage = ({ message }: ChatMessageProps) => {
               </p>
             )}
           </div>
+
         )}
       </div>
     </div>

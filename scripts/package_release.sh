@@ -12,6 +12,9 @@ usage() {
   --skip-iso       Не собирать и не включать kolibri.iso
   --skip-wasm      Не собирать и не включать kolibri.wasm
   --skip-cluster   Не запускать оркестровочный кластер в рамках подготовки
+  --skip-docker    Пропустить сборку и публикацию Docker-образов
+  --registry R     Контейнерный реестр (по умолчанию $KOLIBRI_DOCKER_REGISTRY или kolibri)
+  --tag T          Тег образов (по умолчанию $KOLIBRI_DOCKER_TAG или текущий commit)
   -h, --help       Показать эту справку
 USAGE
 }
@@ -19,6 +22,9 @@ USAGE
 propustit_iso=0
 propustit_wasm=0
 propustit_klaster=0
+propustit_docker=0
+docker_registry="${KOLIBRI_DOCKER_REGISTRY:-}"
+docker_tag="${KOLIBRI_DOCKER_TAG:-}"
 
 while (("$#" > 0)); do
     case "$1" in
@@ -33,6 +39,26 @@ while (("$#" > 0)); do
         --skip-cluster)
             propustit_klaster=1
             shift
+            ;;
+        --skip-docker)
+            propustit_docker=1
+            shift
+            ;;
+        --registry)
+            if [ -z "${2:-}" ]; then
+                echo "[Ошибка] Опция --registry требует аргумент" >&2
+                exit 1
+            fi
+            docker_registry="$2"
+            shift 2
+            ;;
+        --tag)
+            if [ -z "${2:-}" ]; then
+                echo "[Ошибка] Опция --tag требует аргумент" >&2
+                exit 1
+            fi
+            docker_tag="$2"
+            shift 2
             ;;
         -h|--help)
             usage
@@ -50,6 +76,14 @@ kornevaya=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 postroika="$kornevaya/build"
 reliz_dir="$postroika/release"
 mkdir -p "$reliz_dir"
+
+if [ -z "$docker_registry" ]; then
+    docker_registry="kolibri"
+fi
+
+if [ -z "$docker_tag" ]; then
+    docker_tag=$(git -C "$kornevaya" rev-parse --short HEAD)
+fi
 
 run_all_opts=()
 if [ "$propustit_iso" -ne 0 ]; then
@@ -156,5 +190,31 @@ cp "$metadannye" "$reliz_payload/"
 
 arhiv="$reliz_dir/kolibri-$(date -u +"%Y%m%dT%H%M%SZ").tar.gz"
 tar -czf "$arhiv" -C "$reliz_payload" .
+
+if [ "$propustit_docker" -eq 0 ]; then
+    if ! command -v docker >/dev/null 2>&1; then
+        echo "[Ошибка] Docker не найден в PATH, а публикация образов не отключена." >&2
+        exit 1
+    fi
+
+    registry_trim="${docker_registry%/}"
+    declare -a docker_components=(backend frontend training)
+
+    for component in "${docker_components[@]}"; do
+        dockerfile="$kornevaya/$component/Dockerfile"
+        if [ ! -f "$dockerfile" ]; then
+            echo "[Ошибка] Не найден Dockerfile: $dockerfile" >&2
+            exit 1
+        fi
+
+        image="${registry_trim}/kolibri-${component}:${docker_tag}"
+        echo "[Docker] Сборка образа $image"
+        docker build -f "$dockerfile" -t "$image" "$kornevaya"
+        echo "[Docker] Публикация образа $image"
+        docker push "$image"
+    done
+else
+    echo "[Docker] Сборка Docker-образов пропущена по флагу --skip-docker"
+fi
 
 echo "[Готово] Релизный архив создан: $arhiv"
