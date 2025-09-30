@@ -202,8 +202,8 @@ class KolibriGenomeLedger:
     def append(self, block: Mapping[str, Any], journal_entry: Mapping[str, Any]) -> None:
         """Добавляет запись в журнал и сбрасывает файл atomically."""
 
-        block_dict = _ensure_plain_mapping(block)
-        entry_dict = _ensure_plain_mapping(journal_entry)
+        block_dict = dict(_ensure_plain_mapping(block))
+        entry_dict = dict(_ensure_plain_mapping(journal_entry))
         entry_dict["block"] = block_dict
         self._records.append(entry_dict)
         self._flush()
@@ -243,7 +243,7 @@ def _collect_from_value(value: Any) -> Iterable[str]:
 
 
 def _to_plain(value: Any) -> Any:
-    if dataclasses.is_dataclass(value):
+    if dataclasses.is_dataclass(value) and not isinstance(value, type):
         return _to_plain(dataclasses.asdict(value))
     if isinstance(value, Mapping):
         return {str(key): _to_plain(val) for key, val in value.items()}

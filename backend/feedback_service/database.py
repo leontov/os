@@ -1,15 +1,11 @@
-"""Database integration helpers for persisting feedback."""
-
 from __future__ import annotations
 
 import asyncio
+import importlib
 import os
-from typing import AsyncIterator, Optional, Protocol
+from typing import Any, AsyncIterator, Optional, Protocol
 from urllib.parse import urlparse
 from uuid import uuid4
-
-import asyncpg
-import clickhouse_connect
 
 from .schemas import FeedbackPayload, FeedbackRecord
 
@@ -24,8 +20,24 @@ class FeedbackStorage(Protocol):
     async def save_feedback(self, payload: FeedbackPayload) -> FeedbackRecord:
         """Persist the feedback payload and return the stored record."""
 
+        ...
+
     async def close(self) -> None:
         """Release all resources allocated by the storage implementation."""
+
+        ...
+
+
+def _load_asyncpg() -> Any:
+    """Load the asyncpg module lazily to avoid import-time failures."""
+
+    return importlib.import_module("asyncpg")
+
+
+def _load_clickhouse_connect() -> Any:
+    """Load clickhouse-connect lazily to avoid import-time failures."""
+
+    return importlib.import_module("clickhouse_connect")
 
 
 class PostgresFeedbackStorage:
@@ -33,18 +45,18 @@ class PostgresFeedbackStorage:
 
     def __init__(self, dsn: str) -> None:
         self._dsn = dsn
-        self._pool: Optional[asyncpg.Pool] = None
+        self._pool: Any = None
         self._lock = asyncio.Lock()
 
-    async def _ensure_pool(self) -> asyncpg.Pool:
+    async def _ensure_pool(self) -> Any:
         if self._pool is None:
             async with self._lock:
                 if self._pool is None:
+                    asyncpg = _load_asyncpg()
                     try:
                         self._pool = await asyncpg.create_pool(self._dsn)
                     except Exception as exc:  # pragma: no cover - network errors
                         raise FeedbackStorageError("Не удалось подключиться к PostgreSQL.") from exc
-        assert self._pool is not None
         return self._pool
 
     async def save_feedback(self, payload: FeedbackPayload) -> FeedbackRecord:
@@ -95,7 +107,7 @@ class ClickHouseFeedbackStorage:
 
     def __init__(self, dsn: str) -> None:
         self._dsn = dsn
-        self._client: Optional[clickhouse_connect.driver.Client] = None
+        self._client: Any = None
         self._lock = asyncio.Lock()
 
     def _client_kwargs(self) -> dict[str, object]:
@@ -114,17 +126,17 @@ class ClickHouseFeedbackStorage:
             "secure": parsed.scheme.endswith("s"),
         }
 
-    async def _ensure_client(self) -> clickhouse_connect.driver.Client:
+    async def _ensure_client(self) -> Any:
         if self._client is None:
             async with self._lock:
                 if self._client is None:
+                    clickhouse_connect = _load_clickhouse_connect()
                     try:
                         self._client = await asyncio.to_thread(
                             clickhouse_connect.get_client, **self._client_kwargs()
                         )
                     except Exception as exc:  # pragma: no cover - network errors
                         raise FeedbackStorageError("Не удалось подключиться к ClickHouse.") from exc
-        assert self._client is not None
         return self._client
 
     async def save_feedback(self, payload: FeedbackPayload) -> FeedbackRecord:
