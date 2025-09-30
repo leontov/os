@@ -101,6 +101,7 @@ ensure_emcc() {
             -e KOLIBRI_WASM_GENERATE_MAP \
             "$docker_image" \
             bash -lc "./build_wasm.sh"
+        return $?
         local status=$?
         if [ "$status" -eq 0 ]; then
             sobranov_docker=1
@@ -116,6 +117,17 @@ ensure_emcc || exit 1
 
 if (( sozdat_zaglushku )); then
     sozdat_stub_wasm
+    return 0
+}
+
+ensure_emcc || exit 1
+
+if (( sozdat_zaglushku )); then
+    exit 0
+fi
+
+if [[ "${KOLIBRI_WASM_INVOKED_VIA_DOCKER:-0}" != "1" ]] && ! command -v "$EMCC" >/dev/null 2>&1; then
+    # Docker fallback already built the artifact; nothing else to do on the host.
     exit 0
 fi
 
