@@ -12,15 +12,17 @@ import hmac
 import os
 from pathlib import Path
 
-from typing import Any, Dict, List, Mapping, Optional, Sequence, TypedDict, cast
-
-
-class FormulaRecord(TypedDict):
-    """Структура формулы, эволюционирующей в KolibriSim."""
-
-
-
-from typing import Dict, List, Mapping, Optional, Protocol, TypedDict, cast
+from typing import (
+    Any,
+    Dict,
+    List,
+    Mapping,
+    Optional,
+    Protocol,
+    Sequence,
+    TypedDict,
+    cast,
+)
 
 from .tracing import JsonLinesTracer
 
@@ -43,8 +45,8 @@ class ZhurnalTracer(Protocol):
         """Получает уведомление о новой записи журнала и соответствующем блоке."""
 
 
-
-class FormulaZapis(TypedDict):
+class FormulaRecord(TypedDict):
+    """Структура формулы, эволюционирующей в KolibriSim."""
 
     kod: str
     fitness: float
@@ -52,10 +54,9 @@ class FormulaZapis(TypedDict):
     context: str
 
 
-
 class MetricRecord(TypedDict):
     """Метрика одного шага soak-прогона."""
-    
+
     minute: int
     formula: str
     fitness: float
@@ -63,19 +64,15 @@ class MetricRecord(TypedDict):
 
 
 class SoakResult(TypedDict):
-
     """Результат выполнения soak-сессии."""
 
     events: int
     metrics: List[MetricRecord]
 
-    events: int
-    metrics: List[MetricEntry]
-
 
 class SoakState(TypedDict, total=False):
     events: int
-    metrics: List[MetricEntry]
+    metrics: List[MetricRecord]
 
 
 def preobrazovat_tekst_v_cifry(tekst: str) -> str:
@@ -143,8 +140,6 @@ class KolibriSim:
         self.znanija: Dict[str, str] = {}
 
         self.formuly: Dict[str, FormulaRecord] = {}
-
-        self.formuly: Dict[str, FormulaZapis] = {}
 
         self.populyaciya: List[str] = []
         self.predel_populyacii = 24
@@ -327,9 +322,6 @@ class KolibriSim:
         nazvanie = f"F{len(self.formuly) + 1:04d}"
 
         zapis: FormulaRecord = {
-
-        zapis: FormulaZapis = {
-
             "kod": kod,
             "fitness": 0.0,
             "parents": roditeli,
@@ -448,8 +440,6 @@ class KolibriSim:
 
         metrika: List[MetricRecord] = []
 
-        metrika: List[MetricEntry] = []
-
         for minuta in range(minuti):
             nazvanie = self.evolyuciya_formul("soak")
             rezultat = self.ocenit_formulu(nazvanie, self.generator.random())
@@ -489,10 +479,6 @@ def zagruzit_sostoyanie(path: Path) -> Dict[str, Any]:
         rezultat[k] = json.loads(tekst)
     return rezultat
 
-
-
-def obnovit_soak_state(path: Path, sim: KolibriSim, minuti: int) -> Dict[str, Any]:
-
 def obnovit_soak_state(path: Path, sim: KolibriSim, minuti: int) -> SoakState:
 
     """Читает, дополняет и сохраняет состояние длительных прогонов."""
@@ -504,7 +490,7 @@ def obnovit_soak_state(path: Path, sim: KolibriSim, minuti: int) -> SoakState:
     metrics_obj = tekuschee.get("metrics")
 
     if isinstance(metrics_obj, list):
-        metrics = cast(List[MetricEntry], metrics_obj)
+        metrics = cast(List[MetricRecord], metrics_obj)
     else:
         metrics = []
         tekuschee["metrics"] = metrics
@@ -522,16 +508,17 @@ def obnovit_soak_state(path: Path, sim: KolibriSim, minuti: int) -> SoakState:
 __all__ = [
     "KolibriSim",
     "ZapisBloka",
+    "FormulaRecord",
+    "MetricRecord",
+    "SoakResult",
+    "SoakState",
     "preobrazovat_tekst_v_cifry",
     "vosstanovit_tekst_iz_cifr",
     "dec_hash",
     "dolzhen_zapustit_repl",
-    "MetricEntry",
-    "SoakResult",
-    "SoakState",
-
     "ZhurnalSnapshot",
     "ZhurnalTracer",
+    "ZhurnalZapis",
 
     "sohranit_sostoyanie",
     "zagruzit_sostoyanie",

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import sys
+from typing import cast
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -13,9 +14,13 @@ if str(ROOT) not in sys.path:
 import pytest  # noqa: E402
 
 from core.kolibri_sim import (  # noqa: E402
+    FormulaRecord,
     KolibriSim,
     dec_hash,
     dolzhen_zapustit_repl,
+    MetricRecord,
+    SoakResult,
+    SoakState,
     obnovit_soak_state,
     preobrazovat_tekst_v_cifry,
     sohranit_sostoyanie,
@@ -50,7 +55,9 @@ def test_t3_formula_evolution() -> None:
     f2 = sim.evolyuciya_formul("math")
     assert f1 in sim.formuly
     assert f2 in sim.formuly
-    assert sim.formuly[f1]["fitness"] > 0.0
+    zapis_f1: FormulaRecord = sim.formuly[f1]
+    assert zapis_f1["fitness"] > 0.0
+    assert {"kod", "fitness", "parents", "context"}.issubset(zapis_f1.keys())
 
 
 def test_t4_genome_records_growth() -> None:
@@ -113,16 +120,17 @@ def test_t10_repl_guard(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_t11_soak_progress(tmp_path: Path) -> None:
     sim = KolibriSim(zerno=7)
     state_path = tmp_path / "state.json"
-    result = obnovit_soak_state(state_path, sim, minuti=2)
+    result: SoakState = obnovit_soak_state(state_path, sim, minuti=2)
 
     events = result.get("events", 0)
     assert isinstance(events, int)
     assert events > 0
 
     assert state_path.exists()
-    metrics = result.get("metrics", [])
+    metrics = cast(list[MetricRecord], result.get("metrics", []))
     assert isinstance(metrics, list)
     assert len(metrics) == 2
+    assert all(set(metric.keys()) == {"minute", "formula", "fitness", "genome"} for metric in metrics)
 
 
 def test_t12_population_and_parents() -> None:
@@ -156,21 +164,22 @@ def test_t14_journal_rollover() -> None:
 def test_t15_soak_state_accumulates(tmp_path: Path) -> None:
     state_path = tmp_path / "soak.json"
     sim_a = KolibriSim(zerno=3)
-    first = obnovit_soak_state(state_path, sim_a, minuti=1)
+    first: SoakState = obnovit_soak_state(state_path, sim_a, minuti=1)
     events_first = first.get("events", 0)
     assert isinstance(events_first, int)
     assert events_first > 0
 
     sim_b = KolibriSim(zerno=3)
-    second = obnovit_soak_state(state_path, sim_b, minuti=2)
+    second: SoakState = obnovit_soak_state(state_path, sim_b, minuti=2)
     events_second = second.get("events", 0)
     assert isinstance(events_second, int)
     assert events_second > events_first
-    metrics_second = second.get("metrics", [])
-    metrics_first = first.get("metrics", [])
+    metrics_second = cast(list[MetricRecord], second.get("metrics", []))
+    metrics_first = cast(list[MetricRecord], first.get("metrics", []))
     assert isinstance(metrics_second, list)
     assert isinstance(metrics_first, list)
     assert len(metrics_second) >= len(metrics_first) + 2
+    assert all(metric["minute"] >= 0 for metric in metrics_second)
 
 
 
@@ -198,6 +207,19 @@ def test_tracer_receives_journal_events() -> None:
 
     sim.ustanovit_tracer(None)
     sim.sprosit("вопрос")
+
+
+def test_soak_result_structure() -> None:
+    sim = KolibriSim(zerno=5)
+    rezultat: SoakResult = sim.zapustit_soak(1)
+    assert set(rezultat.keys()) == {"events", "metrics"}
+    metrics = cast(list[MetricRecord], rezultat["metrics"])
+    assert len(metrics) == 1
+    metrika = metrics[0]
+    assert isinstance(metrika["minute"], int)
+    assert isinstance(metrika["formula"], str)
+    assert isinstance(metrika["fitness"], float)
+    assert isinstance(metrika["genome"], int)
 
 
 def test_default_jsonl_trace_created(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
