@@ -1,0 +1,16 @@
+{
+  "description": "Example MT-Bench style evaluation scenario. Conversations contain prompts, the model response, and a reference answer used for scoring.",
+  "tasks": [
+    {
+      "name": "reasoning_round",
+      "type": "mt_bench",
+      "conversations": [
+        {
+          "prompt": "You are a helpful assistant. Explain the concept of recursion to a student.",
+          "reference": "Recursion is a programming technique where a function calls itself to solve a problem by breaking it down into smaller subproblems until a base case is reached.",
+          "response": "Рекурсия — это когда функция может вызывать саму себя, пока не встретит простое условие и не начнёт возвращаться назад."
+        }
+      ]
+    }
+  ]
+}

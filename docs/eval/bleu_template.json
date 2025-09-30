@@ -1,0 +1,19 @@
+{
+  "description": "Example BLEU evaluation scenario. Duplicate this file and replace the example strings with your own data.",
+  "tasks": [
+    {
+      "name": "translation_sample",
+      "type": "bleu",
+      "items": [
+        {
+          "source": "Translate to Russian: The quick brown fox jumps over the lazy dog.",
+          "references": [
+            "Быстрая бурая лисица перепрыгивает через ленивую собаку.",
+            "Шустрая коричневая лиса перепрыгивает через ленивую собаку."
+          ],
+          "candidate": "Быстрая коричневая лиса прыгает через ленивую собаку."
+        }
+      ]
+    }
+  ]
+}
