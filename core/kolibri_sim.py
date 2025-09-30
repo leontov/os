@@ -12,15 +12,7 @@ import hmac
 import os
 from pathlib import Path
 
-from typing import Any, Dict, List, Mapping, Optional, Sequence, TypedDict, cast
-
-
-class FormulaRecord(TypedDict):
-    """Структура формулы, эволюционирующей в KolibriSim."""
-
-
-
-from typing import Dict, List, Mapping, Optional, Protocol, TypedDict, cast
+from typing import Any, Dict, List, Mapping, Optional, Protocol, Sequence, TypedDict, cast
 
 from .tracing import JsonLinesTracer
 
@@ -45,6 +37,7 @@ class ZhurnalTracer(Protocol):
 
 
 class FormulaZapis(TypedDict):
+    """Структура формулы, эволюционирующей в KolibriSim."""
 
     kod: str
     fitness: float
@@ -52,10 +45,9 @@ class FormulaZapis(TypedDict):
     context: str
 
 
-
-class MetricRecord(TypedDict):
+class MetricEntry(TypedDict):
     """Метрика одного шага soak-прогона."""
-    
+
     minute: int
     formula: str
     fitness: float
@@ -65,9 +57,6 @@ class MetricRecord(TypedDict):
 class SoakResult(TypedDict):
 
     """Результат выполнения soak-сессии."""
-
-    events: int
-    metrics: List[MetricRecord]
 
     events: int
     metrics: List[MetricEntry]
@@ -141,8 +130,6 @@ class KolibriSim:
         self._zhurnal_sdvig = 0
 
         self.znanija: Dict[str, str] = {}
-
-        self.formuly: Dict[str, FormulaRecord] = {}
 
         self.formuly: Dict[str, FormulaZapis] = {}
 
@@ -326,8 +313,6 @@ class KolibriSim:
         kod = f"f(x)={mnozhitel}*x+{smeshchenie}"
         nazvanie = f"F{len(self.formuly) + 1:04d}"
 
-        zapis: FormulaRecord = {
-
         zapis: FormulaZapis = {
 
             "kod": kod,
@@ -446,8 +431,6 @@ class KolibriSim:
         """Имитация длительного прогона: создаёт формулы и записи генома."""
         nachalnyj_razmer = len(self.genom)
 
-        metrika: List[MetricRecord] = []
-
         metrika: List[MetricEntry] = []
 
         for minuta in range(minuti):
@@ -489,9 +472,6 @@ def zagruzit_sostoyanie(path: Path) -> Dict[str, Any]:
         rezultat[k] = json.loads(tekst)
     return rezultat
 
-
-
-def obnovit_soak_state(path: Path, sim: KolibriSim, minuti: int) -> Dict[str, Any]:
 
 def obnovit_soak_state(path: Path, sim: KolibriSim, minuti: int) -> SoakState:
 

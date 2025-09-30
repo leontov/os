@@ -7,15 +7,7 @@ import argparse
 import csv
 import json
 from pathlib import Path
-
-from typing import Sequence, cast
-
-from core.kolibri_sim import KolibriSim, MetricRecord, obnovit_soak_state
-
-
-def zapisat_csv(path: Path, metrika: Sequence[MetricRecord]) -> None:
-
-from typing import List, Optional, cast
+from typing import Optional, Sequence, cast
 
 from core.kolibri_sim import (
     KolibriSim,
@@ -25,12 +17,13 @@ from core.kolibri_sim import (
 )
 
 
-def zapisat_csv(path: Path, metrika: List[MetricEntry]) -> None:
-
+def zapisat_csv(path: Path, metrika: Sequence[MetricEntry]) -> None:
     """Сохраняет метрики прогона в CSV."""
+
     if not metrika:
         path.write_text("minute,formula,fitness,genome\n", encoding="utf-8")
         return
+
     fieldnames = ["minute", "formula", "fitness", "genome"]
     with path.open("w", newline="", encoding="utf-8") as csvfile:
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
@@ -60,21 +53,16 @@ def main() -> int:
     if not args.resume and state_path.exists():
         state_path.unlink()
 
-
-    sim = KolibriSim(zerno=args.seed)
-    rezultat = obnovit_soak_state(state_path, sim, minuti)
-    metrika = cast(Sequence[MetricRecord], rezultat.get("metrics", []))[-minuti:]
-
     log_dir = Path(args.log_dir) if args.log_dir is not None else Path("logs")
-    trace_path = log_dir / f"kolibri_seed{args.seed}_events.jsonl"
+    trace_path: Optional[Path] = log_dir / f"kolibri_seed{args.seed}_events.jsonl"
+
     sim = KolibriSim(
         zerno=args.seed,
         trace_path=trace_path,
         trace_include_genome=args.keep_genome,
     )
     rezultat: SoakState = obnovit_soak_state(state_path, sim, minuti)
-    metrics = rezultat.get("metrics", [])
-    metrika = cast(List[MetricEntry], metrics)[-minuti:]
+    metrika = cast(Sequence[MetricEntry], rezultat.get("metrics", []))[-minuti:]
 
 
     if args.metrics_path:
@@ -89,14 +77,22 @@ def main() -> int:
             encoding="utf-8",
         )
 
-    print(json.dumps({
-        "minutes": minuti,
-        "events": cast(int, rezultat.get("events", 0)),
-        "metrics_written": len(metrika),
-        "state_path": str(state_path),
-        "trace_path": str(sim.poluchit_trace_path() or trace_path),
-        "genome_path": str(genome_path) if genome_path else None,
-    }, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {
+                "minutes": minuti,
+                "events": cast(int, rezultat.get("events", 0)),
+                "metrics_written": len(metrika),
+                "state_path": str(state_path),
+                "trace_path": str(sim.poluchit_trace_path() or trace_path)
+                if trace_path
+                else None,
+                "genome_path": str(genome_path) if genome_path else None,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
     return 0
 
 
