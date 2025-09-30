@@ -5,11 +5,13 @@ interface NavItemProps {
   icon: ElementType;
   label: string;
   active?: boolean;
+  onClick?: () => void;
 }
 
-const NavItem = ({ icon: Icon, label, active = false }: NavItemProps) => (
+const NavItem = ({ icon: Icon, label, active = false, onClick }: NavItemProps) => (
   <button
     type="button"
+    onClick={onClick}
     className={twMerge(
       "flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-medium transition-colors",
       active

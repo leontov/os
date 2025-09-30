@@ -6,10 +6,297 @@
  * exported by the module, and exposes a single `ask` method used by the UI.
  */
 
+export interface GenomeBlock {
+  nomer: number;
+  pred_hash: string;
+  payload: string;
+  hmac_summa: string;
+  itogovy_hash: string;
+}
+
+export interface FormulaSummary {
+  name: string;
+  code: string;
+  fitness: number;
+  parents: string[];
+  context: string;
+}
+
+export interface SaveFormulaRequest {
+  name?: string;
+  code: string;
+  context?: string;
+}
+
+export interface FormulaEvaluationRequest {
+  name?: string;
+  code: string;
+  context?: string;
+  payload?: string;
+}
+
+export interface FormulaEvaluationResult {
+  success: boolean;
+  output: string;
+  fitness?: number;
+  message?: string;
+  metadata?: Record<string, string>;
+}
+
 export interface KolibriBridge {
   readonly ready: Promise<void>;
   ask(prompt: string, mode?: string): Promise<string>;
   reset(): Promise<void>;
+  fetchGenome(): Promise<GenomeBlock[]>;
+  fetchFormulas(): Promise<FormulaSummary[]>;
+  saveFormula(update: SaveFormulaRequest): Promise<FormulaSummary>;
+  evaluateFormula(request: FormulaEvaluationRequest): Promise<FormulaEvaluationResult>;
+}
+
+const API_BASE_URL = "/api";
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const { headers: initHeaders, ...rest } = init ?? {};
+  const headers: HeadersInit = {
+    Accept: "application/json",
+    ...(init?.body ? { "Content-Type": "application/json" } : {}),
+    ...(initHeaders ?? {}),
+  };
+
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    headers,
+    ...rest,
+  });
+
+  if (!response.ok) {
+    const reason = await response.text().catch(() => "");
+    throw new Error(
+      reason ? `${response.status} ${response.statusText}: ${reason}` : `${response.status} ${response.statusText}`,
+    );
+  }
+
+  if (response.status === 204) {
+    return undefined as unknown as T;
+  }
+
+  const text = await response.text();
+  if (!text) {
+    return undefined as unknown as T;
+  }
+
+  return JSON.parse(text) as T;
+}
+
+function normaliseGenomeBlock(raw: unknown): GenomeBlock | null {
+  if (!isRecord(raw)) {
+    return null;
+  }
+
+  const nomerRaw = raw.nomer;
+  const nomer = typeof nomerRaw === "number" ? nomerRaw : Number.parseInt(String(nomerRaw ?? ""), 10);
+  const predHash = typeof raw.pred_hash === "string" ? raw.pred_hash : "";
+  const payload = typeof raw.payload === "string" ? raw.payload : "";
+  const hmac = typeof raw.hmac_summa === "string" ? raw.hmac_summa : typeof raw.hmac === "string" ? raw.hmac : "";
+  const totalHash = typeof raw.itogovy_hash === "string" ? raw.itogovy_hash : typeof raw.final_hash === "string" ? raw.final_hash : "";
+
+  if (!Number.isFinite(nomer) || !predHash || !payload || !hmac || !totalHash) {
+    return null;
+  }
+
+  return {
+    nomer,
+    pred_hash: predHash,
+    payload,
+    hmac_summa: hmac,
+    itogovy_hash: totalHash,
+  };
+}
+
+function normaliseGenomeResponse(raw: unknown): GenomeBlock[] {
+  const extract = (value: unknown): GenomeBlock[] => {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+    return value
+      .map((entry) => normaliseGenomeBlock(entry))
+      .filter((entry): entry is GenomeBlock => entry !== null)
+      .sort((a, b) => a.nomer - b.nomer);
+  };
+
+  if (Array.isArray(raw)) {
+    return extract(raw);
+  }
+
+  if (isRecord(raw)) {
+    if (Array.isArray(raw.blocks)) {
+      return extract(raw.blocks);
+    }
+    if (Array.isArray(raw.data)) {
+      return extract(raw.data);
+    }
+  }
+
+  return [];
+}
+
+function parseStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter((entry): entry is string => typeof entry === "string");
+}
+
+function normaliseFormulaEntry(name: string | undefined, raw: unknown): FormulaSummary | null {
+  if (!isRecord(raw)) {
+    return null;
+  }
+
+  const detectedName = typeof raw.name === "string" ? raw.name : typeof raw.nazvanie === "string" ? raw.nazvanie : name;
+  if (!detectedName) {
+    return null;
+  }
+
+  const code = typeof raw.code === "string" ? raw.code : typeof raw.kod === "string" ? raw.kod : "";
+  if (!code) {
+    return null;
+  }
+
+  const fitnessRaw = raw.fitness;
+  const fitness = typeof fitnessRaw === "number" ? fitnessRaw : Number.parseFloat(String(fitnessRaw ?? "0"));
+  const parents = parseStringArray(raw.parents);
+  const context = typeof raw.context === "string" ? raw.context : typeof raw.kontekst === "string" ? raw.kontekst : "";
+
+  return {
+    name: detectedName,
+    code,
+    fitness: Number.isFinite(fitness) ? fitness : 0,
+    parents,
+    context,
+  };
+}
+
+function normaliseFormulaList(raw: unknown): FormulaSummary[] {
+  if (Array.isArray(raw)) {
+    return raw
+      .map((entry) => normaliseFormulaEntry(undefined, entry))
+      .filter((entry): entry is FormulaSummary => entry !== null)
+      .sort((a, b) => a.name.localeCompare(b.name, "ru"));
+  }
+
+  if (isRecord(raw)) {
+    if (Array.isArray(raw.formulas)) {
+      return normaliseFormulaList(raw.formulas);
+    }
+
+    return Object.entries(raw)
+      .map(([name, value]) => normaliseFormulaEntry(name, value))
+      .filter((entry): entry is FormulaSummary => entry !== null)
+      .sort((a, b) => a.name.localeCompare(b.name, "ru"));
+  }
+
+  return [];
+}
+
+function normaliseFormulaResponse(raw: unknown, fallbackName?: string): FormulaSummary {
+  const entry = normaliseFormulaEntry(fallbackName, raw);
+  if (!entry) {
+    throw new Error("Некорректный ответ сервера: отсутствуют данные формулы");
+  }
+  return entry;
+}
+
+function normaliseEvaluation(raw: unknown): FormulaEvaluationResult {
+  if (!isRecord(raw)) {
+    return {
+      success: false,
+      output: "",
+      message: "Некорректный ответ сервера",
+    };
+  }
+
+  const success = typeof raw.success === "boolean" ? raw.success : raw.error ? false : true;
+  const output =
+    typeof raw.output === "string"
+      ? raw.output
+      : typeof raw.result === "string"
+        ? raw.result
+        : raw.success && typeof raw.message === "string"
+          ? raw.message
+          : "";
+  const message = typeof raw.message === "string" ? raw.message : typeof raw.error === "string" ? raw.error : undefined;
+  const fitnessRaw = raw.fitness;
+  const fitness = typeof fitnessRaw === "number" ? fitnessRaw : fitnessRaw != null ? Number.parseFloat(String(fitnessRaw)) : undefined;
+  const metadata = isRecord(raw.metadata)
+    ? Object.entries(raw.metadata)
+        .filter((entry): entry is [string, string] => typeof entry[0] === "string" && typeof entry[1] === "string")
+        .reduce<Record<string, string>>((acc, [key, value]) => {
+          acc[key] = value;
+          return acc;
+        }, {})
+    : undefined;
+
+  return {
+    success,
+    output,
+    fitness: Number.isFinite(fitness ?? NaN) ? fitness : undefined,
+    message,
+    metadata,
+  };
+}
+
+async function fetchGenomeFromApi(): Promise<GenomeBlock[]> {
+  const response = await requestJson<unknown>("/genome");
+  const blocks = normaliseGenomeResponse(response);
+  if (!blocks.length) {
+    return [];
+  }
+  return blocks;
+}
+
+async function fetchFormulasFromApi(): Promise<FormulaSummary[]> {
+  const response = await requestJson<unknown>("/formulas");
+  return normaliseFormulaList(response);
+}
+
+async function saveFormulaToApi(update: SaveFormulaRequest): Promise<FormulaSummary> {
+  const { name, code, context } = update;
+  const payload: Record<string, unknown> = { code };
+  if (context) {
+    payload.context = context;
+  }
+  if (name) {
+    payload.name = name;
+  }
+
+  const endpoint = name ? `/formulas/${encodeURIComponent(name)}` : "/formulas";
+  const method = name ? "PUT" : "POST";
+  const response = await requestJson<unknown>(endpoint, {
+    method,
+    body: JSON.stringify(payload),
+  });
+  return normaliseFormulaResponse(response, name);
+}
+
+async function evaluateFormulaViaApi(request: FormulaEvaluationRequest): Promise<FormulaEvaluationResult> {
+  const payload: Record<string, unknown> = { code: request.code };
+  if (request.name) {
+    payload.name = request.name;
+  }
+  if (request.context) {
+    payload.context = request.context;
+  }
+  if (request.payload) {
+    payload.payload = request.payload;
+  }
+
+  const response = await requestJson<unknown>("/formulas/evaluate", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  return normaliseEvaluation(response);
 }
 
 interface KolibriWasmExports extends WebAssembly.Exports {
@@ -161,6 +448,22 @@ class KolibriWasmBridge implements KolibriBridge {
     }
   }
 
+  async fetchGenome(): Promise<GenomeBlock[]> {
+    return fetchGenomeFromApi();
+  }
+
+  async fetchFormulas(): Promise<FormulaSummary[]> {
+    return fetchFormulasFromApi();
+  }
+
+  async saveFormula(update: SaveFormulaRequest): Promise<FormulaSummary> {
+    return saveFormulaToApi(update);
+  }
+
+  async evaluateFormula(request: FormulaEvaluationRequest): Promise<FormulaEvaluationResult> {
+    return evaluateFormulaViaApi(request);
+  }
+
   private describeExecutionError(code: number): string {
     switch (code) {
       case -1:
@@ -204,6 +507,22 @@ class KolibriFallbackBridge implements KolibriBridge {
   async reset(): Promise<void> {
     // Нет состояния для сброса в режим без WASM.
   }
+
+  async fetchGenome(): Promise<GenomeBlock[]> {
+    return fetchGenomeFromApi();
+  }
+
+  async fetchFormulas(): Promise<FormulaSummary[]> {
+    return fetchFormulasFromApi();
+  }
+
+  async saveFormula(update: SaveFormulaRequest): Promise<FormulaSummary> {
+    return saveFormulaToApi(update);
+  }
+
+  async evaluateFormula(request: FormulaEvaluationRequest): Promise<FormulaEvaluationResult> {
+    return evaluateFormulaViaApi(request);
+  }
 }
 
 const createBridge = async (): Promise<KolibriBridge> => {
@@ -229,6 +548,22 @@ const kolibriBridge: KolibriBridge = {
   async reset(): Promise<void> {
     const bridge = await bridgePromise;
     await bridge.reset();
+  },
+  async fetchGenome(): Promise<GenomeBlock[]> {
+    const bridge = await bridgePromise;
+    return bridge.fetchGenome();
+  },
+  async fetchFormulas(): Promise<FormulaSummary[]> {
+    const bridge = await bridgePromise;
+    return bridge.fetchFormulas();
+  },
+  async saveFormula(update: SaveFormulaRequest): Promise<FormulaSummary> {
+    const bridge = await bridgePromise;
+    return bridge.saveFormula(update);
+  },
+  async evaluateFormula(request: FormulaEvaluationRequest): Promise<FormulaEvaluationResult> {
+    const bridge = await bridgePromise;
+    return bridge.evaluateFormula(request);
   },
 };
 

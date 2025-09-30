@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Layout from "./components/Layout";
-import Sidebar from "./components/Sidebar";
+import Sidebar, { type SidebarTab } from "./components/Sidebar";
 import WelcomeScreen from "./components/WelcomeScreen";
 import ChatInput from "./components/ChatInput";
 import ChatView from "./components/ChatView";
+import GenomeExplorer from "./components/GenomeExplorer";
+import RuleEditor from "./components/RuleEditor";
 import type { ChatMessage } from "./types/chat";
 import kolibriBridge from "./core/kolibri-bridge";
 
@@ -13,6 +15,7 @@ const App = () => {
   const [mode, setMode] = useState("Быстрый ответ");
   const [isProcessing, setIsProcessing] = useState(false);
   const [bridgeReady, setBridgeReady] = useState(false);
+  const [activeTab, setActiveTab] = useState<SidebarTab>("chat");
 
   useEffect(() => {
     let cancelled = false;
@@ -120,25 +123,38 @@ const App = () => {
   }, [bridgeReady, draft, isProcessing, mode]);
 
   const content = useMemo(() => {
-    if (!messages.length) {
-      return <WelcomeScreen onSuggestionSelect={handleSuggestionSelect} />;
+    if (activeTab === "chat") {
+      if (!messages.length) {
+        return <WelcomeScreen onSuggestionSelect={handleSuggestionSelect} />;
+      }
+      return <ChatView messages={messages} isLoading={isProcessing} />;
     }
 
-    return <ChatView messages={messages} isLoading={isProcessing} />;
-  }, [handleSuggestionSelect, isProcessing, messages]);
+    if (activeTab === "genome") {
+      return <GenomeExplorer />;
+    }
+
+    if (activeTab === "rules") {
+      return <RuleEditor />;
+    }
+
+    return null;
+  }, [activeTab, handleSuggestionSelect, isProcessing, messages]);
 
   return (
-    <Layout sidebar={<Sidebar />}>
+    <Layout sidebar={<Sidebar activeTab={activeTab} onSelect={setActiveTab} />}>
       <div className="flex-1">{content}</div>
-      <ChatInput
-        value={draft}
-        mode={mode}
-        isBusy={isProcessing || !bridgeReady}
-        onChange={setDraft}
-        onModeChange={setMode}
-        onSubmit={sendMessage}
-        onReset={resetConversation}
-      />
+      {activeTab === "chat" ? (
+        <ChatInput
+          value={draft}
+          mode={mode}
+          isBusy={isProcessing || !bridgeReady}
+          onChange={setDraft}
+          onModeChange={setMode}
+          onSubmit={sendMessage}
+          onReset={resetConversation}
+        />
+      ) : null}
     </Layout>
   );
 };
