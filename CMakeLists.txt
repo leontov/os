@@ -28,10 +28,17 @@ find_package(Threads REQUIRED)
 
 target_link_libraries(kolibri_core PRIVATE OpenSSL::Crypto)
 
+add_library(kolibri_app_runtime STATIC apps/kolibri_runtime.c)
+target_include_directories(kolibri_app_runtime
+    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/apps)
+target_link_libraries(kolibri_app_runtime PUBLIC kolibri_core)
+
 add_executable(kolibri_node apps/kolibri_node.c)
+add_executable(kolibri_server apps/kolibri_server.c)
 add_executable(ks_compiler apps/ks_compiler.c)
 
-target_link_libraries(kolibri_node PRIVATE kolibri_core)
+target_link_libraries(kolibri_node PRIVATE kolibri_app_runtime)
+target_link_libraries(kolibri_server PRIVATE kolibri_app_runtime)
 target_link_libraries(ks_compiler PRIVATE kolibri_core)
 
 if(KOLIBRI_ENABLE_TESTS)
