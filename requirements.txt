@@ -9,3 +9,7 @@ coverage[toml]>=7.4,<8
 pyright>=1.1.350,<1.2
 pytest>=7.4,<9
 ruff>=0.4.0,<0.5
+fastapi>=0.110.0,<0.111.0
+uvicorn>=0.29.0,<0.30.0
+python-multipart>=0.0.9,<0.0.10
+pypdf>=4.2.0,<5.0.0
