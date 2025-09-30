@@ -4,11 +4,15 @@
  * WebAssembly-backed bridge that executes KolibriScript programs inside the
  * browser. The bridge loads `kolibri.wasm`, initialises the Kolibri runtime
  * exported by the module, and exposes a single `ask` method used by the UI.
- */
+*/
+
+import type { KolibriStream, StreamOptions } from "./streaming";
+import { createKolibriStream } from "./streaming";
 
 export interface KolibriBridge {
   readonly ready: Promise<void>;
   ask(prompt: string, mode?: string): Promise<string>;
+  askStream(prompt: string, mode?: string, options?: StreamOptions): Promise<KolibriStream>;
   reset(): Promise<void>;
 }
 
@@ -110,11 +114,53 @@ class KolibriWasmBridge implements KolibriBridge {
 
   async ask(prompt: string, mode: string = DEFAULT_MODE): Promise<string> {
     await this.ready;
+    const exports = this.ensureExports();
+    return this.executeProgram(exports, prompt, mode);
+  }
+
+  async askStream(
+    prompt: string,
+    mode: string = DEFAULT_MODE,
+    options?: StreamOptions,
+  ): Promise<KolibriStream> {
+    await this.ready;
+    const exports = this.ensureExports();
+    const controller = new AbortController();
+    const { stream, controls } = createKolibriStream(controller, options);
+
+    void (async () => {
+      try {
+        const text = this.executeProgram(exports, prompt, mode);
+        if (controller.signal.aborted) {
+          return;
+        }
+        controls.append(text, true);
+      } catch (error) {
+        controls.fail(error);
+      }
+    })();
+
+    return stream;
+  }
+
+  async reset(): Promise<void> {
+    await this.ready;
+    const exports = this.ensureExports();
+
+    const result = exports._kolibri_bridge_reset();
+    if (result !== 0) {
+      throw new Error(`Не удалось сбросить KolibriScript (код ${result})`);
+    }
+  }
+
+  private ensureExports(): KolibriWasmExports {
     if (!this.exports) {
       throw new Error("Kolibri WASM мост не готов");
     }
+    return this.exports;
+  }
 
-    const exports = this.exports;
+  private executeProgram(exports: KolibriWasmExports, prompt: string, mode: string): string {
     const script = buildScript(prompt, mode);
     const scriptBytes = this.encoder.encode(script);
     const programPtr = exports._malloc(scriptBytes.length + 1);
@@ -142,23 +188,16 @@ class KolibriWasmBridge implements KolibriBridge {
 
       const outputBytes = heap.subarray(outputPtr, outputPtr + written);
       const text = this.decoder.decode(outputBytes);
-      return text.trim().length === 0 ? "KolibriScript завершил работу без вывода." : text.trimEnd();
+      return this.normaliseOutput(text);
     } finally {
       exports._free(programPtr);
       exports._free(outputPtr);
     }
   }
 
-  async reset(): Promise<void> {
-    await this.ready;
-    if (!this.exports) {
-      throw new Error("Kolibri WASM мост не готов");
-    }
-
-    const result = this.exports._kolibri_bridge_reset();
-    if (result !== 0) {
-      throw new Error(`Не удалось сбросить KolibriScript (код ${result})`);
-    }
+  private normaliseOutput(output: string): string {
+    const trimmed = output.trim();
+    return trimmed.length === 0 ? "KolibriScript завершил работу без вывода." : trimmed.trimEnd();
   }
 
   private describeExecutionError(code: number): string {
@@ -201,6 +240,16 @@ class KolibriFallbackBridge implements KolibriBridge {
     ].join("\n");
   }
 
+  async askStream(_prompt: string, _mode?: string, options?: StreamOptions): Promise<KolibriStream> {
+    const controller = new AbortController();
+    const { stream, controls } = createKolibriStream(controller, options);
+    const text = await this.ask(_prompt, _mode);
+    if (!controller.signal.aborted) {
+      controls.append(text, true);
+    }
+    return stream;
+  }
+
   async reset(): Promise<void> {
     // Нет состояния для сброса в режим без WASM.
   }
@@ -225,6 +274,10 @@ const kolibriBridge: KolibriBridge = {
   async ask(prompt: string, mode?: string): Promise<string> {
     const bridge = await bridgePromise;
     return bridge.ask(prompt, mode);
+  },
+  async askStream(prompt: string, mode?: string, options?: StreamOptions): Promise<KolibriStream> {
+    const bridge = await bridgePromise;
+    return bridge.askStream(prompt, mode, options);
   },
   async reset(): Promise<void> {
     const bridge = await bridgePromise;

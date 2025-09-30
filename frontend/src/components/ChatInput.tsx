@@ -1,4 +1,4 @@
-import { Paperclip, Plus, RefreshCw, SendHorizontal } from "lucide-react";
+import { CircleX, Paperclip, Plus, RefreshCw, SendHorizontal } from "lucide-react";
 import { useId } from "react";
 
 interface ChatInputProps {
@@ -9,11 +9,23 @@ interface ChatInputProps {
   onModeChange: (mode: string) => void;
   onSubmit: () => void;
   onReset: () => void;
+  onCancel: () => void;
+  canCancel: boolean;
 }
 
 const modes = ["Быстрый ответ", "Исследование", "Творческий"];
 
-const ChatInput = ({ value, mode, isBusy, onChange, onModeChange, onSubmit, onReset }: ChatInputProps) => {
+const ChatInput = ({
+  value,
+  mode,
+  isBusy,
+  onChange,
+  onModeChange,
+  onSubmit,
+  onReset,
+  onCancel,
+  canCancel,
+}: ChatInputProps) => {
   const textAreaId = useId();
 
   return (
@@ -68,6 +80,16 @@ const ChatInput = ({ value, mode, isBusy, onChange, onModeChange, onSubmit, onRe
           </button>
         </div>
         <div className="flex gap-2">
+          {canCancel && (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="flex items-center gap-2 rounded-xl bg-background-light/60 px-4 py-2 text-sm font-medium text-text-dark transition-colors hover:text-text-dark"
+            >
+              <CircleX className="h-4 w-4" />
+              Отменить
+            </button>
+          )}
           <button
             type="button"
             onClick={onReset}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Layout from "./components/Layout";
 import Sidebar from "./components/Sidebar";
 import WelcomeScreen from "./components/WelcomeScreen";
@@ -6,6 +6,7 @@ import ChatInput from "./components/ChatInput";
 import ChatView from "./components/ChatView";
 import type { ChatMessage } from "./types/chat";
 import kolibriBridge from "./core/kolibri-bridge";
+import type { KolibriStream } from "./core/streaming";
 
 const App = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -13,6 +14,7 @@ const App = () => {
   const [mode, setMode] = useState("Быстрый ответ");
   const [isProcessing, setIsProcessing] = useState(false);
   const [bridgeReady, setBridgeReady] = useState(false);
+  const streamRef = useRef<KolibriStream | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -48,6 +50,11 @@ const App = () => {
   }, []);
 
   const resetConversation = useCallback(() => {
+    const activeStream = streamRef.current;
+    if (activeStream) {
+      activeStream.cancel();
+    }
+
     if (!bridgeReady) {
       setMessages([]);
       setDraft("");
@@ -90,34 +97,129 @@ const App = () => {
       timestamp: new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }),
     };
 
-    setMessages((prev) => [...prev, userMessage]);
+    const assistantId = crypto.randomUUID();
+    const assistantTimestamp = new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+
+    setMessages((prev) => [
+      ...prev,
+      userMessage,
+      {
+        id: assistantId,
+        role: "assistant",
+        content: "",
+        timestamp: assistantTimestamp,
+      },
+    ]);
     setDraft("");
     setIsProcessing(true);
 
     try {
-      const answer = await kolibriBridge.ask(content, mode);
-      const assistantMessage: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: answer,
-        timestamp: new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }),
+      const stream = await kolibriBridge.askStream(content, mode);
+      streamRef.current = stream;
+
+      const unsubscribeCallbacks: Array<() => void> = [];
+      let finished = false;
+
+      const finalize = (status: "complete" | "cancel" | "error", error?: unknown) => {
+        if (finished) {
+          return;
+        }
+        finished = true;
+        for (const unsubscribe of unsubscribeCallbacks) {
+          unsubscribe();
+        }
+        streamRef.current = null;
+
+        if (status === "error") {
+          const messageText =
+            error instanceof Error
+              ? `Не удалось получить ответ: ${error.message}`
+              : "Не удалось получить ответ от ядра Колибри.";
+          setMessages((prev) =>
+            prev.map((message) =>
+              message.id === assistantId ? { ...message, content: messageText } : message,
+            ),
+          );
+        } else if (status === "cancel") {
+          setMessages((prev) =>
+            prev.map((message) => {
+              if (message.id !== assistantId) {
+                return message;
+              }
+              const base = message.content.trimEnd();
+              return {
+                ...message,
+                content: base.length
+                  ? `${base}\n\nОтвет отменён пользователем.`
+                  : "Ответ был отменён пользователем.",
+              };
+            }),
+          );
+        } else {
+          setMessages((prev) =>
+            prev.map((message) =>
+              message.id === assistantId
+                ? { ...message, content: message.content.trimEnd() }
+                : message,
+            ),
+          );
+        }
+
+        setIsProcessing(false);
       };
-      setMessages((prev) => [...prev, assistantMessage]);
+
+      unsubscribeCallbacks.push(
+        stream.onToken((chunk) => {
+          setMessages((prev) =>
+            prev.map((message) =>
+              message.id === assistantId
+                ? { ...message, content: `${message.content}${chunk}` }
+                : message,
+            ),
+          );
+        }),
+      );
+
+      unsubscribeCallbacks.push(
+        stream.onComplete(() => {
+          finalize("complete");
+        }),
+      );
+
+      unsubscribeCallbacks.push(
+        stream.onCancel(() => {
+          finalize("cancel");
+        }),
+      );
+
+      unsubscribeCallbacks.push(
+        stream.onError((error) => {
+          finalize("error", error);
+        }),
+      );
+
+      stream.done.catch(() => undefined);
     } catch (error) {
-      const assistantMessage: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content:
-          error instanceof Error
-            ? `Не удалось получить ответ: ${error.message}`
-            : "Не удалось получить ответ от ядра Колибри.",
-        timestamp: new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }),
-      };
-      setMessages((prev) => [...prev, assistantMessage]);
-    } finally {
+      streamRef.current = null;
+      const messageText =
+        error instanceof Error
+          ? `Не удалось получить ответ: ${error.message}`
+          : "Не удалось получить ответ от ядра Колибри.";
+      setMessages((prev) =>
+        prev.map((message) =>
+          message.id === assistantId ? { ...message, content: messageText } : message,
+        ),
+      );
       setIsProcessing(false);
     }
   }, [bridgeReady, draft, isProcessing, mode]);
+
+  const cancelActiveStream = useCallback(() => {
+    const activeStream = streamRef.current;
+    if (activeStream) {
+      activeStream.cancel();
+    }
+  }, []);
 
   const content = useMemo(() => {
     if (!messages.length) {
@@ -138,6 +240,8 @@ const App = () => {
         onModeChange={setMode}
         onSubmit={sendMessage}
         onReset={resetConversation}
+        onCancel={cancelActiveStream}
+        canCancel={isProcessing}
       />
     </Layout>
   );
