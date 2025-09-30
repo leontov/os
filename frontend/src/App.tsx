@@ -4,7 +4,8 @@ import Sidebar from "./components/Sidebar";
 import WelcomeScreen from "./components/WelcomeScreen";
 import ChatInput from "./components/ChatInput";
 import ChatView from "./components/ChatView";
-import type { ChatMessage } from "./types/chat";
+import CodeWorkspace from "./components/CodeWorkspace";
+import type { ChatMessage, CodePatch, FileContext } from "./types/chat";
 import kolibriBridge from "./core/kolibri-bridge";
 
 const App = () => {
@@ -88,6 +89,7 @@ const App = () => {
       role: "user",
       content,
       timestamp: new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }),
+      mode,
     };
 
     setMessages((prev) => [...prev, userMessage]);
@@ -101,6 +103,7 @@ const App = () => {
         role: "assistant",
         content: answer,
         timestamp: new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }),
+        mode,
       };
       setMessages((prev) => [...prev, assistantMessage]);
     } catch (error) {
@@ -112,6 +115,7 @@ const App = () => {
             ? `Не удалось получить ответ: ${error.message}`
             : "Не удалось получить ответ от ядра Колибри.",
         timestamp: new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }),
+        mode,
       };
       setMessages((prev) => [...prev, assistantMessage]);
     } finally {
@@ -127,18 +131,45 @@ const App = () => {
     return <ChatView messages={messages} isLoading={isProcessing} />;
   }, [handleSuggestionSelect, isProcessing, messages]);
 
+  const workspaceData = useMemo(() => {
+    let latestFileContext: FileContext | undefined;
+    let latestPatches: CodePatch[] = [];
+
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const message = messages[index];
+      if (!latestFileContext && message.fileContext) {
+        latestFileContext = message.fileContext;
+      }
+      if (!latestPatches.length && message.patches && message.patches.length) {
+        latestPatches = message.patches;
+      }
+      if (latestFileContext && latestPatches.length) {
+        break;
+      }
+    }
+
+    return { fileContext: latestFileContext, patches: latestPatches };
+  }, [messages]);
+
   return (
     <Layout sidebar={<Sidebar />}>
-      <div className="flex-1">{content}</div>
-      <ChatInput
-        value={draft}
-        mode={mode}
-        isBusy={isProcessing || !bridgeReady}
-        onChange={setDraft}
-        onModeChange={setMode}
-        onSubmit={sendMessage}
-        onReset={resetConversation}
-      />
+      <div className="flex flex-col gap-6 xl:flex-row xl:items-start">
+        <div className="flex flex-1 flex-col gap-6">
+          <div className="flex-1">{content}</div>
+          <ChatInput
+            value={draft}
+            mode={mode}
+            isBusy={isProcessing || !bridgeReady}
+            onChange={setDraft}
+            onModeChange={setMode}
+            onSubmit={sendMessage}
+            onReset={resetConversation}
+          />
+        </div>
+        <div className="w-full xl:w-[420px] xl:max-w-[420px] xl:flex-shrink-0">
+          <CodeWorkspace fileContext={workspaceData.fileContext} patches={workspaceData.patches} />
+        </div>
+      </div>
     </Layout>
   );
 };

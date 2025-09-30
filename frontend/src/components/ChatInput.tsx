@@ -11,7 +11,7 @@ interface ChatInputProps {
   onReset: () => void;
 }
 
-const modes = ["Быстрый ответ", "Исследование", "Творческий"];
+const modes = ["Быстрый ответ", "Исследование", "Творческий", "Объяснить", "Рефакторинг"];
 
 const ChatInput = ({ value, mode, isBusy, onChange, onModeChange, onSubmit, onReset }: ChatInputProps) => {
   const textAreaId = useId();
