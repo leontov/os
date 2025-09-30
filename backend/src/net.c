@@ -326,11 +326,16 @@ int kn_listener_poll(KolibriNetListener *listener, uint32_t timeout_ms,
   FD_SET(listener->socket_fd, &readfds);
 
   struct timeval tv;
-  tv.tv_sec = timeout_ms / 1000U;
-  tv.tv_usec = (timeout_ms % 1000U) * 1000U;
+  struct timeval *timeout_ptr = NULL;
+  if (timeout_ms != UINT32_MAX) {
+    /* Pass an explicit zeroed timeval when timeout_ms == 0 to preserve
+       non-blocking semantics. UINT32_MAX can be used to wait indefinitely. */
+    tv.tv_sec = timeout_ms / 1000U;
+    tv.tv_usec = (timeout_ms % 1000U) * 1000U;
+    timeout_ptr = &tv;
+  }
 
-  int ready = select(listener->socket_fd + 1, &readfds, NULL, NULL,
-                     timeout_ms == 0 ? NULL : &tv);
+  int ready = select(listener->socket_fd + 1, &readfds, NULL, NULL, timeout_ptr);
   if (ready < 0) {
     if (errno == EINTR) {
       return 0;

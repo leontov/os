@@ -15,6 +15,7 @@ vremennaja_map="$vyhod_dir/kolibri.map"
 vremennaja_js="$vyhod_dir/kolibri.js"
 
 EMCC="${EMCC:-emcc}"
+<<<<<<< ours
 sozdat_zaglushku=0
 
 vychislit_sha256_stroku() {
@@ -83,6 +84,17 @@ if ! command -v "$EMCC" >/dev/null 2>&1; then
     if [[ "${KOLIBRI_WASM_INVOKED_VIA_DOCKER:-0}" == "1" ]]; then
         echo "[ОШИБКА] Не найден emcc внутри Docker-окружения. Проверьте образ ${KOLIBRI_WASM_DOCKER_IMAGE:-emscripten/emsdk:3.1.61}." >&2
         exit 1
+=======
+
+ensure_emcc() {
+    if command -v "$EMCC" >/dev/null 2>&1; then
+        return 0
+    fi
+
+    if [[ "${KOLIBRI_WASM_INVOKED_VIA_DOCKER:-0}" == "1" ]]; then
+        echo "[ОШИБКА] Не найден emcc внутри Docker-окружения. Проверьте образ ${KOLIBRI_WASM_DOCKER_IMAGE:-emscripten/emsdk:3.1.61}." >&2
+        return 1
+>>>>>>> theirs
     fi
 
     if command -v docker >/dev/null 2>&1; then
@@ -96,6 +108,7 @@ if ! command -v "$EMCC" >/dev/null 2>&1; then
             -e KOLIBRI_WASM_GENERATE_MAP \
             "$docker_image" \
             bash -lc "./build_wasm.sh"
+<<<<<<< ours
         exit $?
     fi
 
@@ -104,6 +117,19 @@ fi
 
 if (( sozdat_zaglushku )); then
     sozdat_stub_wasm
+=======
+        return $?
+    fi
+
+    echo "[ОШИБКА] Не найден emcc. Установите Emscripten, задайте путь через EMCC или установите Docker для автоматической сборки." >&2
+    return 1
+}
+
+ensure_emcc || exit 1
+
+if [[ "${KOLIBRI_WASM_INVOKED_VIA_DOCKER:-0}" != "1" ]] && ! command -v "$EMCC" >/dev/null 2>&1; then
+    # Docker fallback already built the artifact; nothing else to do on the host.
+>>>>>>> theirs
     exit 0
 fi
 
@@ -118,6 +144,8 @@ istochniki=(
 
 if [[ "${KOLIBRI_WASM_INCLUDE_GENOME:-0}" == "1" ]]; then
     istochniki+=("$proekt_koren/backend/src/genome.c")
+else
+    istochniki+=("$proekt_koren/backend/src/wasm_genome_stub.c")
 fi
 
 flags=(
@@ -126,8 +154,8 @@ flags=(
     -s STANDALONE_WASM=1
     -s SIDE_MODULE=0
     -s ALLOW_MEMORY_GROWTH=0
-    -s EXPORTED_RUNTIME_METHODS='["cwrap","getValue","setValue","UTF8ToString","stringToUTF8","lengthBytesUTF8"]'
-    -s EXPORTED_FUNCTIONS='["_kolibri_potok_cifr_init","_kolibri_potok_cifr_sbros","_kolibri_potok_cifr_vernutsya","_kolibri_potok_cifr_push","_kolibri_potok_cifr_chitat","_kolibri_potok_cifr_ostalos","_kolibri_transducirovat_utf8","_kolibri_izluchit_utf8","_kolibri_dlina_kodirovki_teksta","_kolibri_dlina_dekodirovki_teksta","_kolibri_kodirovat_text","_kolibri_dekodirovat_text","_kolibri_potok_cifr_zapisat_chislo","_kolibri_potok_cifr_schitat_chislo","_kf_pool_init","_kf_pool_clear_examples","_kf_pool_add_example","_kf_pool_tick","_kf_pool_best","_kf_formula_apply","_kf_formula_digits","_kf_formula_describe","_kf_pool_feedback","_k_rng_seed","_k_rng_next","_k_rng_next_double","_kolibri_bridge_init","_kolibri_bridge_reset","_kolibri_bridge_execute","_malloc","_free"]'
+    -s EXPORTED_RUNTIME_METHODS='[]'
+    -s EXPORTED_FUNCTIONS='["_kolibri_bridge_init","_kolibri_bridge_reset","_kolibri_bridge_execute","_malloc","_free"]'
     -s DEFAULT_LIBRARY_FUNCS_TO_INCLUDE='[]'
     --no-entry
     -I"$proekt_koren/backend/include"

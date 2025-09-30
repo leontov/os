@@ -5,6 +5,7 @@
  * browser. The bridge loads `kolibri.wasm`, initialises the Kolibri runtime
  * exported by the module, and exposes a single `ask` method used by the UI.
  */
+import { createWasiContext } from "./wasi";
 
 export interface KolibriBridge {
   readonly ready: Promise<void>;
@@ -24,6 +25,7 @@ interface KolibriWasmExports extends WebAssembly.Exports {
 const OUTPUT_CAPACITY = 8192;
 const DEFAULT_MODE = "Быстрый ответ";
 const WASM_RESOURCE_URL = "/kolibri.wasm";
+const WASM_INFO_URL = "/kolibri.wasm.txt";
 
 const COMMAND_PATTERN = /^(показать|обучить|спросить|тикнуть|сохранить)/i;
 const PROGRAM_START_PATTERN = /начало\s*:/i;
@@ -63,6 +65,28 @@ function buildScript(prompt: string, mode: string): string {
   return `начало:\n${modeLine}${scriptLines.join("\n")}\nконец.\n`;
 }
 
+async function describeWasmFailure(error: unknown): Promise<string> {
+  const baseReason =
+    error instanceof Error && error.message ? error.message : String(error ?? "Неизвестная ошибка");
+
+  try {
+    const response = await fetch(WASM_INFO_URL);
+    if (!response.ok) {
+      return baseReason;
+    }
+
+    const infoText = (await response.text()).trim();
+    if (!infoText) {
+      return baseReason;
+    }
+
+    return `${baseReason}\n\n${infoText}`;
+  } catch (infoError) {
+    console.debug("[kolibri-bridge] Не удалось получить информацию о kolibri.wasm.", infoError);
+    return baseReason;
+  }
+}
+
 class KolibriWasmBridge implements KolibriBridge {
   private readonly encoder = new TextEncoder();
   private readonly decoder = new TextDecoder("utf-8");
@@ -74,12 +98,22 @@ class KolibriWasmBridge implements KolibriBridge {
   }
 
   private async instantiateWasm(): Promise<WebAssembly.Instance> {
-    const importObject: WebAssembly.Imports = {};
+    const wasi = createWasiContext((text) => {
+      console.debug("[kolibri-bridge][wasi]", text);
+    });
+    const importObject: WebAssembly.Imports = {
+      wasi_snapshot_preview1: wasi.imports,
+    };
 
     if ("instantiateStreaming" in WebAssembly) {
       try {
         const streamingResult = await WebAssembly.instantiateStreaming(fetch(WASM_RESOURCE_URL), importObject);
-        return streamingResult.instance;
+        const instance = streamingResult.instance;
+        const exports = instance.exports as KolibriWasmExports;
+        if (exports.memory instanceof WebAssembly.Memory) {
+          wasi.setMemory(exports.memory);
+        }
+        return instance;
       } catch (error) {
         // Fallback to ArrayBuffer path when MIME type is missing.
         console.warn("Kolibri WASM streaming instantiation failed, retrying with ArrayBuffer.", error);
@@ -92,6 +126,10 @@ class KolibriWasmBridge implements KolibriBridge {
     }
     const bytes = await response.arrayBuffer();
     const { instance } = await WebAssembly.instantiate(bytes, importObject);
+    const exports = instance.exports as KolibriWasmExports;
+    if (exports.memory instanceof WebAssembly.Memory) {
+      wasi.setMemory(exports.memory);
+    }
     return instance;
   }
 
@@ -214,7 +252,8 @@ const createBridge = async (): Promise<KolibriBridge> => {
     return wasmBridge;
   } catch (error) {
     console.warn("[kolibri-bridge] Переход в деградированный режим без WebAssembly.", error);
-    return new KolibriFallbackBridge(error);
+    const reason = await describeWasmFailure(error);
+    return new KolibriFallbackBridge(reason);
   }
 };
 
