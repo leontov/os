@@ -6,6 +6,21 @@ import ChatInput from "./components/ChatInput";
 import ChatView from "./components/ChatView";
 import type { ChatMessage } from "./types/chat";
 import kolibriBridge from "./core/kolibri-bridge";
+import { searchKnowledge } from "./core/knowledge";
+import type { KnowledgeSnippet } from "./types/knowledge";
+
+const formatPromptWithContext = (question: string, context: KnowledgeSnippet[]): string => {
+  if (!context.length) {
+    return question;
+  }
+
+  const contextBlocks = context.map((snippet, index) => {
+    const title = snippet.title ? ` (${snippet.title})` : "";
+    return [`Источник ${index + 1}${title}:`, snippet.content].join("\n");
+  });
+
+  return [`Контекст:`, ...contextBlocks, "", `Вопрос пользователя: ${question}`].join("\n");
+};
 
 const App = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -94,14 +109,36 @@ const App = () => {
     setDraft("");
     setIsProcessing(true);
 
+    let knowledgeContext: KnowledgeSnippet[] = [];
+    let knowledgeError: string | undefined;
+
     try {
-      const answer = await kolibriBridge.ask(content, mode);
+      knowledgeContext = await searchKnowledge(content, { topK: 3 });
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === "AbortError")) {
+        knowledgeError =
+          error instanceof Error && error.message
+            ? error.message
+            : "Не удалось получить контекст из памяти.";
+      }
+    }
+
+    const prompt = knowledgeContext.length ? formatPromptWithContext(content, knowledgeContext) : content;
+
+    try {
+      const answer = await kolibriBridge.ask(prompt, mode);
       const assistantMessage: ChatMessage = {
         id: crypto.randomUUID(),
         role: "assistant",
         content: answer,
         timestamp: new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }),
       };
+      if (knowledgeContext.length) {
+        assistantMessage.context = knowledgeContext;
+      }
+      if (knowledgeError) {
+        assistantMessage.contextError = knowledgeError;
+      }
       setMessages((prev) => [...prev, assistantMessage]);
     } catch (error) {
       const assistantMessage: ChatMessage = {
