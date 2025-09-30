@@ -153,6 +153,45 @@ def test_t14_journal_rollover() -> None:
     assert snapshot["zapisi"][0]["soobshenie"].startswith("k7")
 
 
+def test_disk_journal_survives_restart(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    journal_path = tmp_path / "journal" / "events.jsonl"
+    rotate_dir = tmp_path / "journal" / "rotate"
+    monkeypatch.setenv("KOLIBRI_JOURNAL_PATH", str(journal_path))
+    monkeypatch.setenv("KOLIBRI_JOURNAL_ROTATE_DIR", str(rotate_dir))
+
+    sim = KolibriSim(zerno=99)
+    sim.ustanovit_predel_zhurnala(3)
+    for idx in range(7):
+        sim.obuchit_svjaz(f"k{idx}", f"v{idx}")
+
+    first_snapshot = sim.poluchit_zhurnal()
+    assert first_snapshot["offset"] == 4
+    assert len(first_snapshot["zapisi"]) == 3
+
+    meta_path = journal_path.parent / f"{journal_path.name}.meta.json"
+    assert meta_path.exists()
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    assert meta["offset"] == first_snapshot["offset"]
+    assert meta["active_count"] == len(first_snapshot["zapisi"])
+
+    active_lines = [stroka for stroka in journal_path.read_text(encoding="utf-8").splitlines() if stroka.strip()]
+    assert len(active_lines) == 3
+
+    rotated_files = sorted(rotate_dir.glob("*.jsonl"))
+    assert rotated_files, "ожидался файл ротации"
+    rotated_total = sum(
+        1
+        for rotate_file in rotated_files
+        for stroka in rotate_file.read_text(encoding="utf-8").splitlines()
+        if stroka.strip()
+    )
+    assert rotated_total == first_snapshot["offset"]
+
+    sim_vtoroj = KolibriSim(zerno=101)
+    second_snapshot = sim_vtoroj.poluchit_zhurnal()
+    assert second_snapshot == first_snapshot
+
+
 def test_t15_soak_state_accumulates(tmp_path: Path) -> None:
     state_path = tmp_path / "soak.json"
     sim_a = KolibriSim(zerno=3)

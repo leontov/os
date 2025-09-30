@@ -22,6 +22,7 @@ class FormulaRecord(TypedDict):
 
 from typing import Dict, List, Mapping, Optional, Protocol, TypedDict, cast
 
+from .journal import JsonlDiskJournal
 from .tracing import JsonLinesTracer
 
 
@@ -55,11 +56,14 @@ class FormulaZapis(TypedDict):
 
 class MetricRecord(TypedDict):
     """Метрика одного шага soak-прогона."""
-    
+
     minute: int
     formula: str
     fitness: float
     genome: int
+
+
+MetricEntry = MetricRecord
 
 
 class SoakResult(TypedDict):
@@ -131,14 +135,17 @@ class KolibriSim:
         *,
         trace_path: "Path | str | None" = None,
         trace_include_genome: Optional[bool] = None,
+        zhurnal_path: "Path | str | None" = None,
+        zhurnal_rotate_dir: "Path | str | None" = None,
     ) -> None:
         self.zerno = zerno
         self.generator = random.Random(zerno)
         self.hmac_klyuch = hmac_klyuch or b"kolibri-hmac"
-        self.zhurnal: List[ZhurnalZapis] = []
-
         self.predel_zhurnala = 256
         self._zhurnal_sdvig = 0
+        self.zhurnal: List[ZhurnalZapis] = []
+        self._zhurnal_writer: Optional[JsonlDiskJournal] = None
+        self._nastroit_diskovy_zhurnal(zhurnal_path, zhurnal_rotate_dir)
 
         self.znanija: Dict[str, str] = {}
 
@@ -152,6 +159,7 @@ class KolibriSim:
         self._tracer: Optional[ZhurnalTracer] = None
         self._tracer_include_genome = False
         self._trace_path: Optional[Path] = None
+        self._trace_rotate_dir: Optional[Path] = None
         self._nastroit_avto_tracer(trace_path, trace_include_genome)
         self._sozdanie_bloka("GENESIS", {"seed": zerno})
 
@@ -177,6 +185,74 @@ class KolibriSim:
             self.hmac_klyuch = self.hmac_klyuch.encode("utf-8")
         return self.hmac_klyuch
 
+    def _nastroit_diskovy_zhurnal(
+        self,
+        zhurnal_path: "Path | str | None",
+        zhurnal_rotate_dir: "Path | str | None",
+    ) -> None:
+        """Настраивает файловое хранилище журнала и восстанавливает состояние."""
+
+        path, rotate_dir = self._vybrat_zhurnal_paths(zhurnal_path, zhurnal_rotate_dir)
+        if path is None:
+            self._zhurnal_writer = None
+            return
+
+        writer = JsonlDiskJournal(path, rotate_dir=rotate_dir)
+        offset, zapisi = writer.load_snapshot(self.predel_zhurnala)
+        self._zhurnal_writer = writer
+        self._zhurnal_sdvig = offset
+        self.zhurnal = zapisi
+
+    def _vybrat_zhurnal_paths(
+        self,
+        zhurnal_path: "Path | str | None",
+        zhurnal_rotate_dir: "Path | str | None",
+    ) -> tuple[Optional[Path], Optional[Path]]:
+        """Определяет пути для активного журнала и каталога ротации."""
+
+        if not self._env_flag(os.getenv("KOLIBRI_JOURNAL"), default=True):
+            return None, None
+
+        path: Optional[Path]
+        if zhurnal_path is not None:
+            stroka = str(zhurnal_path).strip()
+            if stroka == "":
+                return None, None
+            path = Path(stroka)
+        else:
+            env_path = os.getenv("KOLIBRI_JOURNAL_PATH")
+            if env_path is not None:
+                stroka = env_path.strip()
+                if stroka.lower() in {"", "0", "false", "no", "off"}:
+                    return None, None
+                path = Path(stroka)
+            else:
+                log_dir_env = os.getenv("KOLIBRI_LOG_DIR")
+                if not log_dir_env:
+                    return None, None
+                baza = Path(log_dir_env)
+                path = baza / "kolibri_journal.jsonl"
+
+        if path is None:
+            return None, None
+
+        rotate_dir: Optional[Path]
+        if zhurnal_rotate_dir is not None:
+            stroka = str(zhurnal_rotate_dir).strip()
+            rotate_dir = Path(stroka) if stroka else None
+        else:
+            rotate_env = os.getenv("KOLIBRI_JOURNAL_ROTATE_DIR")
+            if rotate_env is not None:
+                stroka = rotate_env.strip()
+                if stroka.lower() in {"", "0", "false", "no", "off"}:
+                    rotate_dir = None
+                else:
+                    rotate_dir = Path(stroka)
+            else:
+                rotate_dir = path.parent / "kolibri-journal-rotate"
+
+        return path, rotate_dir
+
     def _nastroit_avto_tracer(
         self,
         trace_path: "Path | str | None",
@@ -189,7 +265,8 @@ class KolibriSim:
             return
 
         include_genome = self._vybrat_trace_genome(trace_include_genome)
-        tracer = JsonLinesTracer(path, include_genome=include_genome)
+        rotate_dir = self._vybrat_trace_rotate_dir()
+        tracer = JsonLinesTracer(path, include_genome=include_genome, rotate_dir=rotate_dir)
         self.ustanovit_tracer(tracer, vkljuchat_genom=include_genome)
 
     def _vybrat_trace_path(self, trace_path: "Path | str | None") -> Optional[Path]:
@@ -230,6 +307,17 @@ class KolibriSim:
         env_value = os.getenv("KOLIBRI_TRACE_GENOME")
         return self._env_flag(env_value, default=False)
 
+    def _vybrat_trace_rotate_dir(self) -> Optional[Path]:
+        """Возвращает каталог для архивных JSONL-трасс, если он указан."""
+
+        rotate_env = os.getenv("KOLIBRI_TRACE_ROTATE_DIR")
+        if rotate_env is None:
+            return None
+        stroka = rotate_env.strip()
+        if stroka.lower() in {"", "0", "false", "no", "off"}:
+            return None
+        return Path(stroka)
+
     def _registrirovat(self, tip: str, soobshenie: str) -> None:
         """Добавляет запись в оперативный журнал действий."""
         zapis: ZhurnalZapis = {
@@ -238,10 +326,22 @@ class KolibriSim:
             "metka": time.time(),
         }
         self.zhurnal.append(zapis)
+        sdvig = 0
+        otseshennoe: List[ZhurnalZapis] = []
         if len(self.zhurnal) > self.predel_zhurnala:
             sdvig = len(self.zhurnal) - self.predel_zhurnala
+            otseshennoe = self.zhurnal[:sdvig]
             del self.zhurnal[:sdvig]
             self._zhurnal_sdvig += sdvig
+
+        if self._zhurnal_writer is not None:
+            nachalo_rotacii = self._zhurnal_sdvig - sdvig if sdvig else None
+            self._zhurnal_writer.persist(
+                records=self.zhurnal,
+                offset=self._zhurnal_sdvig,
+                rotated=otseshennoe,
+                rotated_start=nachalo_rotacii,
+            )
 
         blok = self._sozdanie_bloka(tip, zapis)
         tracer = self._tracer
@@ -326,8 +426,6 @@ class KolibriSim:
         kod = f"f(x)={mnozhitel}*x+{smeshchenie}"
         nazvanie = f"F{len(self.formuly) + 1:04d}"
 
-        zapis: FormulaRecord = {
-
         zapis: FormulaZapis = {
 
             "kod": kod,
@@ -410,10 +508,22 @@ class KolibriSim:
         if predel < 1:
             raise ValueError("предельный размер журнала должен быть положительным")
         self.predel_zhurnala = predel
+        sdvig = 0
+        otseshennoe: List[ZhurnalZapis] = []
         if len(self.zhurnal) > predel:
             sdvig = len(self.zhurnal) - predel
+            otseshennoe = self.zhurnal[:sdvig]
             del self.zhurnal[:sdvig]
             self._zhurnal_sdvig += sdvig
+
+        if self._zhurnal_writer is not None:
+            nachalo_rotacii = self._zhurnal_sdvig - sdvig if sdvig else None
+            self._zhurnal_writer.persist(
+                records=self.zhurnal,
+                offset=self._zhurnal_sdvig,
+                rotated=otseshennoe,
+                rotated_start=nachalo_rotacii,
+            )
 
     def poluchit_zhurnal(self) -> ZhurnalSnapshot:
         """Возвращает снимок журнала с информацией о отброшенных записях."""
@@ -427,10 +537,13 @@ class KolibriSim:
         self._tracer_include_genome = bool(tracer) and vkljuchat_genom
         if tracer is None:
             self._trace_path = None
+            self._trace_rotate_dir = None
         elif isinstance(tracer, JsonLinesTracer):
             self._trace_path = tracer._path  # type: ignore[attr-defined]
+            self._trace_rotate_dir = getattr(tracer, "_rotate_dir", None)
         else:
             self._trace_path = None
+            self._trace_rotate_dir = None
 
     def poluchit_trace_path(self) -> Optional[Path]:
         """Возвращает путь к активному JSONL-журналу, если он настроен."""
@@ -488,10 +601,6 @@ def zagruzit_sostoyanie(path: Path) -> Dict[str, Any]:
         tekst = vosstanovit_tekst_iz_cifr(v)
         rezultat[k] = json.loads(tekst)
     return rezultat
-
-
-
-def obnovit_soak_state(path: Path, sim: KolibriSim, minuti: int) -> Dict[str, Any]:
 
 def obnovit_soak_state(path: Path, sim: KolibriSim, minuti: int) -> SoakState:
 

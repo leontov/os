@@ -14,9 +14,16 @@ if TYPE_CHECKING:
 class JsonLinesTracer:
     """Сохраняет события журнала KolibriSim в JSON Lines файле."""
 
-    def __init__(self, path: Path, *, include_genome: bool = False) -> None:
+    def __init__(
+        self,
+        path: Path,
+        *,
+        include_genome: bool = False,
+        rotate_dir: "Path | None" = None,
+    ) -> None:
         self._path = Path(path)
         self._include_genome = include_genome
+        self._rotate_dir = Path(rotate_dir) if rotate_dir is not None else None
 
     def zapisat(self, zapis: "ZhurnalZapis", blok: "ZapisBloka | None" = None) -> None:
         zapic: Dict[str, Any] = {"event": zapis}
