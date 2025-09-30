@@ -14,7 +14,6 @@ add_library(kolibri_core
     backend/src/formula.c
     backend/src/roy.c
     backend/src/script.c
-    backend/src/net.c
 )
 
 target_include_directories(kolibri_core
@@ -43,7 +42,6 @@ if(KOLIBRI_ENABLE_TESTS)
         tests/test_formula.c
         tests/test_roy.c
         tests/test_script.c
-        tests/test_net.c
     )
     target_link_libraries(kolibri_tests PRIVATE kolibri_core Threads::Threads)
     add_test(NAME kolibri_tests COMMAND kolibri_tests)
@@ -59,37 +57,10 @@ endif()
 
 # === Kolibri digits module wiring ===
 if(TARGET kolibri_core)
-  target_sources(kolibri_core PRIVATE
-    backend/src/digits.c
-    backend/src/wasm_bridge.c
-  )
+  target_sources(kolibri_core PRIVATE backend/src/digits.c)
 endif()
 
 # (опционально) добавим минимальные тесты по digits
 if(TARGET kolibri_tests)
   target_sources(kolibri_tests PRIVATE tests/test_digits.c)
 endif()
-
-set(KOLIBRI_WASM_SOURCES
-    ${CMAKE_CURRENT_SOURCE_DIR}/backend/src/decimal.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/backend/src/digits.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/backend/src/formula.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/backend/src/random.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/backend/src/script.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/backend/src/wasm_bridge.c
-)
-
-set(KOLIBRI_WASM_OUTPUT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/build/wasm)
-set(KOLIBRI_WASM_ARTIFACTS
-    ${KOLIBRI_WASM_OUTPUT_DIR}/kolibri.wasm
-    ${KOLIBRI_WASM_OUTPUT_DIR}/kolibri.wasm.sha256
-    ${KOLIBRI_WASM_OUTPUT_DIR}/kolibri.wasm.txt
-)
-
-add_custom_target(kolibri_wasm
-    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/build_wasm.sh
-    BYPRODUCTS ${KOLIBRI_WASM_ARTIFACTS}
-    DEPENDS ${KOLIBRI_WASM_SOURCES} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/build_wasm.sh
-    COMMENT "Building kolibri WebAssembly artifacts"
-    VERBATIM
-)
