@@ -1,18 +1,22 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Layout from "./components/Layout";
-import Sidebar from "./components/Sidebar";
+import Sidebar, { type SidebarView } from "./components/Sidebar";
 import WelcomeScreen from "./components/WelcomeScreen";
 import ChatInput from "./components/ChatInput";
 import ChatView from "./components/ChatView";
+import NodeGraph from "./components/NodeGraph";
 import type { ChatMessage } from "./types/chat";
 import kolibriBridge from "./core/kolibri-bridge";
+import useClusterTopology from "./hooks/useClusterTopology";
 
 const App = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [mode, setMode] = useState("Быстрый ответ");
+  const [activeView, setActiveView] = useState<SidebarView>("Диалоги");
   const [isProcessing, setIsProcessing] = useState(false);
   const [bridgeReady, setBridgeReady] = useState(false);
+  const { topology, isLoading: isTopologyLoading, error: topologyError, reload: reloadTopology } = useClusterTopology();
 
   useEffect(() => {
     let cancelled = false;
@@ -119,7 +123,7 @@ const App = () => {
     }
   }, [bridgeReady, draft, isProcessing, mode]);
 
-  const content = useMemo(() => {
+  const conversationContent = useMemo(() => {
     if (!messages.length) {
       return <WelcomeScreen onSuggestionSelect={handleSuggestionSelect} />;
     }
@@ -127,18 +131,45 @@ const App = () => {
     return <ChatView messages={messages} isLoading={isProcessing} />;
   }, [handleSuggestionSelect, isProcessing, messages]);
 
+  const mainContent = useMemo(() => {
+    if (activeView === "Визуализация") {
+      return (
+        <NodeGraph
+          topology={topology}
+          isLoading={isTopologyLoading}
+          error={topologyError}
+          onReload={reloadTopology}
+        />
+      );
+    }
+
+    return <div className="flex-1">{conversationContent}</div>;
+  }, [activeView, conversationContent, topology, isTopologyLoading, topologyError, reloadTopology]);
+
+  useEffect(() => {
+    if (activeView !== "Визуализация") {
+      return;
+    }
+
+    void reloadTopology();
+  }, [activeView, reloadTopology]);
+
+  const showChatInput = activeView === "Диалоги";
+
   return (
-    <Layout sidebar={<Sidebar />}>
-      <div className="flex-1">{content}</div>
-      <ChatInput
-        value={draft}
-        mode={mode}
-        isBusy={isProcessing || !bridgeReady}
-        onChange={setDraft}
-        onModeChange={setMode}
-        onSubmit={sendMessage}
-        onReset={resetConversation}
-      />
+    <Layout sidebar={<Sidebar activeView={activeView} onNavigate={setActiveView} />}>
+      {mainContent}
+      {showChatInput ? (
+        <ChatInput
+          value={draft}
+          mode={mode}
+          isBusy={isProcessing || !bridgeReady}
+          onChange={setDraft}
+          onModeChange={setMode}
+          onSubmit={sendMessage}
+          onReset={resetConversation}
+        />
+      ) : null}
     </Layout>
   );
 };

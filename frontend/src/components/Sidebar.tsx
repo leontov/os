@@ -8,36 +8,63 @@ import {
 } from "lucide-react";
 import NavItem from "./NavItem";
 
-const Sidebar = () => (
-  <div className="flex h-full flex-col justify-between rounded-3xl bg-background-sidebar/70 p-6 backdrop-blur-xl">
-    <div className="space-y-8">
-      <div className="flex items-center gap-3">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-card">
-          <img src="/kolibri.svg" alt="Колибри" className="h-10 w-10" />
+export type SidebarView = "Диалоги" | "Визуализация";
+
+interface SidebarProps {
+  activeView: SidebarView;
+  onNavigate: (view: SidebarView) => void;
+}
+
+const Sidebar = ({ activeView, onNavigate }: SidebarProps) => {
+  const items: Array<{
+    icon: typeof MessageCircle;
+    label: string;
+    view?: SidebarView;
+    disabled?: boolean;
+  }> = [
+    { icon: MessageCircle, label: "Диалоги", view: "Диалоги" },
+    { icon: Sparkles, label: "Действия", disabled: true },
+    { icon: BarChart3, label: "Визуализация", view: "Визуализация" },
+    { icon: Clock3, label: "История", disabled: true },
+    { icon: Settings, label: "Настройки", disabled: true },
+  ];
+
+  return (
+    <div className="flex h-full flex-col justify-between rounded-3xl bg-background-sidebar/70 p-6 backdrop-blur-xl">
+      <div className="space-y-8">
+        <div className="flex items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-card">
+            <img src="/kolibri.svg" alt="Колибри" className="h-10 w-10" />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-text-light">Колибри ИИ</p>
+            <p className="text-lg font-semibold text-text-dark">Визуальная Кора</p>
+          </div>
+        </div>
+        <nav className="space-y-2">
+          {items.map(({ icon, label, view, disabled }) => (
+            <NavItem
+              key={label}
+              icon={icon}
+              label={label}
+              active={view === activeView}
+              disabled={disabled}
+              onClick={view ? () => onNavigate(view) : undefined}
+            />
+          ))}
+        </nav>
+      </div>
+      <div className="flex items-center gap-3 rounded-2xl bg-white/70 p-3">
+        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          <Bot className="h-6 w-6" />
         </div>
         <div>
-          <p className="text-sm font-medium text-text-light">Колибри ИИ</p>
-          <p className="text-lg font-semibold text-text-dark">Визуальная Кора</p>
+          <p className="text-sm font-semibold text-text-dark">Vladislav Kochurov</p>
+          <p className="text-xs text-text-light">Колибри может делать ошибки.</p>
         </div>
       </div>
-      <nav className="space-y-2">
-        <NavItem icon={MessageCircle} label="Диалоги" active />
-        <NavItem icon={Sparkles} label="Действия" />
-        <NavItem icon={BarChart3} label="Визуализация" />
-        <NavItem icon={Clock3} label="История" />
-        <NavItem icon={Settings} label="Настройки" />
-      </nav>
     </div>
-    <div className="flex items-center gap-3 rounded-2xl bg-white/70 p-3">
-      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
-        <Bot className="h-6 w-6" />
-      </div>
-      <div>
-        <p className="text-sm font-semibold text-text-dark">Vladislav Kochurov</p>
-        <p className="text-xs text-text-light">Колибри может делать ошибки.</p>
-      </div>
-    </div>
-  </div>
-);
+  );
+};
 
 export default Sidebar;
