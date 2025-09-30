@@ -29,6 +29,8 @@ jobs:
         run: pyright
       - name: Pytest
         run: pytest -q
+      - name: KolibriSim evaluation benchmarks
+        run: python scripts/evaluate_model.py
 
   core-build:
     name: CMake, тесты и ISO

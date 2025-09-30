@@ -1,0 +1,27 @@
+{
+  "name": "swarm",
+  "description": "Multi-node knowledge synchronisation and shared fitness probes.",
+  "nodes": [
+    {"id": "alpha", "seed": 3},
+    {"id": "beta", "seed": 5}
+  ],
+  "thresholds": {
+    "max_accuracy_regression": 0.0,
+    "max_fitness_delta_regression": 0.1
+  },
+  "setup": [
+    {"action": "teach", "node": "alpha", "stimulus": "север", "response": "полюс"},
+    {"action": "teach", "node": "beta", "stimulus": "юг", "response": "тепло"}
+  ],
+  "cases": [
+    {"id": "pre_sync_unknown", "action": "ask", "node": "beta", "stimulus": "север"},
+    {"id": "sync_transfer", "action": "sync", "source": "alpha", "target": "beta"},
+    {"id": "post_sync_known", "action": "ask", "node": "beta", "stimulus": "север"},
+    {"id": "reverse_sync", "action": "sync", "source": "beta", "target": "alpha"},
+    {"id": "alpha_knows_yug", "action": "ask", "node": "alpha", "stimulus": "юг"}
+  ],
+  "fitness_cases": [
+    {"id": "alpha_formula", "node": "alpha", "context": "swarm-alpha", "success": 0.77},
+    {"id": "beta_formula", "node": "beta", "context": "swarm-beta", "success": 0.66}
+  ]
+}
