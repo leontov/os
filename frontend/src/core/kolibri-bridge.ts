@@ -24,6 +24,18 @@ interface KolibriWasmExports extends WebAssembly.Exports {
 const OUTPUT_CAPACITY = 8192;
 const DEFAULT_MODE = "Быстрый ответ";
 const WASM_RESOURCE_URL = "/kolibri.wasm";
+const HTTP_ENDPOINT = (import.meta.env.VITE_KOLIBRI_INFERENCE_URL ?? "").trim();
+const HTTP_TIMEOUT_MS = Number.parseInt(
+  (import.meta.env.VITE_KOLIBRI_INFERENCE_TIMEOUT ?? "30000").trim(),
+  10
+);
+
+interface InferenceResponse {
+  output: string;
+  provider: string;
+  model: string;
+  mode?: string | null;
+}
 
 const COMMAND_PATTERN = /^(показать|обучить|спросить|тикнуть|сохранить)/i;
 const PROGRAM_START_PATTERN = /начало\s*:/i;
@@ -179,6 +191,90 @@ class KolibriWasmBridge implements KolibriBridge {
   }
 }
 
+class KolibriHttpBridge implements KolibriBridge {
+  readonly ready: Promise<void>;
+  private readonly baseUrl: string;
+  private readonly timeout: number;
+
+  constructor(endpoint: string, timeout: number) {
+    this.baseUrl = endpoint.replace(/\/+$/, "");
+    this.timeout = Number.isFinite(timeout) && timeout > 0 ? timeout : 30000;
+    this.ready = this.healthcheck();
+  }
+
+  private async healthcheck(): Promise<void> {
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), this.timeout);
+
+    try {
+      const response = await fetch(`${this.baseUrl}/health`, {
+        method: "GET",
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        const reason = `${response.status} ${response.statusText}`;
+        throw new Error(`Сервис инференса недоступен: ${reason}`);
+      }
+    } catch (error) {
+      throw this.toBridgeError(error, "Не удалось подключиться к сервису инференса");
+    } finally {
+      window.clearTimeout(timer);
+    }
+  }
+
+  async ask(prompt: string, mode: string = DEFAULT_MODE): Promise<string> {
+    await this.ready;
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), this.timeout);
+
+    try {
+      const response = await fetch(`${this.baseUrl}/generate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ prompt, mode }),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        const detail = await response.text();
+        const reason = detail ? `${response.status} ${response.statusText}: ${detail}` : `${response.status} ${response.statusText}`;
+        throw new Error(`Сервис инференса ответил с ошибкой: ${reason}`);
+      }
+
+      const payload = (await response.json()) as InferenceResponse;
+      if (!payload || typeof payload.output !== "string") {
+        throw new Error("Сервис инференса вернул неожиданный ответ");
+      }
+
+      const text = payload.output.trim();
+      return text.length > 0 ? payload.output.trimEnd() : "Сервис инференса завершил работу без вывода.";
+    } catch (error) {
+      throw this.toBridgeError(error, "Не удалось получить ответ от сервиса инференса");
+    } finally {
+      window.clearTimeout(timer);
+    }
+  }
+
+  async reset(): Promise<void> {
+    await this.ready;
+    // Сервис инференса не имеет состояния, которое требуется сбрасывать.
+  }
+
+  private toBridgeError(error: unknown, fallback: string): Error {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      return new Error(`${fallback}: превышено время ожидания (${this.timeout} мс)`);
+    }
+    if (error instanceof Error) {
+      return new Error(`${fallback}: ${error.message}`);
+    }
+    return new Error(`${fallback}: ${String(error)}`);
+  }
+}
+
 class KolibriFallbackBridge implements KolibriBridge {
   readonly ready = Promise.resolve();
   private readonly reason: string;
@@ -207,6 +303,17 @@ class KolibriFallbackBridge implements KolibriBridge {
 }
 
 const createBridge = async (): Promise<KolibriBridge> => {
+  if (HTTP_ENDPOINT) {
+    const httpBridge = new KolibriHttpBridge(HTTP_ENDPOINT, HTTP_TIMEOUT_MS);
+    try {
+      await httpBridge.ready;
+      console.info("[kolibri-bridge] Используется HTTP сервис инференса Kolibri.");
+      return httpBridge;
+    } catch (error) {
+      console.warn("[kolibri-bridge] Сервис инференса недоступен, переключение на KolibriScript.", error);
+    }
+  }
+
   const wasmBridge = new KolibriWasmBridge();
 
   try {
