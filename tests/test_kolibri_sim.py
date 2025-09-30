@@ -14,6 +14,8 @@ import pytest  # noqa: E402
 
 from core.kolibri_sim import (  # noqa: E402
     KolibriSim,
+    MetricEntry,
+    SoakState,
     dec_hash,
     dolzhen_zapustit_repl,
     obnovit_soak_state,
@@ -172,6 +174,41 @@ def test_t15_soak_state_accumulates(tmp_path: Path) -> None:
     assert isinstance(metrics_first, list)
     assert len(metrics_second) >= len(metrics_first) + 2
 
+
+def test_t16_soak_state_roundtrip(tmp_path: Path) -> None:
+    path = tmp_path / "soak_roundtrip.json"
+    sim = KolibriSim(zerno=8)
+    written = obnovit_soak_state(path, sim, minuti=2)
+
+    loaded = zagruzit_sostoyanie(path)
+    assert loaded == written
+
+    metrics = written.get("metrics")
+    assert isinstance(metrics, list)
+    assert metrics, "должны сохраняться метрики"
+    first_entry = metrics[0]
+    assert isinstance(first_entry, dict)
+    assert set(first_entry) == {"minute", "formula", "fitness", "genome"}
+
+
+def test_t17_soak_state_merges_existing(tmp_path: Path) -> None:
+    path = tmp_path / "soak_existing.json"
+    initial: SoakState = {
+        "events": 5,
+        "metrics": [
+            MetricEntry(minute=0, formula="seed", fitness=1.0, genome=2),
+        ],
+    }
+    sohranit_sostoyanie(path, initial)
+
+    sim = KolibriSim(zerno=5)
+    updated = obnovit_soak_state(path, sim, minuti=1)
+    loaded = zagruzit_sostoyanie(path)
+
+    assert loaded == updated
+    assert isinstance(updated.get("metrics"), list)
+    assert len(updated["metrics"]) >= 2
+    assert updated["events"] > initial["events"]
 
 
 # --- Трассировка и структурированные события -------------------------------

@@ -53,9 +53,9 @@ class FormulaZapis(TypedDict):
 
 
 
-class MetricRecord(TypedDict):
+class MetricEntry(TypedDict):
     """Метрика одного шага soak-прогона."""
-    
+
     minute: int
     formula: str
     fitness: float
@@ -63,11 +63,7 @@ class MetricRecord(TypedDict):
 
 
 class SoakResult(TypedDict):
-
     """Результат выполнения soak-сессии."""
-
-    events: int
-    metrics: List[MetricRecord]
 
     events: int
     metrics: List[MetricEntry]
@@ -326,8 +322,6 @@ class KolibriSim:
         kod = f"f(x)={mnozhitel}*x+{smeshchenie}"
         nazvanie = f"F{len(self.formuly) + 1:04d}"
 
-        zapis: FormulaRecord = {
-
         zapis: FormulaZapis = {
 
             "kod": kod,
@@ -446,8 +440,6 @@ class KolibriSim:
         """Имитация длительного прогона: создаёт формулы и записи генома."""
         nachalnyj_razmer = len(self.genom)
 
-        metrika: List[MetricRecord] = []
-
         metrika: List[MetricEntry] = []
 
         for minuta in range(minuti):
@@ -488,11 +480,6 @@ def zagruzit_sostoyanie(path: Path) -> Dict[str, Any]:
         tekst = vosstanovit_tekst_iz_cifr(v)
         rezultat[k] = json.loads(tekst)
     return rezultat
-
-
-
-def obnovit_soak_state(path: Path, sim: KolibriSim, minuti: int) -> Dict[str, Any]:
-
 def obnovit_soak_state(path: Path, sim: KolibriSim, minuti: int) -> SoakState:
 
     """Читает, дополняет и сохраняет состояние длительных прогонов."""
@@ -508,12 +495,12 @@ def obnovit_soak_state(path: Path, sim: KolibriSim, minuti: int) -> SoakState:
     else:
         metrics = []
         tekuschee["metrics"] = metrics
-    metrics.extend(itogi["metrics"])
+    metrics.extend(cast(List[MetricEntry], itogi["metrics"]))
 
     events_prev = tekuschee.get("events")
     if not isinstance(events_prev, int):
         events_prev = 0
-    tekuschee["events"] = events_prev + itogi["events"]
+    tekuschee["events"] = events_prev + cast(int, itogi["events"])
 
     sohranit_sostoyanie(path, tekuschee)
     return tekuschee
