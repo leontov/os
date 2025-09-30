@@ -23,6 +23,7 @@ class FormulaRecord(TypedDict):
 from typing import Dict, List, Mapping, Optional, Protocol, TypedDict, cast
 
 from .tracing import JsonLinesTracer
+from .tools import ToolRegistry, ToolPlugin
 
 
 class ZhurnalZapis(TypedDict):
@@ -55,11 +56,14 @@ class FormulaZapis(TypedDict):
 
 class MetricRecord(TypedDict):
     """Метрика одного шага soak-прогона."""
-    
+
     minute: int
     formula: str
     fitness: float
     genome: int
+
+
+MetricEntry = MetricRecord
 
 
 class SoakResult(TypedDict):
@@ -154,6 +158,8 @@ class KolibriSim:
         self._trace_path: Optional[Path] = None
         self._nastroit_avto_tracer(trace_path, trace_include_genome)
         self._sozdanie_bloka("GENESIS", {"seed": zerno})
+        self._tool_registry = ToolRegistry()
+        self._register_default_plugins()
 
     # --- Вспомогательные методы ---
     def _sozdanie_bloka(self, tip: str, dannye: Mapping[str, object]) -> ZapisBloka:
@@ -267,26 +273,19 @@ class KolibriSim:
         self._registrirovat("ASK", f"{stimul}->{otvet}")
         return otvet
 
+    def register_plugin(self, plugin: ToolPlugin) -> None:
+        """Регистрирует внешний плагин чат-команд."""
+        self._tool_registry.register_plugin(plugin)
+
+    def _register_default_plugins(self) -> None:
+        """Подключает встроенные плагины KolibriSim."""
+        self.register_plugin(KnowledgeBasePlugin())
+        self.register_plugin(NumberToolsPlugin())
+        self.register_plugin(SandboxExecutionPlugin())
+
     def dobrovolnaya_otpravka(self, komanda: str, argument: str) -> str:
         """Обрабатывает команды чата KolibriScript, используя русские ключевые слова."""
-        komanda = komanda.strip().lower()
-        if komanda == "стимул":
-            return self.sprosit(argument)
-        if komanda == "серия":
-            chislo = max(0, min(9, int(argument) if argument.isdigit() else 0))
-            posledovatelnost = "".join(str((ind + chislo) % 10) for ind in range(10))
-            self._registrirovat("SERIES", posledovatelnost)
-            return posledovatelnost
-        if komanda == "число":
-            cifry = "".join(symb for symb in argument if symb.isdigit())
-            self._registrirovat("NUMBER", cifry)
-            return cifry or "0"
-        if komanda == "выражение":
-            znachenie = self._bezopasnoe_vychislenie(argument)
-            rezultat = str(znachenie)
-            self._registrirovat("EXPR", rezultat)
-            return rezultat
-        raise ValueError(f"неизвестная команда: {komanda}")
+        return self._tool_registry.dispatch(self, komanda, argument)
 
     def _bezopasnoe_vychislenie(self, vyrazhenie: str) -> int:
         """Вычисляет арифметическое выражение через AST, исключая опасные конструкции."""
@@ -327,9 +326,6 @@ class KolibriSim:
         nazvanie = f"F{len(self.formuly) + 1:04d}"
 
         zapis: FormulaRecord = {
-
-        zapis: FormulaZapis = {
-
             "kod": kod,
             "fitness": 0.0,
             "parents": roditeli,
@@ -469,6 +465,48 @@ class KolibriSim:
         }
 
 
+class KnowledgeBasePlugin:
+    """Плагин доступа к базе знаний KolibriSim."""
+
+    def register_commands(self, registry: ToolRegistry) -> None:
+        registry.register_command("стимул", self._ask)
+
+    def _ask(self, sim: "KolibriSim", argument: str) -> str:
+        return sim.sprosit(argument)
+
+
+class NumberToolsPlugin:
+    """Плагин числовых утилит (серии и фильтрация цифр)."""
+
+    def register_commands(self, registry: ToolRegistry) -> None:
+        registry.register_command("серия", self._series)
+        registry.register_command("число", self._digits)
+
+    def _series(self, sim: "KolibriSim", argument: str) -> str:
+        chislo = max(0, min(9, int(argument) if argument.isdigit() else 0))
+        posledovatelnost = "".join(str((ind + chislo) % 10) for ind in range(10))
+        sim._registrirovat("SERIES", posledovatelnost)
+        return posledovatelnost
+
+    def _digits(self, sim: "KolibriSim", argument: str) -> str:
+        cifry = "".join(symb for symb in argument if symb.isdigit())
+        sim._registrirovat("NUMBER", cifry)
+        return cifry or "0"
+
+
+class SandboxExecutionPlugin:
+    """Плагин безопасного вычисления арифметических выражений."""
+
+    def register_commands(self, registry: ToolRegistry) -> None:
+        registry.register_command("выражение", self._evaluate)
+
+    def _evaluate(self, sim: "KolibriSim", argument: str) -> str:
+        znachenie = sim._bezopasnoe_vychislenie(argument)
+        rezultat = str(znachenie)
+        sim._registrirovat("EXPR", rezultat)
+        return rezultat
+
+
 def sohranit_sostoyanie(path: Path, sostoyanie: Mapping[str, Any]) -> None:
     """Сохраняет состояние в JSON с переводом текстов в цифровой слой."""
     serializovannoe = {
@@ -488,10 +526,6 @@ def zagruzit_sostoyanie(path: Path) -> Dict[str, Any]:
         tekst = vosstanovit_tekst_iz_cifr(v)
         rezultat[k] = json.loads(tekst)
     return rezultat
-
-
-
-def obnovit_soak_state(path: Path, sim: KolibriSim, minuti: int) -> Dict[str, Any]:
 
 def obnovit_soak_state(path: Path, sim: KolibriSim, minuti: int) -> SoakState:
 

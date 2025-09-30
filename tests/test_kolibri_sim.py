@@ -103,6 +103,22 @@ def test_t9_chat_commands() -> None:
     assert sim.dobrovolnaya_otpravka("выражение", "2+2*2") == "6"
 
 
+def test_tool_plugin_extension() -> None:
+    sim = KolibriSim(zerno=13)
+
+    class EchoPlugin:
+        def register_commands(self, registry) -> None:
+            def handler(instance: KolibriSim, argument: str) -> str:
+                instance._registrirovat("ECHO", argument)
+                return argument.upper()
+
+            registry.register_command("эхо", handler)
+
+    sim.register_plugin(EchoPlugin())
+    assert sim.dobrovolnaya_otpravka("эхо", "проба") == "ПРОБА"
+    assert sim.zhurnal[-1]["tip"] == "ECHO"
+
+
 def test_t10_repl_guard(monkeypatch: pytest.MonkeyPatch) -> None:
     env = {"KOLIBRI_REPL": "1"}
     assert dolzhen_zapustit_repl(env, True) is True
