@@ -82,7 +82,34 @@ case "${1:-}" in
         cmake --build "$build_dir"
         build_frontend
         ensure_hmac_key
+        server_pid=""
+        cleanup() {
+            if [ -n "$server_pid" ]; then
+                if kill -0 "$server_pid" >/dev/null 2>&1; then
+                    kill "$server_pid" >/dev/null 2>&1 || true
+                fi
+                wait "$server_pid" >/dev/null 2>&1 || true
+            fi
+        }
+        trap cleanup EXIT
+
+        "$build_dir/kolibri_server" --rest-port 8080 --grpc-port 7000 &
+        server_pid=$!
+        sleep 1
+        if ! kill -0 "$server_pid" >/dev/null 2>&1; then
+            echo "[Kolibri] kolibri_server не стартовал" >&2
+            wait "$server_pid" >/dev/null 2>&1 || true
+            exit 1
+        fi
+
+        set +e
         "$build_dir/kolibri_node" --hmac-key "$hmac_key_path"
+        node_status=$?
+        set -e
+
+        cleanup
+        trap - EXIT
+        exit "$node_status"
         ;;
     build)
         cmake -S "$root_dir" -B "$build_dir" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON

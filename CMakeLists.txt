@@ -30,9 +30,11 @@ target_link_libraries(kolibri_core PRIVATE OpenSSL::Crypto)
 
 add_executable(kolibri_node apps/kolibri_node.c)
 add_executable(ks_compiler apps/ks_compiler.c)
+add_executable(kolibri_server apps/kolibri_server.c)
 
 target_link_libraries(kolibri_node PRIVATE kolibri_core)
 target_link_libraries(ks_compiler PRIVATE kolibri_core)
+target_link_libraries(kolibri_server PRIVATE kolibri_core Threads::Threads)
 
 if(KOLIBRI_ENABLE_TESTS)
     enable_testing()
