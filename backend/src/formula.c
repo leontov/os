@@ -143,11 +143,8 @@ static double evaluate_formula(const KolibriFormula *formula, const KolibriFormu
         int diff = pool->targets[i] - prediction;
         total_error += fabs((double)diff);
     }
-    double fitness = 1.0 / (1.0 + total_error);
-    fitness -= complexity_penalty(&formula->gene);
-    if (fitness < 0.0) {
-        fitness = 0.0;
-    }
+    double penalty = complexity_penalty(&formula->gene);
+    double fitness = 1.0 / (1.0 + total_error + penalty);
     return fitness;
 }
 
