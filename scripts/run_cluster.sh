@@ -17,6 +17,7 @@ kolichestvo=3
 bazovyj_port=4100
 prodolzhitelnost=60
 bazovoe_zerno=20250923
+propustit_sborku="${KOLIBRI_CLUSTER_SKIP_BUILD:-0}"
 
 while getopts "n:b:d:s:h" flag; do
     case "$flag" in
@@ -84,8 +85,10 @@ obespechit_klyuch() {
     sozdat_klyuch >"$key_path"
 }
 
-cmake -S "$root_dir" -B "$build_dir" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON >/dev/null
-cmake --build "$build_dir" >/dev/null
+if [ "$propustit_sborku" != "1" ]; then
+    cmake -S "$root_dir" -B "$build_dir" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON >/dev/null
+    cmake --build "$build_dir" >/dev/null
+fi
 
 obespechit_klyuch
 
