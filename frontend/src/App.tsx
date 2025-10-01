@@ -4,6 +4,7 @@ import Sidebar from "./components/Sidebar";
 import WelcomeScreen from "./components/WelcomeScreen";
 import ChatInput from "./components/ChatInput";
 import ChatView from "./components/ChatView";
+import MetricsPanel from "./components/MetricsPanel";
 import type { ChatMessage } from "./types/chat";
 import kolibriBridge from "./core/kolibri-bridge";
 import { searchKnowledge } from "./core/knowledge";
@@ -175,7 +176,7 @@ const App = () => {
   }, [conversationId, handleSuggestionSelect, isProcessing, messages]);
 
   return (
-    <Layout sidebar={<Sidebar />}>
+    <Layout sidebar={<Sidebar />} metricsPanel={<MetricsPanel />}>
       <div className="flex-1">{content}</div>
       <ChatInput
         value={draft}
