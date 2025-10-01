@@ -67,11 +67,18 @@ EOF
 }
 
 sozdat_stub_wasm() {
-    printf '\x00asm\x01\x00\x00\x00' >"$vyhod_wasm"
+    local stub_istochnik="$proekt_koren/scripts/assets/kolibri_stub.wasm"
+    if [[ -f "$stub_istochnik" ]]; then
+        cp "$stub_istochnik" "$vyhod_wasm"
+    else
+        printf '\x00asm\x01\x00\x00\x00' >"$vyhod_wasm"
+    fi
+
     cat >"$vyhod_dir/kolibri.wasm.txt" <<'EOF_INFO'
 kolibri.wasm: заглушка (WebAssembly ядро недоступно)
-В окружении не найден компилятор Emscripten (emcc) и отсутствует Docker для
-автосборки. Фронтенд Kolibri будет работать в деградированном режиме без WASM.
+Эта заглушка экспортирует минимальные функции моста, которые всегда
+возвращают ошибку и не выполняют KolibriScript. Она нужна лишь для
+диагностики и предотвращения сбоев интерфейса.
 Установите Emscripten или Docker и повторно запустите scripts/build_wasm.sh,
 чтобы получить полноценный модуль kolibri.wasm.
 EOF_INFO
