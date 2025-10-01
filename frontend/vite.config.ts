@@ -1,5 +1,6 @@
-import { defineConfig, type Plugin, type Connect } from "vite";
+import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
+import type { Plugin, Connect } from "vite";
 import { copyFile, mkdir, access, readFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { dirname, resolve } from "node:path";
@@ -12,6 +13,8 @@ interface KnowledgeRecord {
   scoreBoost?: number;
   source?: string;
 }
+
+type KnowledgeSnippet = Omit<KnowledgeRecord, "scoreBoost"> & { score: number };
 
 const knowledgeBase: KnowledgeRecord[] = [
   {
@@ -67,7 +70,7 @@ const normaliseLimit = (value: string | null, fallback: number, max: number): nu
   return Math.min(parsed, max);
 };
 
-const searchKnowledgeBase = (query: string, limit: number) => {
+const searchKnowledgeBase = (query: string, limit: number): KnowledgeSnippet[] => {
   const tokens = query
     .toLowerCase()
     .split(/\s+/)
@@ -75,7 +78,7 @@ const searchKnowledgeBase = (query: string, limit: number) => {
     .filter((token) => token.length > 0);
 
   if (!tokens.length) {
-    return [] as Array<KnowledgeRecord & { score: number }>;
+    return [];
   }
 
   const scored = knowledgeBase
@@ -96,12 +99,18 @@ const searchKnowledgeBase = (query: string, limit: number) => {
       }
       const density = matches / tokens.length;
       const score = density + titleBonus + (record.scoreBoost ?? 0);
-      return { ...record, score };
+      return { record, score };
     })
-    .filter((item): item is KnowledgeRecord & { score: number } => item !== null)
+    .filter((item): item is { record: KnowledgeRecord; score: number } => item !== null)
     .sort((a, b) => b.score - a.score)
     .slice(0, limit)
-    .map(({ scoreBoost: _scoreBoost, ...rest }) => rest);
+    .map(({ record, score }) => ({
+      id: record.id,
+      title: record.title,
+      content: record.content,
+      source: record.source,
+      score: Number(score.toFixed(3)),
+    }));
 
   return scored;
 };
@@ -131,10 +140,7 @@ const createKnowledgeHandler = (): Connect.NextHandleFunction => {
       return;
     }
 
-    const snippets = searchKnowledgeBase(query, limit).map(({ scoreBoost, ...snippet }) => ({
-      ...snippet,
-      score: Number(snippet.score.toFixed(3)),
-    }));
+    const snippets = searchKnowledgeBase(query, limit);
 
     res.statusCode = 200;
     res.setHeader("Content-Type", "application/json; charset=utf-8");

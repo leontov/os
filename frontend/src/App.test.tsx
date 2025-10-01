@@ -1,17 +1,21 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { MockInstance } from "vitest";
 import App from "./App";
 
 type AskFunction = (prompt: string, mode?: string) => Promise<string>;
 
+type ResetFunction = () => Promise<void>;
+type SearchFunction = (
+  query: string,
+  options?: { topK?: number; signal?: AbortSignal }
+) => Promise<Array<{ id: string; title: string; content: string; score: number }>>;
+
 const { askMock, resetMock, searchMock } = vi.hoisted(() => ({
-  askMock: vi.fn<AskFunction>(),
-  resetMock: vi.fn<() => Promise<void>>(),
-  searchMock: vi.fn<(
-    query: string,
-    options?: { topK?: number; signal?: AbortSignal }
-  ) => Promise<Array<{ id: string; title: string; content: string; score: number }>>>(),
+  askMock: vi.fn<Parameters<AskFunction>, ReturnType<AskFunction>>(),
+  resetMock: vi.fn<Parameters<ResetFunction>, ReturnType<ResetFunction>>(),
+  searchMock: vi.fn<Parameters<SearchFunction>, ReturnType<SearchFunction>>(),
 }));
 
 vi.mock("./core/kolibri-bridge", () => ({
@@ -27,7 +31,7 @@ vi.mock("./core/knowledge", () => ({
 }));
 
 describe("App contextual retrieval", () => {
-  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+  let consoleErrorSpy: MockInstance<Parameters<typeof console.error>, ReturnType<typeof console.error>>;
 
   beforeEach(() => {
     askMock.mockReset();
