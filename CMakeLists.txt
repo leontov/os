@@ -26,7 +26,7 @@ target_include_directories(kolibri_core
 find_package(OpenSSL REQUIRED)
 find_package(Threads REQUIRED)
 
-target_link_libraries(kolibri_core PRIVATE OpenSSL::Crypto)
+target_link_libraries(kolibri_core PRIVATE OpenSSL::Crypto OpenSSL::SSL)
 
 add_executable(kolibri_node apps/kolibri_node.c)
 add_executable(ks_compiler apps/ks_compiler.c)
