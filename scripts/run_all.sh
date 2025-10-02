@@ -102,4 +102,14 @@ else
     zapisat_shag "Пропускаем запуск кластера по требованию"
 fi
 
+zapisat_shag "Оценка качества модели"
+python3 "$kornevaya/scripts/evaluate_model.py" \
+    -s "$kornevaya/docs/eval/bleu_template.json" \
+    -s "$kornevaya/docs/eval/code_eval_template.json" \
+    -s "$kornevaya/docs/eval/mt_bench_template.json" \
+    --output "$postroika/evaluation_report.json" \
+    --min-bleu 0.2 \
+    --min-codeeval 0.9 \
+    --min-mtbench 0.1
+
 zapisat_shag "Полный цикл выполнен"
