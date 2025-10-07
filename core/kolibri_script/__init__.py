@@ -43,10 +43,12 @@ __all__ = [
     "VariableDeclaration",
     "WhileStatement",
     "parse_script",
+]
 
 """Интеграция KolibriScript с цифровым геном и форматами .ksd."""
 
 from .genome import (
+    KsdBlock,
     KsdValidationError,
     KolibriGenomeLedger,
     SecretsConfig,
@@ -56,11 +58,11 @@ from .genome import (
 )
 
 __all__ = [
+    "KsdBlock",
     "KsdValidationError",
     "KolibriGenomeLedger",
     "SecretsConfig",
     "deserialize_ksd",
     "load_secrets_config",
     "serialize_ksd",
-
 ]

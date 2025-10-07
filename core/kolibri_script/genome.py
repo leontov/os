@@ -8,9 +8,10 @@ import hmac
 import json
 import os
 from pathlib import Path
-from typing import Any, Iterable, List, Mapping, Sequence
+from typing import Any, Iterable, Iterator, List, Mapping, Sequence
 
 __all__ = [
+    "KsdBlock",
     "KsdValidationError",
     "KolibriGenomeLedger",
     "SecretsConfig",
@@ -23,6 +24,8 @@ __all__ = [
 KSD_MAGIC = "707"
 _LEN_DIGITS = 6
 _SIGNATURE_DIGITS = 32
+_JOURNAL_MAGIC = "909"
+_JOURNAL_LEN_DIGITS = 9
 
 
 class KsdValidationError(ValueError):
@@ -100,11 +103,23 @@ def load_secrets_config(path: "str | os.PathLike[str] | None" = None) -> Secrets
 
 
 @dataclasses.dataclass(frozen=True)
+class KsdBlock:
+    """Метаинформация и содержимое одного блочного события журнала."""
+
+    offset: int
+    frame_length: int
+    body_length: int
+    tokens: Sequence[str]
+    records: Sequence[Mapping[str, Any]]
+
+
+@dataclasses.dataclass(frozen=True)
 class KsdDocument:
-    """Декодированное содержимое .ksd-файла."""
+    """Декодированное содержимое журнала KolibriScript."""
 
     tokens: Sequence[str]
     records: Sequence[Mapping[str, Any]]
+    blocks: Sequence[KsdBlock] = dataclasses.field(default_factory=tuple)
 
 
 def serialize_ksd(records: Sequence[Mapping[str, Any]], secrets: SecretsConfig) -> str:
@@ -124,14 +139,131 @@ def serialize_ksd(records: Sequence[Mapping[str, Any]], secrets: SecretsConfig) 
 
 
 def deserialize_ksd(data: str, secrets: SecretsConfig) -> KsdDocument:
-    """Десериализует поток цифр KolibriScript и валидирует подпись HMAC."""
+    """Десериализует поток цифр KolibriScript и валидирует подписи HMAC."""
 
     digits = data.strip()
     if not digits:
-        return KsdDocument(tokens=[], records=[])
+        return KsdDocument(tokens=[], records=[], blocks=())
     if not digits.isdigit():
         raise KsdValidationError("поток содержит недопустимые символы")
 
+    if digits.startswith(_JOURNAL_MAGIC):
+        return _deserialize_journal(digits, secrets)
+
+    tokens, records = _decode_single_payload(digits, secrets)
+    block = KsdBlock(
+        offset=0,
+        frame_length=len(digits),
+        body_length=len(digits),
+        tokens=tuple(tokens),
+        records=tuple(dict(record) for record in records),
+    )
+    return KsdDocument(tokens=list(tokens), records=list(records), blocks=(block,))
+
+
+class KolibriGenomeLedger:
+    """Файловый журнал KolibriScript с потоковой записью блоков."""
+
+    def __init__(self, path: Path, secrets: SecretsConfig) -> None:
+        self.path = Path(path)
+        self._secrets = secrets
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._handle = self.path.open("a+", encoding="utf-8")
+        self._handle.seek(0, os.SEEK_END)
+
+    def close(self) -> None:
+        """Закрывает файловый дескриптор журнала."""
+
+        if not self._handle.closed:
+            self._handle.close()
+
+    def __del__(self) -> None:  # pragma: no cover - защитный сценарий
+        try:
+            self.close()
+        except Exception:
+            pass
+
+    def has_records(self) -> bool:
+        """Возвращает ``True``, если журнал содержит хотя бы один блок."""
+
+        try:
+            return self.path.stat().st_size > 0
+        except FileNotFoundError:
+            return False
+
+    def blocks(self) -> Iterable[KsdBlock]:
+        """Итерирует блоки журнала без загрузки всего файла в память."""
+
+        yield from _iter_ledger_blocks(self.path, self._secrets)
+
+    def records(self) -> Iterable[Mapping[str, Any]]:
+        """Стримит события журнала в порядке записи."""
+
+        for block in self.blocks():
+            for record in block.records:
+                yield dict(record)
+
+    def append(self, block: Mapping[str, Any], journal_entry: Mapping[str, Any]) -> None:
+        """Добавляет запись в журнал, не переписывая предыдущие блоки."""
+
+        block_dict = dict(_ensure_plain_mapping(block))
+        entry_dict = dict(_ensure_plain_mapping(journal_entry))
+        entry_dict["block"] = block_dict
+        serialized = serialize_ksd([entry_dict], self._secrets)
+        frame = _format_journal_frame(serialized)
+        self._handle.write(frame)
+        self._handle.flush()
+        os.fsync(self._handle.fileno())
+
+
+def _deserialize_journal(digits: str, secrets: SecretsConfig) -> KsdDocument:
+    blocks: List[KsdBlock] = []
+    tokens_order: List[str] = []
+    seen_tokens: set[str] = set()
+    index = 0
+    header_len = len(_JOURNAL_MAGIC) + _JOURNAL_LEN_DIGITS
+
+    while index < len(digits):
+        if not digits.startswith(_JOURNAL_MAGIC, index):
+            raise KsdValidationError("журнал содержит повреждённый префикс")
+        block_start = index
+        index += len(_JOURNAL_MAGIC)
+        length_digits = digits[index : index + _JOURNAL_LEN_DIGITS]
+        if len(length_digits) != _JOURNAL_LEN_DIGITS or not length_digits.isdigit():
+            raise KsdValidationError("длина блока журнала повреждена")
+        body_length = int(length_digits)
+        if body_length <= 0:
+            raise KsdValidationError("блок журнала пуст")
+        index += _JOURNAL_LEN_DIGITS
+        body = digits[index : index + body_length]
+        if len(body) != body_length:
+            raise KsdValidationError("блок журнала усечён")
+        tokens, records = _decode_single_payload(body, secrets)
+        record_dicts = tuple(dict(record) for record in records)
+        block = KsdBlock(
+            offset=block_start,
+            frame_length=header_len + body_length,
+            body_length=body_length,
+            tokens=tuple(tokens),
+            records=record_dicts,
+        )
+        blocks.append(block)
+        for token in block.tokens:
+            if token not in seen_tokens:
+                seen_tokens.add(token)
+                tokens_order.append(token)
+        index += body_length
+
+    aggregated_records: List[Mapping[str, Any]] = []
+    for block in blocks:
+        aggregated_records.extend(dict(record) for record in block.records)
+
+    return KsdDocument(tokens=tokens_order, records=aggregated_records, blocks=tuple(blocks))
+
+
+def _decode_single_payload(
+    digits: str, secrets: SecretsConfig
+) -> tuple[List[str], List[Mapping[str, Any]]]:
     if len(digits) < len(KSD_MAGIC) + 2 * _LEN_DIGITS + _SIGNATURE_DIGITS:
         raise KsdValidationError("формат .ksd неполон")
 
@@ -176,48 +308,73 @@ def deserialize_ksd(data: str, secrets: SecretsConfig) -> KsdDocument:
         else:
             raise KsdValidationError("ожидается список словарей событий")
 
-    return KsdDocument(tokens=tokens, records=coerced_records)
+    return list(tokens), coerced_records
 
 
-class KolibriGenomeLedger:
-    """Файловый журнал KolibriScript с атомарным обновлением."""
-
-    def __init__(self, path: Path, secrets: SecretsConfig) -> None:
-        self.path = Path(path)
-        self._secrets = secrets
-        self._records: List[Mapping[str, Any]] = []
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        if self.path.exists():
-            raw = self.path.read_text(encoding="utf-8")
-            if raw.strip():
-                document = deserialize_ksd(raw, secrets)
-                self._records = [dict(record) for record in document.records]
-
-    @property
-    def records(self) -> Sequence[Mapping[str, Any]]:
-        """Возвращает копию текущих записей."""
-
-        return [dict(record) for record in self._records]
-
-    def append(self, block: Mapping[str, Any], journal_entry: Mapping[str, Any]) -> None:
-        """Добавляет запись в журнал и сбрасывает файл atomically."""
-
-        block_dict = dict(_ensure_plain_mapping(block))
-        entry_dict = dict(_ensure_plain_mapping(journal_entry))
-        entry_dict["block"] = block_dict
-        self._records.append(entry_dict)
-        self._flush()
-
-    def _flush(self) -> None:
-        serialized = serialize_ksd(self._records, self._secrets)
-        tmp_path = self.path.with_name(f".{self.path.name}.tmp")
-        with tmp_path.open("w", encoding="utf-8") as handle:
-            handle.write(serialized)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(tmp_path, self.path)
+def _format_journal_frame(payload: str) -> str:
+    length = len(payload)
+    if length <= 0:
+        raise ValueError("журнальный блок не может быть пустым")
+    if length >= 10**_JOURNAL_LEN_DIGITS:
+        raise ValueError("журнальный блок превышает допустимый размер")
+    return f"{_JOURNAL_MAGIC}{length:0{_JOURNAL_LEN_DIGITS}d}{payload}"
 
 
+def _iter_ledger_blocks(path: Path, secrets: SecretsConfig) -> Iterator[KsdBlock]:
+    if not path.exists():
+        return
+
+    header_len = len(_JOURNAL_MAGIC) + _JOURNAL_LEN_DIGITS
+    with path.open("r", encoding="utf-8") as handle:
+        prefix = handle.read(len(_JOURNAL_MAGIC))
+        if not prefix:
+            return
+
+        if prefix == _JOURNAL_MAGIC:
+            handle.seek(0)
+            offset = 0
+            while True:
+                header = handle.read(header_len)
+                if not header:
+                    break
+                if len(header) < header_len:
+                    raise KsdValidationError("журнальный заголовок усечён")
+                if not header.startswith(_JOURNAL_MAGIC):
+                    raise KsdValidationError("журнал содержит повреждённый префикс")
+                length_digits = header[len(_JOURNAL_MAGIC) :]
+                if not length_digits.isdigit():
+                    raise KsdValidationError("длина блока журнала повреждена")
+                body_length = int(length_digits)
+                if body_length <= 0:
+                    raise KsdValidationError("блок журнала пуст")
+                body = handle.read(body_length)
+                if len(body) != body_length:
+                    raise KsdValidationError("блок журнала усечён")
+                tokens, records = _decode_single_payload(body, secrets)
+                record_dicts = tuple(dict(record) for record in records)
+                yield KsdBlock(
+                    offset=offset,
+                    frame_length=header_len + body_length,
+                    body_length=body_length,
+                    tokens=tuple(tokens),
+                    records=record_dicts,
+                )
+                offset += header_len + body_length
+        else:
+            rest = handle.read()
+            digits = (prefix + rest).strip()
+            if not digits:
+                return
+            tokens, records = _decode_single_payload(digits, secrets)
+            record_dicts = tuple(dict(record) for record in records)
+            total_len = len(digits)
+            yield KsdBlock(
+                offset=0,
+                frame_length=total_len,
+                body_length=total_len,
+                tokens=tuple(tokens),
+                records=record_dicts,
+            )
 def _ensure_plain_mapping(value: Any) -> Mapping[str, Any]:
     plain = _to_plain(value)
     if not isinstance(plain, Mapping):
