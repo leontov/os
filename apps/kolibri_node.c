@@ -7,6 +7,7 @@
 #include "kolibri/genome.h"
 #include "kolibri/net.h"
 #include <ctype.h>
+#include <errno.h>
 #include <inttypes.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -15,6 +16,12 @@
 
 
 #define KOLIBRI_MEMORY_CAPACITY 8192U
+
+typedef enum {
+    KOLIBRI_KEY_SOURCE_DEFAULT,
+    KOLIBRI_KEY_SOURCE_INLINE,
+    KOLIBRI_KEY_SOURCE_PATH
+} KolibriKeySource;
 
 typedef struct {
     uint64_t seed;
@@ -26,6 +33,10 @@ typedef struct {
     uint16_t peer_port;
     bool verify_genome;
     char genome_path[260];
+    KolibriKeySource hmac_key_source;
+    char hmac_key_path[260];
+    unsigned char hmac_key_inline[KOLIBRI_HMAC_KEY_SIZE];
+    size_t hmac_key_inline_len;
 } KolibriNodeOptions;
 
 typedef struct {
@@ -41,6 +52,9 @@ typedef struct {
     bool last_gene_valid;
     int last_question;
     int last_answer;
+    unsigned char hmac_key[KOLIBRI_HMAC_KEY_SIZE];
+    size_t hmac_key_len;
+    char hmac_key_origin[320];
 } KolibriNode;
 
 static const unsigned char KOLIBRI_HMAC_KEY[] = "kolibri-secret-key";
@@ -56,6 +70,10 @@ static void options_init(KolibriNodeOptions *options) {
     options->verify_genome = false;
     strncpy(options->genome_path, "genome.dat", sizeof(options->genome_path) - 1);
     options->genome_path[sizeof(options->genome_path) - 1] = '\0';
+    options->hmac_key_source = KOLIBRI_KEY_SOURCE_DEFAULT;
+    options->hmac_key_path[0] = '\0';
+    memset(options->hmac_key_inline, 0, sizeof(options->hmac_key_inline));
+    options->hmac_key_inline_len = 0U;
 }
 
 static void parse_options(int argc, char **argv, KolibriNodeOptions *options) {
@@ -104,7 +122,135 @@ static void parse_options(int argc, char **argv, KolibriNodeOptions *options) {
             options->verify_genome = true;
             continue;
         }
+        if (strcmp(argv[i], "--hmac-key") == 0 && i + 1 < argc) {
+            const char *value = argv[i + 1];
+            if (value[0] == '@' && value[1] != '\0') {
+                options->hmac_key_source = KOLIBRI_KEY_SOURCE_PATH;
+                strncpy(options->hmac_key_path, value + 1,
+                        sizeof(options->hmac_key_path) - 1);
+                options->hmac_key_path[sizeof(options->hmac_key_path) - 1] = '\0';
+                options->hmac_key_inline_len = 0U;
+            } else {
+                options->hmac_key_source = KOLIBRI_KEY_SOURCE_INLINE;
+                size_t len = strlen(value);
+                if (len > KOLIBRI_HMAC_KEY_SIZE) {
+                    options->hmac_key_inline_len = len;
+                    len = KOLIBRI_HMAC_KEY_SIZE;
+                } else {
+                    options->hmac_key_inline_len = len;
+                }
+                memcpy(options->hmac_key_inline, value, len);
+                if (len < sizeof(options->hmac_key_inline)) {
+                    memset(options->hmac_key_inline + len, 0,
+                           sizeof(options->hmac_key_inline) - len);
+                }
+                options->hmac_key_path[0] = '\0';
+            }
+            ++i;
+            continue;
+        }
     }
+}
+
+static int node_load_hmac_key(KolibriNode *node) {
+    if (!node) {
+        return -1;
+    }
+    node->hmac_key_len = 0U;
+    node->hmac_key_origin[0] = '\0';
+    switch (node->options.hmac_key_source) {
+    case KOLIBRI_KEY_SOURCE_DEFAULT: {
+        size_t len = sizeof(KOLIBRI_HMAC_KEY) - 1U;
+        memcpy(node->hmac_key, KOLIBRI_HMAC_KEY, len);
+        node->hmac_key_len = len;
+        snprintf(node->hmac_key_origin, sizeof(node->hmac_key_origin),
+                 "встроенный (%zu байт)", len);
+        return 0;
+    }
+    case KOLIBRI_KEY_SOURCE_INLINE: {
+        size_t len = node->options.hmac_key_inline_len;
+        if (len == 0U) {
+            fprintf(stderr, "[Геном] ключ из аргумента пуст\n");
+            return -1;
+        }
+        if (len > KOLIBRI_HMAC_KEY_SIZE) {
+            fprintf(stderr,
+                    "[Геном] ключ из аргумента превышает %u байт\n",
+                    (unsigned)KOLIBRI_HMAC_KEY_SIZE);
+            return -1;
+        }
+        memcpy(node->hmac_key, node->options.hmac_key_inline, len);
+        node->hmac_key_len = len;
+        snprintf(node->hmac_key_origin, sizeof(node->hmac_key_origin),
+                 "аргумент (%zu байт)", len);
+        return 0;
+    }
+    case KOLIBRI_KEY_SOURCE_PATH: {
+        const char *path = node->options.hmac_key_path;
+        if (!path || path[0] == '\0') {
+            fprintf(stderr, "[Геном] путь к ключу не указан\n");
+            return -1;
+        }
+        FILE *file = fopen(path, "rb");
+        if (!file) {
+            fprintf(stderr, "[Геном] не удалось открыть ключ %s: %s\n", path,
+                    strerror(errno));
+            return -1;
+        }
+        unsigned char buffer[KOLIBRI_HMAC_KEY_SIZE];
+        size_t total = 0U;
+        while (total < sizeof(buffer)) {
+            size_t chunk = fread(buffer + total, 1, sizeof(buffer) - total, file);
+            if (chunk == 0U) {
+                if (ferror(file)) {
+                    int saved_errno = errno;
+                    fclose(file);
+                    fprintf(stderr,
+                            "[Геном] ошибка чтения ключа %s: %s\n",
+                            path, strerror(saved_errno));
+                    return -1;
+                }
+                break;
+            }
+            total += chunk;
+        }
+        int leftover = fgetc(file);
+        if (leftover != EOF) {
+            fclose(file);
+            fprintf(stderr, "[Геном] ключ %s превышает %u байт\n", path,
+                    (unsigned)KOLIBRI_HMAC_KEY_SIZE);
+            return -1;
+        }
+        if (ferror(file)) {
+            int saved_errno = errno;
+            fclose(file);
+            fprintf(stderr, "[Геном] ошибка чтения ключа %s: %s\n", path,
+                    strerror(saved_errno));
+            return -1;
+        }
+        fclose(file);
+        if (total == 0U) {
+            fprintf(stderr, "[Геном] ключ %s пуст\n", path);
+            return -1;
+        }
+        while (total > 0U &&
+               (buffer[total - 1U] == '\n' || buffer[total - 1U] == '\r')) {
+            total--;
+        }
+        if (total == 0U) {
+            fprintf(stderr,
+                    "[Геном] ключ %s содержит только разделители строк\n",
+                    path);
+            return -1;
+        }
+        memcpy(node->hmac_key, buffer, total);
+        node->hmac_key_len = total;
+        snprintf(node->hmac_key_origin, sizeof(node->hmac_key_origin),
+                 "файл %s (%zu байт)", path, total);
+        return 0;
+    }
+    }
+    return -1;
 }
 
 static void trim_newline(char *line) {
@@ -241,23 +387,33 @@ static int node_open_genome(KolibriNode *node) {
         return -1;
     }
     if (node->options.verify_genome) {
-        int status = kg_verify_file(node->options.genome_path, KOLIBRI_HMAC_KEY,
-                                    sizeof(KOLIBRI_HMAC_KEY) - 1U);
+        printf("[Геном] проверяем %s (ключ: %s)\n", node->options.genome_path,
+               node->hmac_key_origin);
+        int status = kg_verify_file(node->options.genome_path, node->hmac_key,
+                                    node->hmac_key_len);
         if (status == 1) {
-            printf("[Геном] существующий журнал отсутствует, создаём новый\n");
+            printf("[Геном] журнал отсутствует, создаём новый (ключ: %s)\n",
+                   node->hmac_key_origin);
         } else if (status != 0) {
-            fprintf(stderr, "[Геном] проверка целостности провалена\n");
+            fprintf(stderr,
+                    "[Геном] проверка целостности провалена для %s (ключ: %s)\n",
+                    node->options.genome_path, node->hmac_key_origin);
             return -1;
         } else {
-            printf("[Геном] целостность подтверждена\n");
+            printf("[Геном] целостность подтверждена (ключ: %s)\n",
+                   node->hmac_key_origin);
         }
     }
-    if (kg_open(&node->genome, node->options.genome_path, KOLIBRI_HMAC_KEY,
-                sizeof(KOLIBRI_HMAC_KEY) - 1U) != 0) {
-        fprintf(stderr, "[Геном] не удалось открыть %s\n", node->options.genome_path);
+    if (kg_open(&node->genome, node->options.genome_path, node->hmac_key,
+                node->hmac_key_len) != 0) {
+        fprintf(stderr,
+                "[Геном] не удалось открыть %s (ключ: %s)\n",
+                node->options.genome_path, node->hmac_key_origin);
         return -1;
     }
     node->genome_ready = true;
+    printf("[Геном] журнал %s открыт (ключ: %s)\n", node->options.genome_path,
+           node->hmac_key_origin);
     node_record_event(node, "BOOT", "узел активирован");
     return 0;
 }
@@ -480,8 +636,10 @@ static void node_handle_ask(KolibriNode *node, const char *payload) {
 }
 
 static void node_handle_verify(KolibriNode *node) {
-    int status = kg_verify_file(node->options.genome_path, KOLIBRI_HMAC_KEY,
-                                sizeof(KOLIBRI_HMAC_KEY) - 1U);
+    printf("[Геном] проверяем %s (ключ: %s)\n", node->options.genome_path,
+           node->hmac_key_origin);
+    int status = kg_verify_file(node->options.genome_path, node->hmac_key,
+                                node->hmac_key_len);
     if (status == 0) {
         printf("[Геном] проверка завершилась успехом\n");
     } else if (status == 1) {
@@ -630,6 +788,9 @@ static void node_stop_listener(KolibriNode *node) {
 static int node_init(KolibriNode *node, const KolibriNodeOptions *options) {
     memset(node, 0, sizeof(*node));
     node->options = *options;
+    if (node_load_hmac_key(node) != 0) {
+        return -1;
+    }
     node_reset_last_answer(node);
     k_digit_stream_init(&node->memory, node->memory_buffer, sizeof(node->memory_buffer));
     kf_pool_init(&node->pool, node->options.seed);
