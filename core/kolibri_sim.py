@@ -183,7 +183,7 @@ class KolibriSim:
 
         genesis = self._sozdanie_bloka("GENESIS", {"seed": zerno})
         writer = self._genome_writer
-        if writer is not None and not writer.records:
+        if writer is not None and not writer.has_records():
             writer.append(
                 dataclasses.asdict(genesis),
                 {"tip": "GENESIS", "soobshenie": f"seed={zerno}", "metka": time.time()},

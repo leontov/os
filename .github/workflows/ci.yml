@@ -237,32 +237,50 @@ jobs:
           name: kolibri-frontend-dist
           path: artifacts/frontend
       - name: Prepare manifest
+        shell: bash
         run: |
           VERSION=$(jq -r '.version' frontend/package.json)
           DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-          cat <<JSON > artifacts/release-manifest.json
-{
-  "version": "v${VERSION}",
-  "date": "${DATE}",
-  "artifacts": [
-    {
-      "name": "kolibri.iso",
-      "sha256": "$(awk '{print $1}' artifacts/iso/kolibri.iso.sha256)",
-      "signature": "kolibri.iso.sig"
-    },
-    {
-      "name": "kolibri.wasm",
-      "sha256": "$(awk '{print $1}' artifacts/wasm/kolibri.wasm.sha256)",
-      "signature": "kolibri.wasm.sig"
-    },
-    {
-      "name": "frontend-dist.tar.gz",
-      "sha256": "$(awk '{print $1}' artifacts/frontend/frontend-dist.tar.gz.sha256)",
-      "signature": "frontend-dist.tar.gz.sig"
-    }
-  ]
-}
-JSON
+          mkdir -p artifacts
+          export VERSION DATE
+          python3 - <<'PY'
+            import json
+            import os
+            from pathlib import Path
+            
+            
+            def read_sha(path: str) -> str:
+                return Path(path).read_text(encoding="utf-8").split()[0]
+            
+            
+            manifest = {
+                "version": f"v{os.environ['VERSION']}",
+                "date": os.environ["DATE"],
+                "artifacts": [
+                    {
+                        "name": "kolibri.iso",
+                        "sha256": read_sha("artifacts/iso/kolibri.iso.sha256"),
+                        "signature": "kolibri.iso.sig",
+                    },
+                    {
+                        "name": "kolibri.wasm",
+                        "sha256": read_sha("artifacts/wasm/kolibri.wasm.sha256"),
+                        "signature": "kolibri.wasm.sig",
+                    },
+                    {
+                        "name": "frontend-dist.tar.gz",
+                        "sha256": read_sha("artifacts/frontend/frontend-dist.tar.gz.sha256"),
+                        "signature": "frontend-dist.tar.gz.sig",
+                    },
+                ],
+            }
+            
+            
+            Path("artifacts/release-manifest.json").write_text(
+                json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
+          PY
       - name: Upload release bundle
         uses: actions/upload-artifact@v4
         with:

@@ -13,7 +13,9 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from core.kolibri_script.genome import (  # noqa: E402
+    KsdBlock,
     KsdValidationError,
+    KolibriGenomeLedger,
     deserialize_ksd,
     load_secrets_config,
     serialize_ksd,
@@ -53,6 +55,8 @@ def test_ksd_round_trip(tmp_path: Path) -> None:
     assert document.records == records
     assert "TEACH" in document.tokens
     assert "a->b" in document.tokens
+    assert len(document.blocks) == 1
+    assert isinstance(document.blocks[0], KsdBlock)
 
 
 def test_ksd_serialization_is_deterministic(tmp_path: Path) -> None:
@@ -86,3 +90,24 @@ def test_genome_writer_integration(tmp_path: Path) -> None:
     assert "TEACH" in tips
     assert "ASK" in tips
     assert not (tmp_path / ".genome.dat.tmp").exists()
+
+
+def test_genome_ledger_streaming_journal(tmp_path: Path) -> None:
+    secrets = load_secrets_config(_write_secrets(tmp_path))
+    ledger_path = tmp_path / "genome.dat"
+    ledger = KolibriGenomeLedger(ledger_path, secrets)
+    try:
+        assert not ledger.has_records()
+        ledger.append({"nomer": 1}, {"tip": "ONE", "metka": 1.0})
+        ledger.append({"nomer": 2}, {"tip": "TWO", "metka": 2.0})
+        assert ledger.has_records()
+        streamed = list(ledger.records())
+        assert [record["tip"] for record in streamed] == ["ONE", "TWO"]
+        data = ledger_path.read_text(encoding="utf-8")
+        document = deserialize_ksd(data, secrets)
+        assert document.blocks[0].offset == 0
+        assert document.blocks[1].offset > document.blocks[0].offset
+        assert [record["tip"] for record in document.records] == ["ONE", "TWO"]
+        assert len(document.blocks) == 2
+    finally:
+        ledger.close()

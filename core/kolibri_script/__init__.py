@@ -22,6 +22,7 @@ from .parser import (
     parse_script,
 )
 from .genome import (
+    KsdBlock,
     KsdValidationError,
     KolibriGenomeLedger,
     SecretsConfig,
@@ -50,6 +51,7 @@ __all__ = [
     "VariableDeclaration",
     "WhileStatement",
     "parse_script",
+    "KsdBlock",
     "KsdValidationError",
     "KolibriGenomeLedger",
     "SecretsConfig",

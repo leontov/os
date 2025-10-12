@@ -148,6 +148,20 @@ if(KOLIBRI_ENABLE_TESTS)
                      -Dks_compiler=$<TARGET_FILE:ks_compiler>
                      -P ${CMAKE_CURRENT_BINARY_DIR}/ks_compiler_roundtrip.cmake)
 
+    find_package(Python3 COMPONENTS Interpreter)
+    if(Python3_FOUND)
+        add_test(NAME kolibri_node_custom_key_inline
+                 COMMAND ${Python3_EXECUTABLE}
+                         ${CMAKE_CURRENT_SOURCE_DIR}/tests/run_kolibri_node_hmac.py
+                         $<TARGET_FILE:kolibri_node>
+                         inline)
+        add_test(NAME kolibri_node_custom_key_file
+                 COMMAND ${Python3_EXECUTABLE}
+                         ${CMAKE_CURRENT_SOURCE_DIR}/tests/run_kolibri_node_hmac.py
+                         $<TARGET_FILE:kolibri_node>
+                         file)
+    endif()
+
     add_test(NAME kolibri_node_usage COMMAND $<TARGET_FILE:kolibri_node> --help)
 
     add_test(NAME kolibri_indexer_usage COMMAND $<TARGET_FILE:kolibri_indexer>)
