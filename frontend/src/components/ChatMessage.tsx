@@ -25,26 +25,26 @@ const ChatMessage = ({ message, conversationId, latestUserMessage }: ChatMessage
   const contextCount = message.context?.length ?? 0;
 
   return (
-    <div className="flex items-start gap-3">
+    <div className="flex items-start gap-4">
       <div
-        className={`flex h-9 w-9 items-center justify-center rounded-full ${
-          isUser ? "bg-primary/20 text-primary" : "bg-accent-coral/10 text-accent-coral"
+        className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold ${
+          isUser ? "bg-primary/20 text-primary" : "bg-accent/20 text-accent"
         }`}
       >
         {isUser ? "Я" : "К"}
       </div>
-      <div className="rounded-2xl bg-white/80 p-4 shadow-card">
-        <p className="whitespace-pre-line text-sm leading-relaxed text-text-dark">{message.content}</p>
-        <p className="mt-2 text-xs text-text-light">{message.timestamp}</p>
+      <div className="max-w-3xl rounded-2xl border border-border-strong bg-background-input/90 p-4">
+        <p className="whitespace-pre-line text-sm leading-relaxed text-text-primary">{message.content}</p>
+        <p className="mt-2 text-xs text-text-secondary">{message.timestamp}</p>
 
         {!isUser && (hasContext || message.contextError) && (
-          <div className="mt-3 space-y-3 border-t border-dashed border-text-light/40 pt-3 text-xs text-text-dark">
+          <div className="mt-3 space-y-3 border-t border-dashed border-border-strong pt-3 text-xs text-text-secondary">
             {hasContext && (
               <div>
                 <button
                   type="button"
                   onClick={() => setIsContextExpanded((prev) => !prev)}
-                  className="rounded-lg bg-background-light/60 px-3 py-1 font-semibold text-primary transition-colors hover:bg-background-light"
+                  className="rounded-lg border border-primary/40 bg-background-input/80 px-3 py-1 font-semibold text-primary transition-colors hover:border-primary"
                 >
                   {isContextExpanded ? "Скрыть контекст" : "Показать контекст"} ({contextCount})
                 </button>
@@ -53,15 +53,17 @@ const ChatMessage = ({ message, conversationId, latestUserMessage }: ChatMessage
                     {message.context?.map((snippet, index) => (
                       <article
                         key={snippet.id}
-                        className="rounded-xl bg-background-light/70 p-3 shadow-inner"
+                        className="rounded-xl border border-border-strong bg-background-card/70 p-3"
                         aria-label={`Источник ${index + 1}`}
                       >
-                        <div className="flex items-center justify-between text-[0.7rem] font-semibold text-text-light">
-                          <span className="uppercase tracking-wide text-text-dark">Источник {index + 1}</span>
-                          <span className="text-text-light">Релевантность: {formatScore(snippet.score)}</span>
+                        <div className="flex items-center justify-between text-[0.7rem] font-semibold text-text-secondary">
+                          <span className="uppercase tracking-wide text-text-primary">Источник {index + 1}</span>
+                          <span className="text-text-secondary">Релевантность: {formatScore(snippet.score)}</span>
                         </div>
-                        <p className="mt-1 text-sm font-semibold text-text-dark">{snippet.title}</p>
-                        <p className="mt-2 whitespace-pre-line text-[0.85rem] leading-relaxed text-text-dark/90">{snippet.content}</p>
+                        <p className="mt-1 text-sm font-semibold text-text-primary">{snippet.title}</p>
+                        <p className="mt-2 whitespace-pre-line text-[0.85rem] leading-relaxed text-text-secondary">
+                          {snippet.content}
+                        </p>
                         {snippet.source && (
                           <p className="mt-2 text-[0.7rem] uppercase tracking-wide text-primary/80">{snippet.source}</p>
                         )}
@@ -72,7 +74,7 @@ const ChatMessage = ({ message, conversationId, latestUserMessage }: ChatMessage
               </div>
             )}
             {message.contextError && (
-              <p className="rounded-lg bg-accent-coral/10 px-3 py-2 text-[0.75rem] text-accent-coral">
+              <p className="rounded-lg bg-accent/10 px-3 py-2 text-[0.75rem] text-accent">
                 Контекст недоступен: {message.contextError}
               </p>
             )}

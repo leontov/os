@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Layout from "./components/Layout";
+import NavigationRail from "./components/NavigationRail";
 import Sidebar from "./components/Sidebar";
 import WelcomeScreen from "./components/WelcomeScreen";
 import ChatInput from "./components/ChatInput";
@@ -175,17 +176,19 @@ const App = () => {
   }, [conversationId, handleSuggestionSelect, isProcessing, messages]);
 
   return (
-    <Layout sidebar={<Sidebar />}>
-      <div className="flex-1">{content}</div>
-      <ChatInput
-        value={draft}
-        mode={mode}
-        isBusy={isProcessing || !bridgeReady}
-        onChange={setDraft}
-        onModeChange={setMode}
-        onSubmit={sendMessage}
-        onReset={resetConversation}
-      />
+    <Layout navigation={<NavigationRail />} sidebar={<Sidebar />}>
+      <div className="flex flex-1 flex-col gap-6">
+        <div className="flex-1">{content}</div>
+        <ChatInput
+          value={draft}
+          mode={mode}
+          isBusy={isProcessing || !bridgeReady}
+          onChange={setDraft}
+          onModeChange={setMode}
+          onSubmit={sendMessage}
+          onReset={resetConversation}
+        />
+      </div>
     </Layout>
   );
 };
