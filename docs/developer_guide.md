@@ -41,7 +41,7 @@ Run `make`, `make test`, and `./kolibri.sh up` after source changes. Use `cmake 
 | Property tests | встроены в `tests/test_formula.c` | Используют случайные входы с фиксированным seed. |
 | Static analysis | `clang-tidy backend/src/*.c apps/kolibri_node.c -- -Ibackend/include` | Выполняется при изменении C-кода. |
 | Integration | `./kolibri.sh up` | Стартует два узла и проверяет обмен формулами. |
-| Fuzzing | `cmake -S . -B build-fuzz -DKOLIBRI_ENABLE_FUZZ=ON && cmake --build build-fuzz && ./build-fuzz/kolibri_fuzz_script -runs=1000` | Использует libFuzzer; требует Clang. |
+| Fuzzing | `cmake -S . -B build-fuzz -DKOLIBRI_ENABLE_FUZZ=ON && cmake --build build-fuzz && ./build-fuzz/kolibri_fuzz_script -runs=1000` | Использует libFuzzer; nightly workflow `Kolibri Nightly Fuzz` запускается автоматически. |
 
 *Документационные изменения не требуют запуска тестов, однако в коммит-сообщении нужно явно указывать причину пропуска.*
 
@@ -126,7 +126,8 @@ Run `make`, `make test`, and `./kolibri.sh up` after source changes. Use `cmake 
 5. Обновите `CHANGELOG.md`, `docs/public_interfaces.md` (если требуется) и `README.md`.
 
 ### Release Publishing / Публикация / 发布
-- Используйте артефакт GitHub Actions `kolibri-release-bundle`, который содержит `release-manifest.json`, контрольные суммы и подписи. При необходимости синхронизируйте содержимое в `deploy/release-manifests/<version>/`.
+- Используйте артефакт GitHub Actions `kolibri-release-bundle`
+- Workflow `run-all` выполняет `scripts/run_all.sh --skip-cluster` в CI для smoke-проверки., который содержит `release-manifest.json`, контрольные суммы и подписи. При необходимости синхронизируйте содержимое в `deploy/release-manifests/<version>/`.
 - Создайте PR с описанием изменений, ссылками на тикеты и чек-листом релиза.
 - После merge создайте Git tag `vMAJOR.MINOR.PATCH`, прикрепите артефакты и changelog.
 - Распространите уведомление команде поддержки и обновите внутренние трекеры.

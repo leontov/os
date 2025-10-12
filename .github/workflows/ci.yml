@@ -79,7 +79,7 @@ jobs:
       - name: Установка Emscripten
         uses: mymindstorm/setup-emsdk@v13
         with:
-          emsdk-version: latest
+          version: latest
       - name: Сборка kolibri.wasm
         run: ./scripts/build_wasm.sh
       - name: Подготовка wasm для предпросмотра фронтенда
@@ -215,10 +215,23 @@ jobs:
           docker stop kolibri-backend kolibri-frontend
           docker rm kolibri-backend kolibri-frontend
 
+  run-all:
+    name: Release script smoke
+    runs-on: ubuntu-latest
+    needs: docker-smoke
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies for ISO/build
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake nasm grub-pc-bin xorriso gcc-multilib
+      - name: Execute scripts/run_all.sh
+        run: ./scripts/run_all.sh --skip-cluster
+
   release-bundle:
     name: Assemble release bundle
     runs-on: ubuntu-latest
-    needs: docker-smoke
+    needs: run-all
     steps:
       - uses: actions/checkout@v4
       - name: Download ISO artifact
