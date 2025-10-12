@@ -101,6 +101,7 @@ curl http://kolibri-backend:8000/metrics
 - Проверка состояния swarm: `kolibri_node --peer-status`.
 - Скрипт диагностики: `scripts/run_kolibri_stack.sh --smoke`.
 - Мониторинг: см. `docs/monitoring_setup.md` и примеры в `deploy/monitoring/`.
+- Live loop: архитектура и шаги описаны в `docs/live_learning.md`.
 
 ## 11. Automated Training
 - Скрипт `scripts/auto_train.sh` запускает конвейер знаний, генерирует KolibriScript bootstrap и выполняет пакетное обучение узла.
