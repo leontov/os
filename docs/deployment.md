@@ -102,6 +102,14 @@ curl http://kolibri-backend:8000/metrics
 - Скрипт диагностики: `scripts/run_kolibri_stack.sh --smoke`.
 - Мониторинг: см. `docs/monitoring_setup.md` и примеры в `deploy/monitoring/`.
 
+## 11. Automated Training
+- Скрипт `scripts/auto_train.sh` запускает конвейер знаний, генерирует KolibriScript bootstrap и выполняет пакетное обучение узла.
+  ```bash
+  scripts/auto_train.sh --ticks 256 docs data
+  ```
+- Результаты: обновлённый геном (`build/training/auto_genome.dat`) и проверка здоровья `kolibri_node --health`.
+- Параметры: `--seed`, `--genome`, `--bootstrap`, `--skip-build`, дополнительные корни для `knowledge_pipeline`.
+
 ---
 
 Подробности и checklist для внедрения — см. `docs/ops_briefing.md` и `docs/service_playbook.md`.
