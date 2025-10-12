@@ -129,7 +129,7 @@ const App = () => {
     const prompt = knowledgeContext.length ? formatPromptWithContext(content, knowledgeContext) : content;
 
     try {
-      const answer = await kolibriBridge.ask(prompt, mode);
+      const answer = await kolibriBridge.ask(prompt, mode, knowledgeContext);
       const assistantMessage: ChatMessage = {
         id: crypto.randomUUID(),
         role: "assistant",

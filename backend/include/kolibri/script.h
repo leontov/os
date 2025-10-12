@@ -5,8 +5,6 @@
 #ifndef KOLIBRI_SCRIPT_H
 #define KOLIBRI_SCRIPT_H
 
-#include "kolibri/digits.h"
-#include "kolibri/decimal.h"
 #include "kolibri/formula.h"
 #include "kolibri/genome.h"
 
@@ -20,13 +18,28 @@ extern "C" {
  * Контекст исполнения KolibriScript. Хранит цифровой поток сценария и
  * предоставляет доступ к пулу формул и цифровому геному.
  */
+struct KolibriScriptVariable;
+struct KolibriScriptAssociation;
+struct KolibriScriptFormulaBinding;
+
 typedef struct {
-    kolibri_potok_cifr potok;
-    uint8_t *hranilishe;
-    size_t emkost;
     KolibriFormulaPool *pool;
     KolibriGenome *genome;
     FILE *vyvod;
+    char *source_text;
+
+    /* Runtime state */
+    struct KolibriScriptVariable *variables;
+    size_t variables_count;
+    size_t variables_capacity;
+
+    struct KolibriScriptAssociation *associations;
+    size_t associations_count;
+    size_t associations_capacity;
+
+    struct KolibriScriptFormulaBinding *formulas;
+    size_t formulas_count;
+    size_t formulas_capacity;
 } KolibriScript;
 
 /* Инициализирует интерпретатор и выделяет внутренний цифровой буфер. */

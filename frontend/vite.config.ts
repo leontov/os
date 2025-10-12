@@ -1,164 +1,12 @@
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
-import type { Plugin, Connect } from "vite";
+import type { Plugin } from "vite";
 import { copyFile, mkdir, access, readFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-interface KnowledgeRecord {
-  id: string;
-  title: string;
-  content: string;
-  scoreBoost?: number;
-  source?: string;
-}
-
-type KnowledgeSnippet = Omit<KnowledgeRecord, "scoreBoost"> & { score: number };
-
-const knowledgeBase: KnowledgeRecord[] = [
-  {
-    id: "kolibri-overview",
-    title: "Обзор Kolibri AI",
-    content:
-      "Kolibri AI объединяет эволюцию коротких формул и фрактальную память. Система ищет, мутирует и отбирает программы, " +
-      "а знания хранятся в десятичной иерархии, где путь вроде 7→7.3→7.3.1 обозначает мысль.",
-    source: "docs/kolibri_integrated_prototype.md",
-  },
-  {
-    id: "fractal-memory",
-    title: "Фрактальная память",
-    content:
-      "Фрактальная память состоит из десятичных уровней. Каждый уровень содержит десять подузлов, что позволяет детализировать " +
-      "понятия произвольной глубины. Активный путь показывает текущую мысль или контекст.",
-    source: "docs/kolibri_integrated_prototype.md",
-  },
-  {
-    id: "kolibri-chain",
-    title: "Kolibri Chain",
-    content:
-      "Kolibri Chain — микроблокчейн для фиксации происхождения формул и обмена знаниями между узлами. Он синхронизирует события " +
-      "обучения и обеспечивает доверие к общему репозиторию знаний.",
-    source: "docs/kolibri_integrated_prototype.md",
-  },
-  {
-    id: "web-wasm",
-    title: "Веб-интерфейс и WebAssembly",
-    content:
-      "Kolibri использует WebAssembly ядро (kolibri.wasm), которое исполняет KolibriScript в браузере. React-интерфейс " +
-      "предоставляет компоненты Chat, FractalMemory, RuleEditor и визуализирует состояние памяти.",
-    source: "docs/kolibri_integrated_prototype.md",
-  },
-  {
-    id: "evolution",
-    title: "Эволюционное обучение",
-    content:
-      "Kolibri эволюционирует формулы: генерирует, мутирует и отбирает программы по метрикам пригодности. Популяция управляется " +
-      "турнирами, а лучшие формулы получают повышенный вес.",
-    source: "docs/kolibri_integrated_prototype.md",
-  },
-];
-
-const normaliseLimit = (value: string | null, fallback: number, max: number): number => {
-  if (!value) {
-    return fallback;
-  }
-  const parsed = Number.parseInt(value, 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    return fallback;
-  }
-  return Math.min(parsed, max);
-};
-
-const searchKnowledgeBase = (query: string, limit: number): KnowledgeSnippet[] => {
-  const tokens = query
-    .toLowerCase()
-    .split(/\s+/)
-    .map((token) => token.trim())
-    .filter((token) => token.length > 0);
-
-  if (!tokens.length) {
-    return [];
-  }
-
-  const scored = knowledgeBase
-    .map((record) => {
-      const haystack = `${record.title} ${record.content}`.toLowerCase();
-      let matches = 0;
-      let titleBonus = 0;
-      for (const token of tokens) {
-        if (haystack.includes(token)) {
-          matches += 1;
-        }
-        if (record.title.toLowerCase().includes(token)) {
-          titleBonus += 0.25;
-        }
-      }
-      if (matches === 0) {
-        return null;
-      }
-      const density = matches / tokens.length;
-      const score = density + titleBonus + (record.scoreBoost ?? 0);
-      return { record, score };
-    })
-    .filter((item): item is { record: KnowledgeRecord; score: number } => item !== null)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, limit)
-    .map(({ record, score }) => ({
-      id: record.id,
-      title: record.title,
-      content: record.content,
-      source: record.source,
-      score: Number(score.toFixed(3)),
-    }));
-
-  return scored;
-};
-
-const createKnowledgeHandler = (): Connect.NextHandleFunction => {
-  return (req, res, next) => {
-    if (!req.url) {
-      next();
-      return;
-    }
-
-    if (req.method && req.method !== "GET") {
-      res.statusCode = 405;
-      res.setHeader("Content-Type", "application/json; charset=utf-8");
-      res.end(JSON.stringify({ error: "Method Not Allowed" }));
-      return;
-    }
-
-    const url = new URL(req.url, "http://localhost");
-    const query = url.searchParams.get("q")?.trim() ?? "";
-    const limit = normaliseLimit(url.searchParams.get("limit"), 3, knowledgeBase.length);
-
-    if (!query) {
-      res.statusCode = 200;
-      res.setHeader("Content-Type", "application/json; charset=utf-8");
-      res.end(JSON.stringify({ snippets: [] }));
-      return;
-    }
-
-    const snippets = searchKnowledgeBase(query, limit);
-
-    res.statusCode = 200;
-    res.setHeader("Content-Type", "application/json; charset=utf-8");
-    res.end(JSON.stringify({ snippets }));
-  };
-};
-
-const knowledgeEndpoint = (): Plugin => {
-  return {
-    name: "kolibri-knowledge-endpoint",
-    configureServer(server) {
-      server.middlewares.use("/knowledge/search", createKnowledgeHandler());
-    },
-    configurePreviewServer(server) {
-      server.middlewares.use("/knowledge/search", createKnowledgeHandler());
-    },
-  };
-};
+type WasiPluginContext = "serve" | "build";
 
 function copyKolibriWasm(): Plugin {
   const frontendDir = fileURLToPath(new URL(".", import.meta.url));
@@ -315,7 +163,7 @@ function copyKolibriWasm(): Plugin {
     }
   };
 
-  const performCopy = async (context: "serve" | "build") => {
+  const performCopy = async (context: WasiPluginContext) => {
     if (copied || skippedForServe) {
       return;
     }
@@ -357,10 +205,18 @@ function copyKolibriWasm(): Plugin {
   };
 }
 
+const knowledgeProxyTarget = process.env.KNOWLEDGE_API || "http://localhost:8000";
+
 export default defineConfig({
-  plugins: [knowledgeEndpoint(), react(), copyKolibriWasm()],
+  plugins: [react(), copyKolibriWasm()],
   server: {
     port: 5173,
+    proxy: {
+      "/api/knowledge": {
+        target: knowledgeProxyTarget,
+        changeOrigin: true,
+      },
+    },
   },
   test: {
     environment: "jsdom",

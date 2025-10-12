@@ -6,6 +6,7 @@
 #include "kolibri/formula.h"
 #include "kolibri/genome.h"
 #include "kolibri/net.h"
+#include "kolibri/script.h"
 #include <ctype.h>
 #include <inttypes.h>
 #include <stdbool.h>
@@ -26,6 +27,7 @@ typedef struct {
     uint16_t peer_port;
     bool verify_genome;
     char genome_path[260];
+    char bootstrap_script[260];
 } KolibriNodeOptions;
 
 typedef struct {
@@ -33,6 +35,8 @@ typedef struct {
     KolibriGenome genome;
     bool genome_ready;
     KolibriFormulaPool pool;
+    KolibriScript script;
+    bool script_ready;
     uint8_t memory_buffer[KOLIBRI_MEMORY_CAPACITY];
     k_digit_stream memory;
     bool listener_ready;
@@ -56,6 +60,7 @@ static void options_init(KolibriNodeOptions *options) {
     options->verify_genome = false;
     strncpy(options->genome_path, "genome.dat", sizeof(options->genome_path) - 1);
     options->genome_path[sizeof(options->genome_path) - 1] = '\0';
+    options->bootstrap_script[0] = '\0';
 }
 
 static void parse_options(int argc, char **argv, KolibriNodeOptions *options) {
@@ -97,6 +102,13 @@ static void parse_options(int argc, char **argv, KolibriNodeOptions *options) {
             strncpy(options->genome_path, argv[i + 1],
                     sizeof(options->genome_path) - 1);
             options->genome_path[sizeof(options->genome_path) - 1] = '\0';
+            ++i;
+            continue;
+        }
+        if (strcmp(argv[i], "--bootstrap") == 0 && i + 1 < argc) {
+            strncpy(options->bootstrap_script, argv[i + 1],
+                    sizeof(options->bootstrap_script) - 1);
+            options->bootstrap_script[sizeof(options->bootstrap_script) - 1] = '\0';
             ++i;
             continue;
         }
@@ -412,6 +424,38 @@ static void node_handle_tick(KolibriNode *node, size_t generations) {
     node_reset_last_answer(node);
 }
 
+static void node_execute_script(KolibriNode *node, const char *path) {
+    if (!node || !path || path[0] == '\0') {
+        printf("[KolibriScript] требуется путь к файлу\n");
+        return;
+    }
+
+    if (!node->script_ready) {
+        if (ks_init(&node->script, &node->pool, node->genome_ready ? &node->genome : NULL) != 0) {
+            fprintf(stderr, "[KolibriScript] не удалось инициализировать интерпретатор\n");
+            return;
+        }
+        node->script_ready = true;
+    } else {
+        node->script.pool = &node->pool;
+        node->script.genome = node->genome_ready ? &node->genome : NULL;
+    }
+
+    ks_set_output(&node->script, stdout);
+    if (ks_load_file(&node->script, path) != 0) {
+        fprintf(stderr, "[KolibriScript] не удалось загрузить сценарий %s\n", path);
+        return;
+    }
+    if (ks_execute(&node->script) != 0) {
+        fprintf(stderr, "[KolibriScript] выполнение завершилось ошибкой для %s\n", path);
+        return;
+    }
+
+    node_record_event(node, "SCRIPT", path);
+    printf("[KolibriScript] сценарий выполнен: %s\n", path);
+    node_reset_last_answer(node);
+}
+
 static void node_handle_teach(KolibriNode *node, const char *payload) {
     if (!payload || payload[0] == '\0') {
         printf("[Учитель] требуется пример формата a->b\n");
@@ -502,12 +546,16 @@ static void node_print_help(void) {
     printf(":canvas — вывести канву памяти\n");
     printf(":sync — поделиться формулой с соседом\n");
     printf(":verify — проверить геном\n");
+    printf(":script <файл> — выполнить KolibriScript из файла\n");
     printf(":quit — завершить работу\n");
 }
 
 static void node_run(KolibriNode *node) {
     printf("Колибри узел %u готов. :help для списка команд.\n",
            node->options.node_id);
+    if (node->options.bootstrap_script[0] != '\0') {
+        node_execute_script(node, node->options.bootstrap_script);
+    }
     char line[512];
     while (true) {
         node_poll_listener(node);
@@ -589,6 +637,14 @@ static void node_run(KolibriNode *node) {
                 node_handle_verify(node);
                 continue;
             }
+            if (strcmp(name, "script") == 0) {
+                if (command[0] == '\0') {
+                    printf("[KolibriScript] требуется путь к файлу\n");
+                    continue;
+                }
+                node_execute_script(node, command);
+                continue;
+            }
             if (strcmp(name, "help") == 0) {
                 node_print_help();
                 continue;
@@ -645,6 +701,10 @@ static int node_init(KolibriNode *node, const KolibriNodeOptions *options) {
 
 static void node_shutdown(KolibriNode *node) {
     node_stop_listener(node);
+    if (node->script_ready) {
+        ks_free(&node->script);
+        node->script_ready = false;
+    }
     node_close_genome(node);
 }
 

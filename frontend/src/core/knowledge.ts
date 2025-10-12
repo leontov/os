@@ -5,7 +5,8 @@ export interface KnowledgeSearchOptions {
   topK?: number;
 }
 
-const SEARCH_ENDPOINT = "/knowledge/search";
+const DEFAULT_ENDPOINT = "/api/knowledge/search";
+const KNOWLEDGE_API_BASE = (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_KNOWLEDGE_API) || DEFAULT_ENDPOINT;
 
 const normaliseSnippet = (value: unknown, index: number): KnowledgeSnippet | null => {
   if (!value || typeof value !== "object") {
@@ -33,7 +34,8 @@ export const buildSearchUrl = (query: string, options?: KnowledgeSearchOptions):
     params.set("limit", String(options.topK));
   }
   const suffix = params.toString();
-  return suffix ? `${SEARCH_ENDPOINT}?${suffix}` : SEARCH_ENDPOINT;
+  const base = KNOWLEDGE_API_BASE.endsWith("/") ? KNOWLEDGE_API_BASE.slice(0, -1) : KNOWLEDGE_API_BASE;
+  return suffix ? `${base}?${suffix}` : base;
 };
 
 export async function searchKnowledge(query: string, options?: KnowledgeSearchOptions): Promise<KnowledgeSnippet[]> {

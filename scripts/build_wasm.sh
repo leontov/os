@@ -14,6 +14,45 @@ vyhod_wasm="$vyhod_dir/kolibri.wasm"
 vremennaja_map="$vyhod_dir/kolibri.map"
 vremennaja_js="$vyhod_dir/kolibri.js"
 
+emscripten_cache_dir="${KOLIBRI_WASM_CACHE_DIR:-$proekt_koren/build/emscripten_cache}"
+mkdir -p "$emscripten_cache_dir"
+export EM_CACHE="$emscripten_cache_dir"
+
+opredelit_razmer() {
+    local file="$1"
+
+    if command -v python3 >/dev/null 2>&1; then
+        python3 - "$file" <<'PY'
+import os
+import sys
+
+path = sys.argv[1]
+print(os.path.getsize(path))
+PY
+        return 0
+    fi
+
+    if command -v stat >/dev/null 2>&1; then
+        if stat -c '%s' "$file" >/dev/null 2>&1; then
+            stat -c '%s' "$file"
+            return 0
+        fi
+        if stat -f '%z' "$file" >/dev/null 2>&1; then
+            stat -f '%z' "$file"
+            return 0
+        fi
+    fi
+
+    if command -v wc >/dev/null 2>&1; then
+        wc -c <"$file" | tr -d ' ' \
+            || wc -c "${file}" | awk '{print $1}'
+        return 0
+    fi
+
+    echo 0
+    return 0
+}
+
 EMCC="${EMCC:-emcc}"
 sozdat_zaglushku=0
 sobranov_docker=0
@@ -140,6 +179,8 @@ istochniki=(
     "$proekt_koren/backend/src/random.c"
     "$proekt_koren/backend/src/script.c"
     "$proekt_koren/backend/src/wasm_bridge.c"
+    "$proekt_koren/backend/src/sim.c"
+    "$proekt_koren/wasm/kolibri_sim_wasm.c"
 )
 
 if [[ "${KOLIBRI_WASM_INCLUDE_GENOME:-0}" == "1" ]]; then
@@ -155,7 +196,7 @@ flags=(
     -s SIDE_MODULE=0
     -s ALLOW_MEMORY_GROWTH=0
     -s EXPORTED_RUNTIME_METHODS='[]'
-    -s EXPORTED_FUNCTIONS='["_kolibri_bridge_init","_kolibri_bridge_reset","_kolibri_bridge_execute","_malloc","_free"]'
+    -s EXPORTED_FUNCTIONS='["_kolibri_bridge_init","_kolibri_bridge_reset","_kolibri_bridge_execute","_kolibri_sim_wasm_init","_kolibri_sim_wasm_tick","_kolibri_sim_wasm_get_logs","_kolibri_sim_wasm_reset","_kolibri_sim_wasm_free","_malloc","_free"]'
     -s DEFAULT_LIBRARY_FUNCS_TO_INCLUDE='[]'
     --no-entry
     -I"$proekt_koren/backend/include"
@@ -168,7 +209,7 @@ fi
 
 "$EMCC" "${istochniki[@]}" "${flags[@]}"
 
-razmer=$(stat -c '%s' "$vyhod_wasm")
+razmer=$(opredelit_razmer "$vyhod_wasm")
 if (( razmer > 1024 * 1024 )); then
     printf '[ОШИБКА] kolibri.wasm превышает бюджет: %.2f МБ\n' "$(awk -v b="$razmer" 'BEGIN {printf "%.2f", b/1048576}')" >&2
     exit 1
