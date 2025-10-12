@@ -25,7 +25,8 @@
    docker compose up -d
    ```
 4. Проверьте health-checkи:
-   - `curl http://localhost:4100/healthz`
+   - `docker compose exec kolibri-node kolibri_node --health`
+   - `curl http://localhost:8000/healthz`
    - `curl http://localhost:8080/healthz`
 
 ## 4. Kubernetes / Helm (Pilot)
@@ -56,10 +57,24 @@
 ## 6. Health Checks
 | Endpoint | Компонент | Описание |
 |----------|-----------|----------|
-| `/healthz` | KolibriNode | базовый статус, проверка генома и пула формул |
-| `/readyz` | KolibriNode | готовность к приёму запросов (сеть, bootstrap) |
-| `/metrics` | kolibri_node exporter | Prometheus-метрики (CPU, evolution ticks, backlog) |
+| `kolibri_node --health` | KolibriNode | CLI-проверка генома, семени и HMAC (возвращает JSON) |
+| `/healthz` | Knowledge API | HTTP 200 с количеством документов |
+| `/metrics` | Knowledge API | Prometheus-метрика `kolibri_knowledge_documents` |
 | `/healthz` | Frontend | проверка wasm и API-доступности |
+
+Пример использования health-check для узла:
+
+```bash
+docker exec kolibri-node kolibri_node --health
+# {"status":"ok","node_id":1,...}
+```
+
+Проверка knowledge API:
+
+```bash
+curl http://kolibri-backend:8000/healthz
+curl http://kolibri-backend:8000/metrics
+```
 
 ## 7. Обновления
 1. Скачать релизный пакет (`kolibri-release-bundle`).
@@ -85,6 +100,7 @@
 - Журналы: `logs/kolibri.jsonl`, `build/cluster/node_*.log`.
 - Проверка состояния swarm: `kolibri_node --peer-status`.
 - Скрипт диагностики: `scripts/run_kolibri_stack.sh --smoke`.
+- Мониторинг: см. `docs/monitoring_setup.md` и примеры в `deploy/monitoring/`.
 
 ---
 

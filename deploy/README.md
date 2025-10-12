@@ -1,6 +1,6 @@
 # Kolibri Deployment Manifests
 
-Этот каталог содержит пример манифестов Kubernetes для развёртывания Kolibri OS.
+Этот каталог содержит пример манифестов Kubernetes и docker-compose для развёртывания Kolibri OS.
 
 ## Структура
 
@@ -8,6 +8,8 @@
 - `k8s/backend.yaml` — Deployment и Service для C-бэкенда (`kolibri_node`).
 - `k8s/frontend.yaml` — Deployment, Service и Ingress для веб-клиента.
 - `k8s/training-cronjob.yaml` — CronJob для периодического запуска тренировки.
+- `docker-compose.yml` — локальный запуск трёх сервисов (kolibri-node, knowledge API, frontend) с health-check.
+- `monitoring/` — пример конфигурации Prometheus (`prometheus.yml`) и дашборд Grafana (`grafana_dashboard.json`).
 
 Во всех манифестах оставлены плейсхолдеры `REPLACE_WITH_REGISTRY` и `RELEASE_TAG`.
 Перед применением замените их на значения, которые использует `scripts/package_release.sh`
@@ -24,3 +26,10 @@ kubectl apply -f deploy/k8s/training-cronjob.yaml
 
 Ingress настроен на хост `kolibri.local`. Обновите его, чтобы соответствовать вашей
 инфраструктуре (например, добавьте TLS-секцию или измените host).
+
+Docker Compose:
+
+```bash
+docker compose -f deploy/docker-compose.yml up -d
+docker compose ps
+```

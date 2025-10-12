@@ -21,6 +21,10 @@
 #define KOLIBRI_BOOTSTRAP_SCRIPT "knowledge_bootstrap.ks"
 
 static volatile sig_atomic_t kolibri_server_running = 1;
+static size_t kolibri_requests_total = 0U;
+static size_t kolibri_search_hits = 0U;
+static size_t kolibri_search_misses = 0U;
+static time_t kolibri_bootstrap_timestamp = 0;
 
 static void handle_signal(int sig) {
     (void)sig;
@@ -109,6 +113,7 @@ static void write_bootstrap_script(const KolibriKnowledgeIndex *index, const cha
     fprintf(file, "конец.\n");
     fclose(file);
     fprintf(stdout, "[kolibri-knowledge] bootstrap script written to %s\n", path);
+    kolibri_bootstrap_timestamp = time(NULL);
 }
 
 static int starts_with(const char *text, const char *prefix) {
@@ -255,6 +260,7 @@ static void json_escape(const char *input, char *output, size_t out_size) {
 
 static void handle_client(int client_fd, const KolibriKnowledgeIndex *index) {
     char buffer[KOLIBRI_REQUEST_BUFFER];
+    kolibri_requests_total += 1U;
     ssize_t received = recv(client_fd, buffer, sizeof(buffer) - 1U, 0);
     if (received <= 0) {
         return;
@@ -272,6 +278,45 @@ static void handle_client(int client_fd, const KolibriKnowledgeIndex *index) {
     }
     *space = '\0';
 
+    if (strcmp(path_start, "/healthz") == 0) {
+        char body[128];
+        snprintf(body, sizeof(body), "{\"status\":\"ok\",\"documents\":%zu}", index->count);
+        send_response(client_fd, 200, "application/json", body);
+        return;
+    }
+
+    if (strcmp(path_start, "/metrics") == 0) {
+        char body[512];
+        int len = snprintf(body,
+                           sizeof(body),
+                           "# HELP kolibri_knowledge_documents Number of documents in knowledge index\n"
+                           "# TYPE kolibri_knowledge_documents gauge\n"
+                           "kolibri_knowledge_documents %zu\n"
+                           "# HELP kolibri_requests_total Total HTTP requests handled\n"
+                           "# TYPE kolibri_requests_total counter\n"
+                           "kolibri_requests_total %zu\n"
+                           "# HELP kolibri_search_hits_success Total search queries with results\n"
+                           "# TYPE kolibri_search_hits_success counter\n"
+                           "kolibri_search_hits_success %zu\n"
+                           "# HELP kolibri_search_misses_total Total search queries without results\n"
+                           "# TYPE kolibri_search_misses_total counter\n"
+                           "kolibri_search_misses_total %zu\n"
+                           "# HELP kolibri_bootstrap_generated_unixtime Timestamp of last bootstrap script generation\n"
+                           "# TYPE kolibri_bootstrap_generated_unixtime gauge\n"
+                           "kolibri_bootstrap_generated_unixtime %.0f\n",
+                           index->count,
+                           kolibri_requests_total,
+                           kolibri_search_hits,
+                           kolibri_search_misses,
+                           kolibri_bootstrap_timestamp > 0 ? (double)kolibri_bootstrap_timestamp : 0.0);
+        if (len < 0) {
+            send_response(client_fd, 500, "text/plain", "error");
+            return;
+        }
+        send_response(client_fd, 200, "text/plain; version=0.0.4", body);
+        return;
+    }
+
     if (!starts_with(path_start, "/api/knowledge/search")) {
         send_response(client_fd, 404, "application/json", "{\"error\":\"not found\"}");
         return;
@@ -281,6 +326,7 @@ static void handle_client(int client_fd, const KolibriKnowledgeIndex *index) {
     size_t limit = 3U;
     parse_query(path_start, query, sizeof(query), &limit);
     if (!*query) {
+        kolibri_search_misses += 1U;
         send_response(client_fd, 200, "application/json", "{\"snippets\":[]}");
         return;
     }
@@ -315,6 +361,12 @@ static void handle_client(int client_fd, const KolibriKnowledgeIndex *index) {
                                    scores[i],
                                    separator);
     }
+    if (found == 0) {
+        kolibri_search_misses += 1U;
+    } else {
+        kolibri_search_hits += 1U;
+    }
+
     if (offset >= sizeof(response) - 2U) {
         offset = sizeof(response) - 3U;
     }

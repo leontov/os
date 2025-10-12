@@ -39,6 +39,7 @@ typedef struct {
     unsigned char hmac_key_inline[KOLIBRI_HMAC_KEY_SIZE];
     size_t hmac_key_inline_len;
     char hmac_key_path[260];
+    bool health_check;
 } KolibriNodeOptions;
 
 typedef struct {
@@ -72,13 +73,14 @@ static void options_init(KolibriNodeOptions *options) {
    options->peer_host[0] = '\0';
    options->peer_port = 4050U;
    options->verify_genome = false;
-   strncpy(options->genome_path, "genome.dat", sizeof(options->genome_path) - 1);
-   options->genome_path[sizeof(options->genome_path) - 1] = '\0';
+    strncpy(options->genome_path, "genome.dat", sizeof(options->genome_path) - 1);
+    options->genome_path[sizeof(options->genome_path) - 1] = '\0';
     options->bootstrap_script[0] = '\0';
     options->hmac_key_source = KOLIBRI_KEY_SOURCE_DEFAULT;
     memset(options->hmac_key_inline, 0, sizeof(options->hmac_key_inline));
     options->hmac_key_inline_len = 0U;
     options->hmac_key_path[0] = '\0';
+    options->health_check = false;
 }
 
 static void parse_options(int argc, char **argv, KolibriNodeOptions *options) {
@@ -132,6 +134,10 @@ static void parse_options(int argc, char **argv, KolibriNodeOptions *options) {
         }
         if (strcmp(argv[i], "--verify-genome") == 0) {
             options->verify_genome = true;
+            continue;
+        }
+        if (strcmp(argv[i], "--health") == 0) {
+            options->health_check = true;
             continue;
         }
         if (strcmp(argv[i], "--hmac-key") == 0 && i + 1 < argc) {
@@ -869,12 +875,43 @@ static void node_shutdown(KolibriNode *node) {
     node_close_genome(node);
 }
 
+static int node_emit_health(KolibriNode *node) {
+    int genome_status = kg_verify_file(node->options.genome_path,
+                                       node->hmac_key,
+                                       node->hmac_key_len);
+    const char *genome_state = "unknown";
+    if (genome_status == 0) {
+        genome_state = "ok";
+    } else if (genome_status == 1) {
+        genome_state = "missing";
+    } else {
+        genome_state = "invalid";
+    }
+    const char *overall = (genome_status == 0) ? "ok" : "degraded";
+    printf("{\"status\":\"%s\",\"node_id\":%u,\"seed\":%" PRIu64 ",\"genome\":{\"path\":\"%s\",\"origin\":\"%s\",\"state\":\"%s\"}}\n",
+           overall,
+           node->options.node_id,
+           node->options.seed,
+           node->options.genome_path,
+           node->hmac_key_origin,
+           genome_state);
+    return (genome_status == 0) ? 0 : 1;
+}
+
 int main(int argc, char **argv) {
     KolibriNodeOptions options;
     parse_options(argc, argv, &options);
+    if (options.health_check) {
+        options.listen_enabled = false;
+    }
     KolibriNode node;
     if (node_init(&node, &options) != 0) {
         return 1;
+    }
+    if (options.health_check) {
+        int status = node_emit_health(&node);
+        node_shutdown(&node);
+        return status;
     }
     node_run(&node);
     node_shutdown(&node);

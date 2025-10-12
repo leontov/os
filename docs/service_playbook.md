@@ -39,6 +39,7 @@ Escalation path: L1 Support → L2 Engineering → Incident Commander.
 
 - Pre-shift checklist: verify monitoring dashboards, acknowledge open alerts, review planned changes.
 - Monitoring stack: Grafana + Prometheus (infrastructure), Loki (logs), Sentry (frontend errors).
+- HTTP checks: `kolibri_node --health`, `http://<knowledge>/healthz`, `http://<knowledge>/metrics` (scrape `kolibri_knowledge_documents`).
 - Alert thresholds:
   - CPU > 80% for 5 minutes
   - Request latency P95 > 2 seconds
@@ -56,4 +57,3 @@ Escalation path: L1 Support → L2 Engineering → Incident Commander.
 - Provide welcome kit (user guide, admin guide, SLA summary).
 - Schedule orientation call for Enterprise tier.
 - Collect contacts for technical and business stakeholders.
-
