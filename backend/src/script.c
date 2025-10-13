@@ -2528,6 +2528,7 @@ int ks_init(KolibriScript *skript, KolibriFormulaPool *pool, KolibriGenome *geno
     skript->source_text = NULL;
     kolibri_symbol_table_init(&skript->symbol_table, genome);
     kolibri_symbol_table_load(&skript->symbol_table);
+    kolibri_symbol_table_seed_defaults(&skript->symbol_table);
     kolibri_script_set_mode(skript, "neutral");
     return 0;
 }

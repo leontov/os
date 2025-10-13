@@ -4,6 +4,7 @@
 
 #include <assert.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -46,7 +47,36 @@ static void test_genome_smoke(void) {
     remove(path);
 }
 
+static void test_symbol_table_cyrillic(void) {
+    KolibriSymbolTable table;
+    kolibri_symbol_table_init(&table, NULL);
+    kolibri_symbol_table_seed_defaults(&table);
+
+    size_t seeded = table.count;
+    kolibri_symbol_table_seed_defaults(&table);
+    assert(table.count == seeded);
+
+    uint8_t digits[KOLIBRI_SYMBOL_DIGITS];
+    uint32_t decoded = 0U;
+
+    assert(kolibri_symbol_encode(&table, 0x043FU, digits) == 0); /* п */
+    assert(kolibri_symbol_decode(&table, digits, &decoded) == 0);
+    assert(decoded == 0x043FU);
+
+    assert(kolibri_symbol_encode(&table, 0x0451U, digits) == 0); /* ё */
+    assert(kolibri_symbol_decode(&table, digits, &decoded) == 0);
+    assert(decoded == 0x0451U);
+
+    assert(kolibri_symbol_encode(&table, 0x0020U, digits) == 0); /* пробел */
+    assert(kolibri_symbol_encode(&table, 0x041FU, digits) == 0); /* П */
+
+    size_t before = table.count;
+    assert(kolibri_symbol_encode(&table, 0x2728U, digits) == 0); /* новая точка */
+    assert(table.count == before + 1U);
+}
+
 void test_public_api(void) {
     test_script_smoke();
     test_genome_smoke();
+    test_symbol_table_cyrillic();
 }

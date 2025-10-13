@@ -14,7 +14,7 @@ extern "C" {
 #define KOLIBRI_SYMBOL_DIGITS 3
 
 typedef struct {
-    char symbol;
+    uint32_t codepoint;
     uint8_t digits[KOLIBRI_SYMBOL_DIGITS];
 } KolibriSymbolEntry;
 
@@ -27,8 +27,11 @@ typedef struct {
 
 void kolibri_symbol_table_init(KolibriSymbolTable *table, KolibriGenome *genome);
 void kolibri_symbol_table_load(KolibriSymbolTable *table);
-int kolibri_symbol_encode(KolibriSymbolTable *table, char symbol, uint8_t out_digits[KOLIBRI_SYMBOL_DIGITS]);
-int kolibri_symbol_decode(const KolibriSymbolTable *table, const uint8_t digits[KOLIBRI_SYMBOL_DIGITS], char *out_symbol);
+void kolibri_symbol_table_seed_defaults(KolibriSymbolTable *table);
+int kolibri_symbol_encode(KolibriSymbolTable *table, uint32_t codepoint, uint8_t out_digits[KOLIBRI_SYMBOL_DIGITS]);
+int kolibri_symbol_decode(const KolibriSymbolTable *table,
+                          const uint8_t digits[KOLIBRI_SYMBOL_DIGITS],
+                          uint32_t *out_codepoint);
 
 #ifdef __cplusplus
 }

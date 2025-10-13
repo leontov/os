@@ -63,6 +63,78 @@ static int kolibri_hash_to_int(uint32_t hash) {
     return (int)hash;
 }
 
+static int utf8_is_continuation(unsigned char byte) {
+    return (byte & 0xC0U) == 0x80U;
+}
+
+static size_t kolibri_utf8_decode_next(const unsigned char *text,
+                                       size_t length,
+                                       size_t offset,
+                                       uint32_t *out_codepoint) {
+    if (!text || !out_codepoint || offset >= length) {
+        return 0U;
+    }
+    unsigned char lead = text[offset];
+    if (lead < 0x80U) {
+        *out_codepoint = (uint32_t)lead;
+        return 1U;
+    }
+    if ((lead & 0xE0U) == 0xC0U) {
+        if (offset + 1U >= length) {
+            return 0U;
+        }
+        unsigned char b1 = text[offset + 1U];
+        if (!utf8_is_continuation(b1)) {
+            return 0U;
+        }
+        uint32_t codepoint = ((uint32_t)(lead & 0x1FU) << 6) | (uint32_t)(b1 & 0x3FU);
+        if (codepoint < 0x80U) {
+            return 0U;
+        }
+        *out_codepoint = codepoint;
+        return 2U;
+    }
+    if ((lead & 0xF0U) == 0xE0U) {
+        if (offset + 2U >= length) {
+            return 0U;
+        }
+        unsigned char b1 = text[offset + 1U];
+        unsigned char b2 = text[offset + 2U];
+        if (!utf8_is_continuation(b1) || !utf8_is_continuation(b2)) {
+            return 0U;
+        }
+        uint32_t codepoint = ((uint32_t)(lead & 0x0FU) << 12) |
+                             ((uint32_t)(b1 & 0x3FU) << 6) |
+                             (uint32_t)(b2 & 0x3FU);
+        if (codepoint < 0x800U || (codepoint >= 0xD800U && codepoint <= 0xDFFFU)) {
+            return 0U;
+        }
+        *out_codepoint = codepoint;
+        return 3U;
+    }
+    if ((lead & 0xF8U) == 0xF0U) {
+        if (offset + 3U >= length) {
+            return 0U;
+        }
+        unsigned char b1 = text[offset + 1U];
+        unsigned char b2 = text[offset + 2U];
+        unsigned char b3 = text[offset + 3U];
+        if (!utf8_is_continuation(b1) || !utf8_is_continuation(b2) || !utf8_is_continuation(b3)) {
+            return 0U;
+        }
+        uint32_t codepoint = ((uint32_t)(lead & 0x07U) << 18) |
+                             ((uint32_t)(b1 & 0x3FU) << 12) |
+                             ((uint32_t)(b2 & 0x3FU) << 6) |
+                             (uint32_t)(b3 & 0x3FU);
+        if (codepoint < 0x10000U || codepoint > 0x10FFFFU) {
+            return 0U;
+        }
+        *out_codepoint = codepoint;
+        return 4U;
+    }
+    return 0U;
+}
+
 int kf_hash_from_text(const char *text) {
     return kolibri_hash_to_int(fnv1a32(text));
 }
@@ -104,21 +176,39 @@ static void association_set(KolibriAssociation *assoc,
     assoc->input_hash = kolibri_hash_to_int(fnv1a32(assoc->question));
     assoc->output_hash = kolibri_hash_to_int(fnv1a32(assoc->answer));
     if (symbols) {
+        const unsigned char *qbytes = (const unsigned char *)assoc->question;
         size_t qlen = strlen(assoc->question);
-        for (size_t i = 0; i < qlen && assoc->question_digits_length + KOLIBRI_SYMBOL_DIGITS <= KOLIBRI_ASSOC_DIGITS_MAX; ++i) {
+        size_t qpos = 0U;
+        while (qpos < qlen && assoc->question_digits_length + KOLIBRI_SYMBOL_DIGITS <= KOLIBRI_ASSOC_DIGITS_MAX) {
+            uint32_t codepoint = 0U;
+            size_t consumed = kolibri_utf8_decode_next(qbytes, qlen, qpos, &codepoint);
+            if (consumed == 0U) {
+                codepoint = (uint32_t)qbytes[qpos];
+                consumed = 1U;
+            }
             uint8_t digits[KOLIBRI_SYMBOL_DIGITS];
-            if (kolibri_symbol_encode(symbols, assoc->question[i], digits) == 0) {
+            if (kolibri_symbol_encode(symbols, codepoint, digits) == 0) {
                 memcpy(&assoc->question_digits[assoc->question_digits_length], digits, KOLIBRI_SYMBOL_DIGITS);
                 assoc->question_digits_length += KOLIBRI_SYMBOL_DIGITS;
             }
+            qpos += consumed;
         }
+        const unsigned char *abytes = (const unsigned char *)assoc->answer;
         size_t alen = strlen(assoc->answer);
-        for (size_t i = 0; i < alen && assoc->answer_digits_length + KOLIBRI_SYMBOL_DIGITS <= KOLIBRI_ASSOC_DIGITS_MAX; ++i) {
+        size_t apos = 0U;
+        while (apos < alen && assoc->answer_digits_length + KOLIBRI_SYMBOL_DIGITS <= KOLIBRI_ASSOC_DIGITS_MAX) {
+            uint32_t codepoint = 0U;
+            size_t consumed = kolibri_utf8_decode_next(abytes, alen, apos, &codepoint);
+            if (consumed == 0U) {
+                codepoint = (uint32_t)abytes[apos];
+                consumed = 1U;
+            }
             uint8_t digits[KOLIBRI_SYMBOL_DIGITS];
-            if (kolibri_symbol_encode(symbols, assoc->answer[i], digits) == 0) {
+            if (kolibri_symbol_encode(symbols, codepoint, digits) == 0) {
                 memcpy(&assoc->answer_digits[assoc->answer_digits_length], digits, KOLIBRI_SYMBOL_DIGITS);
                 assoc->answer_digits_length += KOLIBRI_SYMBOL_DIGITS;
             }
+            apos += consumed;
         }
     }
 }
