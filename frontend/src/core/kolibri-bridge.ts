@@ -9,6 +9,8 @@ import { createWasiContext } from "./wasi";
 import { teachKnowledge, sendKnowledgeFeedback } from "./knowledge";
 import type { KnowledgeSnippet } from "../types/knowledge";
 
+import { createWasiPreview1 } from "./wasi";
+
 export interface KolibriBridge {
   readonly ready: Promise<void>;
   ask(prompt: string, mode?: string, context?: KnowledgeSnippet[]): Promise<string>;
@@ -161,12 +163,15 @@ class KolibriWasmBridge implements KolibriBridge {
   private readonly encoder = new TextEncoder();
   private readonly decoder = new TextDecoder("utf-8");
   private exports: KolibriWasmExports | null = null;
+  private readonly wasi = createWasiPreview1();
   readonly ready: Promise<void>;
 
   constructor() {
     this.ready = this.initialise();
   }
 
+  private async instantiateWasm(): Promise<WebAssembly.Instance> {
+    const importObject: WebAssembly.Imports = { ...this.wasi.imports };
   private async instantiateWasm(): Promise<KolibriWasmExports> {
     const wasi = createWasiContext((text) => {
       console.debug("[kolibri-bridge][wasi]", text);
@@ -179,6 +184,8 @@ class KolibriWasmBridge implements KolibriBridge {
     if ("instantiateStreaming" in WebAssembly) {
       try {
         const streamingResult = await WebAssembly.instantiateStreaming(fetch(WASM_RESOURCE_URL), importObject);
+        this.wasi.onInstance(streamingResult.instance);
+        return streamingResult.instance;
         instance = streamingResult.instance;
       } catch (error) {
         // Fallback to ArrayBuffer path when MIME type is missing.
@@ -195,6 +202,10 @@ class KolibriWasmBridge implements KolibriBridge {
       const fallbackResult = await WebAssembly.instantiate(bytes, importObject);
       instance = fallbackResult.instance;
     }
+    const bytes = await response.arrayBuffer();
+    const { instance } = await WebAssembly.instantiate(bytes, importObject);
+    this.wasi.onInstance(instance);
+    return instance;
 
     return createKolibriWasmExports(instance.exports, wasi);
   }
