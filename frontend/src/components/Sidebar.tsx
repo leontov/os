@@ -1,41 +1,37 @@
-import {
-  BarChart3,
-  Bot,
-  Clock3,
-  MessageCircle,
-  Settings,
-  Sparkles,
-} from "lucide-react";
-import NavItem from "./NavItem";
+const conversations = [
+  { id: "a", title: "Приветствие и выбор тем", date: "Сегодня", preview: "Начали новую беседу" },
+  { id: "b", title: "Релиз ядра", date: "Чт, 25 сент.", preview: "Запрос на тестирование" },
+  { id: "c", title: "Промпт для AGENTS.md", date: "Вт, 23 сент.", preview: "Помощь в выборе направления" },
+  { id: "d", title: "Логические и числовые", date: "Сб, 13 сент.", preview: "Колибри ИИ" },
+  { id: "e", title: "Makет ОС Колибри", date: "Ср, 25 июня", preview: "Обсуждение интерфейса" },
+];
 
 const Sidebar = () => (
-  <div className="flex h-full flex-col justify-between rounded-3xl bg-background-sidebar/70 p-6 backdrop-blur-xl">
-    <div className="space-y-8">
-      <div className="flex items-center gap-3">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-card">
-          <img src="/kolibri.svg" alt="Колибри" className="h-10 w-10" />
-        </div>
-        <div>
-          <p className="text-sm font-medium text-text-light">Колибри ИИ</p>
-          <p className="text-lg font-semibold text-text-dark">Визуальная Кора</p>
-        </div>
-      </div>
-      <nav className="space-y-2">
-        <NavItem icon={MessageCircle} label="Диалоги" active />
-        <NavItem icon={Sparkles} label="Действия" />
-        <NavItem icon={BarChart3} label="Визуализация" />
-        <NavItem icon={Clock3} label="История" />
-        <NavItem icon={Settings} label="Настройки" />
-      </nav>
+  <div className="flex h-full flex-col rounded-3xl border border-border-strong bg-background-panel/80 p-6 backdrop-blur">
+    <div>
+      <p className="text-xs uppercase tracking-widest text-text-secondary">Беседы</p>
+      <h2 className="mt-2 text-xl font-semibold text-text-primary">Сегодня</h2>
+      <ul className="mt-6 space-y-2">
+        {conversations.map((item, index) => (
+          <li key={item.id}>
+            <button
+              type="button"
+              className={`w-full rounded-2xl px-4 py-3 text-left transition-colors ${
+                index === 0
+                  ? "bg-primary/15 text-text-primary"
+                  : "bg-background-card/60 text-text-secondary hover:bg-background-card"
+              }`}
+            >
+              <p className="text-sm font-semibold text-text-primary">{item.title}</p>
+              <p className="mt-1 text-xs text-text-secondary">{item.date} • {item.preview}</p>
+            </button>
+          </li>
+        ))}
+      </ul>
     </div>
-    <div className="flex items-center gap-3 rounded-2xl bg-white/70 p-3">
-      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
-        <Bot className="h-6 w-6" />
-      </div>
-      <div>
-        <p className="text-sm font-semibold text-text-dark">Vladislav Kochurov</p>
-        <p className="text-xs text-text-light">Колибри может делать ошибки.</p>
-      </div>
+    <div className="mt-6 rounded-2xl border border-border-strong bg-background-card/80 p-4">
+      <p className="text-sm font-semibold text-text-primary">Vladislav Kochurov</p>
+      <p className="mt-1 text-xs text-text-secondary">Kolibri может делать ошибки.</p>
     </div>
   </div>
 );

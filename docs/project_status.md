@@ -11,7 +11,7 @@
 - `cmake -S . -B build` — конфигурация сборки.
 - `cmake --build build -j` — компиляция всех целей (ядро, узел, тесты, ks_compiler).
 - `ctest --test-dir build --output-on-failure` — модульные тесты C.
-- `pytest` — тестирование Python-симуляции `core/kolibri_sim.py`.
+- `./build/kolibri_sim soak --minutes 5` — длительный прогон симулятора Kolibri и проверка журнала.
 - `./scripts/run_all.sh --skip-cluster --skip-iso --skip-wasm` — оркестрационный прогон.
 
 ## Рекомендуемый порядок запуска

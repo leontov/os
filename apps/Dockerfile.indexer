@@ -1,0 +1,34 @@
+# syntax=docker/dockerfile:1.5
+
+FROM debian:bookworm-slim AS build
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        build-essential \
+        ca-certificates \
+        cmake \
+        ninja-build \
+        pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY CMakeLists.txt ./
+COPY backend ./backend
+COPY apps ./apps
+
+RUN cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+    && cmake --build build --target kolibri_indexer
+
+FROM debian:bookworm-slim
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        libstdc++6 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=build /app/build/kolibri_indexer /usr/local/bin/kolibri_indexer
+
+ENTRYPOINT ["/usr/local/bin/kolibri_indexer"]
+CMD ["--help"]

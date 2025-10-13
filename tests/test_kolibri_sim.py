@@ -173,6 +173,42 @@ def test_t15_soak_state_accumulates(tmp_path: Path) -> None:
     assert len(metrics_second) >= len(metrics_first) + 2
 
 
+def test_t16_persistent_journal(tmp_path: Path) -> None:
+    journal_path = tmp_path / "journal.jsonl"
+    sim = KolibriSim(zerno=8, journal_path=journal_path)
+    try:
+        sim.obuchit_svjaz("alpha", "beta")
+        sim.sprosit("alpha")
+        sim.evolyuciya_formul("journal")
+    finally:
+        sim.zakryt()
+
+    assert journal_path.exists()
+    lines = [json.loads(line) for line in journal_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    assert any(entry["tip"] == "TEACH" for entry in lines)
+    assert any(entry["tip"] == "ASK" for entry in lines)
+    assert all("blok" in entry for entry in lines)
+
+
+def test_t17_swarm_run_syncs_peers() -> None:
+    sim_a = KolibriSim(zerno=10)
+    sim_b = KolibriSim(zerno=11)
+    sim_a.obuchit_svjaz("alpha", "beta")
+    sim_b.obuchit_svjaz("gamma", "delta")
+    sim_a.evolyuciya_formul("ctx-a")
+    sim_b.evolyuciya_formul("ctx-b")
+
+    try:
+        result = sim_a.zapustit_roj([sim_b], cikly=2)
+        assert result["knowledge"] >= 2
+        assert result["formulas"] >= 2
+        assert sim_a.sprosit("gamma") == "delta"
+        assert sim_b.sprosit("alpha") == "beta"
+    finally:
+        sim_a.zakryt()
+        sim_b.zakryt()
+
+
 
 # --- Трассировка и структурированные события -------------------------------
 

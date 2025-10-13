@@ -1,13 +1,14 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import type { ChatMessage } from "../types/chat";
 import ChatMessageView from "./ChatMessage";
 
 interface ChatViewProps {
   messages: ChatMessage[];
   isLoading: boolean;
+  conversationId: string;
 }
 
-const ChatView = ({ messages, isLoading }: ChatViewProps) => {
+const ChatView = ({ messages, isLoading, conversationId }: ChatViewProps) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -20,20 +21,37 @@ const ChatView = ({ messages, isLoading }: ChatViewProps) => {
     container.scrollTop = container.scrollHeight;
   }, [messages, isLoading]);
 
+  const renderedMessages = useMemo(() => {
+    let lastUserMessage: ChatMessage | undefined;
+    return messages.map((message) => {
+      const contextUserMessage = message.role === "assistant" ? lastUserMessage : undefined;
+      if (message.role === "user") {
+        lastUserMessage = message;
+      }
+
+      return (
+        <ChatMessageView
+          key={message.id}
+          message={message}
+          conversationId={conversationId}
+          latestUserMessage={contextUserMessage}
+        />
+      );
+    });
+  }, [conversationId, messages]);
+
   return (
-    <section className="flex h-full flex-col rounded-3xl bg-white/70 p-8 shadow-card">
+    <section className="flex h-full flex-col rounded-3xl border border-border-strong bg-background-card/80 p-8 backdrop-blur">
       <div className="flex-1 space-y-6 overflow-y-auto pr-2" ref={containerRef}>
-        {messages.map((message) => (
-          <ChatMessageView key={message.id} message={message} />
-        ))}
+        {renderedMessages}
         {isLoading && (
-          <div className="flex items-center gap-3 text-sm text-text-light">
+          <div className="flex items-center gap-3 text-sm text-text-secondary">
             <span className="h-2 w-2 animate-pulse rounded-full bg-primary" />
             Колибри формирует ответ...
           </div>
         )}
         {!messages.length && !isLoading && (
-          <div className="rounded-2xl bg-background-light/60 p-6 text-sm text-text-light">
+          <div className="rounded-2xl border border-border-strong bg-background-input/80 p-6 text-sm text-text-secondary">
             Отправь сообщение, чтобы начать диалог с Колибри.
           </div>
         )}

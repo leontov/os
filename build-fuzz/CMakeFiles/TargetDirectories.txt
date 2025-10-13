@@ -1,0 +1,14 @@
+/Users/kolibri/Documents/os/build-fuzz/CMakeFiles/kolibri_core_objects.dir
+/Users/kolibri/Documents/os/build-fuzz/CMakeFiles/kolibri_core.dir
+/Users/kolibri/Documents/os/build-fuzz/CMakeFiles/kolibri_wasm.dir
+/Users/kolibri/Documents/os/build-fuzz/CMakeFiles/kolibri_node.dir
+/Users/kolibri/Documents/os/build-fuzz/CMakeFiles/ks_compiler.dir
+/Users/kolibri/Documents/os/build-fuzz/CMakeFiles/kolibri_knowledge_server.dir
+/Users/kolibri/Documents/os/build-fuzz/CMakeFiles/kolibri_indexer.dir
+/Users/kolibri/Documents/os/build-fuzz/CMakeFiles/kolibri_queue.dir
+/Users/kolibri/Documents/os/build-fuzz/CMakeFiles/kolibri_sim.dir
+/Users/kolibri/Documents/os/build-fuzz/CMakeFiles/kolibri_tests.dir
+/Users/kolibri/Documents/os/build-fuzz/CMakeFiles/kolibri_fuzz_script.dir
+/Users/kolibri/Documents/os/build-fuzz/CMakeFiles/test.dir
+/Users/kolibri/Documents/os/build-fuzz/CMakeFiles/edit_cache.dir
+/Users/kolibri/Documents/os/build-fuzz/CMakeFiles/rebuild_cache.dir

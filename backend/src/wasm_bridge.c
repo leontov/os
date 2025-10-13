@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+
 #include "kolibri/formula.h"
 #include "kolibri/script.h"
 
@@ -46,7 +48,14 @@ int kolibri_bridge_execute(const char *program_utf8, char *out_buffer, size_t ou
         return -1;
     }
 
-    FILE *sink = tmpfile();
+    FILE *sink = NULL;
+#if defined(__EMSCRIPTEN__)
+    char *sink_buffer = NULL;
+    size_t sink_size = 0U;
+    sink = open_memstream(&sink_buffer, &sink_size);
+#else
+    sink = tmpfile();
+#endif
     if (!sink) {
         out_buffer[0] = '\0';
         return -2;
@@ -55,6 +64,9 @@ int kolibri_bridge_execute(const char *program_utf8, char *out_buffer, size_t ou
     ks_set_output(&g_script, sink);
     if (ks_load_text(&g_script, program_utf8) != 0) {
         fclose(sink);
+#if defined(__EMSCRIPTEN__)
+        free(sink_buffer);
+#endif
         ks_set_output(&g_script, stdout);
         out_buffer[0] = '\0';
         return -3;
@@ -62,12 +74,28 @@ int kolibri_bridge_execute(const char *program_utf8, char *out_buffer, size_t ou
 
     if (ks_execute(&g_script) != 0) {
         fclose(sink);
+#if defined(__EMSCRIPTEN__)
+        free(sink_buffer);
+#endif
         ks_set_output(&g_script, stdout);
         out_buffer[0] = '\0';
         return -4;
     }
 
     fflush(sink);
+#if defined(__EMSCRIPTEN__)
+    fclose(sink);
+    ks_set_output(&g_script, stdout);
+
+    size_t copy = sink_size < (out_capacity - 1U) ? sink_size : (out_capacity - 1U);
+    if (copy > 0U) {
+        memcpy(out_buffer, sink_buffer, copy);
+    }
+    out_buffer[copy] = '\0';
+    free(sink_buffer);
+
+    return (int)copy;
+#else
     if (fseek(sink, 0L, SEEK_SET) != 0) {
         fclose(sink);
         ks_set_output(&g_script, stdout);
@@ -82,4 +110,5 @@ int kolibri_bridge_execute(const char *program_utf8, char *out_buffer, size_t ou
     ks_set_output(&g_script, stdout);
 
     return (int)written;
+#endif
 }
