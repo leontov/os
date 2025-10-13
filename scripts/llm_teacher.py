@@ -22,6 +22,21 @@ from typing import Any, Dict
 _TORCH_CACHE: Dict[str, Dict[str, Any]] = {}
 
 
+class TorchModelNameError(ValueError):
+    """Ошибка имени модели для backend=torch."""
+
+
+def _validate_torch_model_name(model_name: str) -> None:
+    """Гарантирует, что идентификатор подходит для Hugging Face/локальной папки."""
+
+    if ":" in model_name and "/" not in model_name and not model_name.startswith("./") and not model_name.startswith("../"):
+        raise TorchModelNameError(
+            "Имя модели содержит ':' (например, 'gemma:2b'). Такие теги относятся к Ollama. "
+            "Используйте --backend http для Ollama или укажите репозиторий Hugging Face вроде "
+            "'google/gemma-2-2b-it'."
+        )
+
+
 def call_llm_http(url: str, model: str, prompt: str, temperature: float, system_prompt: str) -> str:
     payload: Dict[str, Any] = {
         "model": model,
@@ -63,9 +78,13 @@ def call_llm_torch(model_name: str,
     except Exception as exc:  # noqa: BLE001
         raise RuntimeError("Для режима torch нужны пакеты torch и transformers") from exc
 
+    _validate_torch_model_name(model_name)
+
     state = _TORCH_CACHE.get(model_name)
     if state is None:
         tokenizer = AutoTokenizer.from_pretrained(model_name)
+        if tokenizer.pad_token is None and tokenizer.eos_token is not None:
+            tokenizer.pad_token = tokenizer.eos_token
         model = AutoModelForCausalLM.from_pretrained(model_name)
         if device:
             model = model.to(device)
@@ -76,9 +95,13 @@ def call_llm_torch(model_name: str,
     tokenizer = state["tokenizer"]
     model = state["model"]
     full_prompt = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt
-    input_ids = tokenizer.encode(full_prompt, return_tensors="pt")
+    encoded = tokenizer(full_prompt, return_tensors="pt")
+    input_ids = encoded["input_ids"]
+    attention_mask = encoded.get("attention_mask")
     if state["device"]:
         input_ids = input_ids.to(state["device"])
+        if attention_mask is not None:
+            attention_mask = attention_mask.to(state["device"])
 
     generate_kwargs = {
         "max_new_tokens": max_new_tokens,
@@ -86,6 +109,8 @@ def call_llm_torch(model_name: str,
         "temperature": max(temperature, 1e-5),
         "pad_token_id": tokenizer.eos_token_id,
     }
+    if attention_mask is not None:
+        generate_kwargs["attention_mask"] = attention_mask
     with torch.no_grad():  # type: ignore[attr-defined]
         output = model.generate(input_ids, **generate_kwargs)
 
@@ -175,6 +200,9 @@ def main(argv: list[str]) -> int:
                 args.device,
                 args.system_prompt,
             )
+    except TorchModelNameError as exc:
+        print(f"[kolibri-llm-teacher] {exc}", file=sys.stderr)
+        return 1
     except Exception as exc:  # noqa: BLE001
         print(f"[kolibri-llm-teacher] LLM request failed: {exc}", file=sys.stderr)
         return 1
