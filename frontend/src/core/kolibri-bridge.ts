@@ -12,6 +12,7 @@ import type { KnowledgeSnippet } from "../types/knowledge";
 import { createWasiPreview1 } from "./wasi";
 
 import { getWasiImports, resetWasi, setMemory } from "./wasi";
+import { wasmUrl as WASM_RESOURCE_URL, wasmInfoUrl as WASM_INFO_URL } from "virtual:kolibri-wasm";
 
 export interface KolibriBridge {
   readonly ready: Promise<void>;
@@ -30,7 +31,6 @@ interface KolibriWasmExports {
 
 const OUTPUT_CAPACITY = 8192;
 const DEFAULT_MODE = "Быстрый ответ";
-const WASM_RESOURCE_URL = "/kolibri.wasm";
 const DEFAULT_API_BASE = "/api";
 
 const RESPONSE_MODE = (import.meta.env.VITE_KOLIBRI_RESPONSE_MODE ?? "script").toLowerCase();
@@ -47,7 +47,6 @@ function normaliseApiBase(base: string): string {
 const API_BASE = normaliseApiBase(RAW_API_BASE) || DEFAULT_API_BASE;
 const LLM_INFERENCE_URL = `${API_BASE}/v1/infer`;
 const SHOULD_USE_LLM = RESPONSE_MODE === "llm";
-const WASM_INFO_URL = "/kolibri.wasm.txt";
 
 const COMMAND_PATTERN = /^(показать|обучить|спросить|тикнуть|сохранить)/i;
 const PROGRAM_START_PATTERN = /начало\s*:/i;
