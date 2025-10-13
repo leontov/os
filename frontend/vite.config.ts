@@ -1,15 +1,20 @@
-import { defineConfig, type Plugin } from "vite";
+import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
-import { copyFile, mkdir, access } from "node:fs/promises";
+import type { Plugin } from "vite";
+import { copyFile, mkdir, access, readFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+
+type WasiPluginContext = "serve" | "build";
 
 function copyKolibriWasm(): Plugin {
   const frontendDir = fileURLToPath(new URL(".", import.meta.url));
   const wasmSource = resolve(frontendDir, "../build/wasm/kolibri.wasm");
   const wasmBuilder = resolve(frontendDir, "../scripts/build_wasm.sh");
+  const wasmInfoSource = resolve(frontendDir, "../build/wasm/kolibri.wasm.txt");
   const publicTarget = resolve(frontendDir, "public/kolibri.wasm");
+  const publicInfoTarget = resolve(frontendDir, "public/kolibri.wasm.txt");
   let copied = false;
   let buildPromise: Promise<void> | null = null;
   let skippedForServe = false;
@@ -23,6 +28,18 @@ function copyKolibriWasm(): Plugin {
 
     return !["1", "true", "yes", "on"].includes(value);
   })();
+
+  const allowStubWasm = (() => {
+    const value = process.env.KOLIBRI_ALLOW_WASM_STUB?.toLowerCase();
+
+    if (!value) {
+      return false;
+    }
+
+    return ["1", "true", "yes", "on"].includes(value);
+  })();
+
+  let warnedAboutStub = false;
 
   const buildKolibriWasm = () =>
     new Promise<void>((fulfill, reject) => {
@@ -51,9 +68,11 @@ function copyKolibriWasm(): Plugin {
     });
 
   const ensureWasmPresent = async () => {
+    let wasmExists = false;
+
     try {
       await access(wasmSource);
-      return;
+      wasmExists = true;
     } catch (accessError) {
       if (!shouldAttemptAutoBuild) {
         const messageParts = [
@@ -69,28 +88,31 @@ function copyKolibriWasm(): Plugin {
       }
     }
 
-    buildPromise ||= buildKolibriWasm();
+    if (!wasmExists) {
+      buildPromise ||= buildKolibriWasm();
 
-    try {
-      await buildPromise;
-    } catch (buildError) {
-      buildPromise = null;
+      try {
+        await buildPromise;
+      } catch (buildError) {
+        buildPromise = null;
 
-      const messageParts = [
-        `[copy-kolibri-wasm] Не найден ${wasmSource}.`,
-        "Автосборка kolibri.wasm завершилась с ошибкой.",
-        "Попробуйте запустить scripts/build_wasm.sh вручную.",
-        "Чтобы отключить автосборку, задайте KOLIBRI_SKIP_WASM_AUTOBUILD=1.",
-      ];
+        const messageParts = [
+          `[copy-kolibri-wasm] Не найден ${wasmSource}.`,
+          "Автосборка kolibri.wasm завершилась с ошибкой.",
+          "Попробуйте запустить scripts/build_wasm.sh вручную.",
+          "Чтобы отключить автосборку, задайте KOLIBRI_SKIP_WASM_AUTOBUILD=1.",
+        ];
 
-      if (buildError instanceof Error && buildError.message) {
-        messageParts.push(`Причина: ${buildError.message}`);
+        if (buildError instanceof Error && buildError.message) {
+          messageParts.push(`Причина: ${buildError.message}`);
+        }
+
+        throw new Error(messageParts.join(" "));
       }
 
-      throw new Error(messageParts.join(" "));
+      buildPromise = null;
+      wasmExists = true;
     }
-
-    buildPromise = null;
 
     try {
       await access(wasmSource);
@@ -106,9 +128,42 @@ function copyKolibriWasm(): Plugin {
 
       throw new Error(messageParts.join(" "));
     }
+
+    try {
+      await access(wasmInfoSource);
+      const info = await readFile(wasmInfoSource, "utf-8");
+      if (/kolibri\.wasm:\s*заглушка/i.test(info)) {
+        if (!allowStubWasm) {
+          throw new Error(
+            "kolibri.wasm собран как заглушка. Установите Emscripten или Docker и повторите scripts/build_wasm.sh, или запустите сборку с KOLIBRI_ALLOW_WASM_STUB=1 для деградированного режима."
+          );
+        }
+
+        if (!warnedAboutStub) {
+          console.warn(
+            "[copy-kolibri-wasm] Обнаружена заглушка kolibri.wasm. Сборка продолжится, потому что установлен KOLIBRI_ALLOW_WASM_STUB."
+          );
+          console.warn(
+            "[copy-kolibri-wasm] Фронтенд будет работать в деградированном режиме. Установите Emscripten или Docker и пересоберите, чтобы восстановить полноценный функционал."
+          );
+          warnedAboutStub = true;
+        }
+      }
+    } catch (infoError) {
+      const messageParts = [
+        `[copy-kolibri-wasm] Не удалось проверить ${wasmInfoSource}.`,
+        "kolibri.wasm должен быть полноценным модулем, а не заглушкой.",
+      ];
+
+      if (infoError instanceof Error && infoError.message) {
+        messageParts.push(`Причина: ${infoError.message}`);
+      }
+
+      throw new Error(messageParts.join(" "));
+    }
   };
 
-  const performCopy = async (context: "serve" | "build") => {
+  const performCopy = async (context: WasiPluginContext) => {
     if (copied || skippedForServe) {
       return;
     }
@@ -135,6 +190,7 @@ function copyKolibriWasm(): Plugin {
 
     await mkdir(dirname(publicTarget), { recursive: true });
     await copyFile(wasmSource, publicTarget);
+    await copyFile(wasmInfoSource, publicInfoTarget);
     copied = true;
   };
 
@@ -149,9 +205,22 @@ function copyKolibriWasm(): Plugin {
   };
 }
 
+const knowledgeProxyTarget = process.env.KNOWLEDGE_API || "http://localhost:8000";
+
 export default defineConfig({
   plugins: [react(), copyKolibriWasm()],
   server: {
     port: 5173,
+    proxy: {
+      "/api/knowledge": {
+        target: knowledgeProxyTarget,
+        changeOrigin: true,
+      },
+    },
+  },
+  test: {
+    environment: "jsdom",
+    globals: true,
+    setupFiles: ["./src/test/setup.ts"],
   },
 });

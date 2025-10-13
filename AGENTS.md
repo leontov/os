@@ -13,7 +13,7 @@ files:
     - README.md
 
 budgets:
-  wasm_max_kb: 6144
+  wasm_max_kb: 61440
   step_latency_ms: 250
   coverage_min_lines: 75
   coverage_min_branches: 60

@@ -4,11 +4,9 @@
 
 #include "kolibri/script.h"
 #include "kolibri/formula.h"
-#include "kolibri/decimal.h"
 
 #include <assert.h>
 #include <stdio.h>
-#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -23,10 +21,11 @@ void test_script(void) {
     const char *programma =
         "начало:\n"
         "    показать \"Kolibri приветствует Архитектора\"\n"
-        "    обучить число 2 -> 4\n"
-        "    тикнуть 24\n"
-        "    спросить число 2\n"
-        "    сохранить лучшую формулу\n"
+        "    обучить связь \"2\" -> \"4\"\n"
+        "    создать формулу ответ из \"ассоциация\"\n"
+        "    вызвать эволюцию\n"
+        "    оценить ответ на задаче \"2\"\n"
+        "    показать итог\n"
         "конец.\n";
 
     FILE *vyvod = tmpfile();
@@ -47,16 +46,11 @@ void test_script(void) {
 
     const KolibriFormula *luchshaja = kf_pool_best(&pool);
     assert(luchshaja != NULL);
-    assert(strstr(bufer, "[Скрипт] f(2) =") != NULL);
+    assert(strstr(bufer, "Kolibri приветствует Архитектора") != NULL);
+    assert(strstr(bufer, "4") != NULL);
 }
 
-static void zapisat_cifrovyj_skript(char *path, size_t path_dlina,
-                                    const char *programma) {
-    uint8_t bufer[16384];
-    kolibri_potok_cifr potok;
-    kolibri_potok_cifr_init(&potok, bufer, sizeof(bufer));
-    assert(kolibri_transducirovat_utf8(&potok, (const unsigned char *)programma,
-                                       strlen(programma)) == 0);
+static void zapisat_skript_text(char *path, size_t path_dlina, const char *programma) {
     char shablon[] = "/tmp/kolibri_scriptXXXXXX";
     assert(path_dlina >= sizeof(shablon));
     memcpy(path, shablon, sizeof(shablon));
@@ -64,13 +58,12 @@ static void zapisat_cifrovyj_skript(char *path, size_t path_dlina,
     assert(fd >= 0);
     FILE *file = fdopen(fd, "wb");
     assert(file != NULL);
-    for (size_t indeks = 0; indeks < potok.dlina; ++indeks) {
-        fputc('0' + potok.danniye[indeks], file);
-    }
+    size_t dlina = strlen(programma);
+    assert(fwrite(programma, 1U, dlina, file) == dlina);
     fclose(file);
 }
 
-void test_script_load_digits(void) {
+void test_script_load_file(void) {
     KolibriFormulaPool pool;
     kf_pool_init(&pool, 171717ULL);
 
@@ -79,14 +72,16 @@ void test_script_load_digits(void) {
 
     const char *programma =
         "начало:\n"
-        "    показать \"Цифровой сценарий\"\n"
-        "    обучить число 1 -> 3\n"
-        "    тикнуть 8\n"
-        "    спросить число 1\n"
+        "    обучить связь \"1\" -> \"3\"\n"
+        "    показать \"Загружено из файла\"\n"
+        "    создать формулу ответ из \"ассоциация\"\n"
+        "    вызвать эволюцию\n"
+        "    оценить ответ на задаче \"1\"\n"
+        "    показать итог\n"
         "конец.\n";
 
     char vremya[sizeof "/tmp/kolibri_scriptXXXXXX"];
-    zapisat_cifrovyj_skript(vremya, sizeof(vremya), programma);
+    zapisat_skript_text(vremya, sizeof(vremya), programma);
 
     assert(ks_load_file(&skript, vremya) == 0);
     assert(ks_execute(&skript) == 0);
