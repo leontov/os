@@ -11,6 +11,8 @@ import type { KnowledgeSnippet } from "../types/knowledge";
 
 import { createWasiPreview1 } from "./wasi";
 
+import { getWasiImports, resetWasi, setMemory } from "./wasi";
+
 export interface KolibriBridge {
   readonly ready: Promise<void>;
   ask(prompt: string, mode?: string, context?: KnowledgeSnippet[]): Promise<string>;
@@ -187,6 +189,8 @@ class KolibriWasmBridge implements KolibriBridge {
   }
 
   private async instantiateWasm(): Promise<WebAssembly.Instance> {
+    const importObject: WebAssembly.Imports = { ...getWasiImports() };
+
     const importObject: WebAssembly.Imports = { ...this.wasi.imports };
   private async instantiateWasm(): Promise<KolibriWasmExports> {
     const wasi = createWasiContext((text) => {
@@ -227,6 +231,16 @@ class KolibriWasmBridge implements KolibriBridge {
   }
 
   private async initialise(): Promise<void> {
+    resetWasi();
+    const instance = await this.instantiateWasm();
+    const exports = instance.exports as KolibriWasmExports;
+    if (!(exports.memory instanceof WebAssembly.Memory)) {
+      throw new Error("WASM-модуль не предоставил память");
+    }
+    setMemory(exports.memory);
+    if (typeof exports._kolibri_bridge_init !== "function") {
+      throw new Error("WASM-модуль не содержит kolibri_bridge_init");
+    }
     const exports = await this.instantiateWasm();
     const result = exports._kolibri_bridge_init();
     if (result !== 0) {
