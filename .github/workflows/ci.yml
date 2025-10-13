@@ -48,11 +48,27 @@ jobs:
         run: ctest --test-dir build --output-on-failure
       - name: Сборка ISO
         run: ./scripts/build_iso.sh
+      - name: SHA256 ISO
+        run: sha256sum build/kolibri.iso > build/kolibri.iso.sha256
+      - name: Установка cosign
+        uses: sigstore/cosign-installer@v3
+        with:
+          cosign-release: 'v2.2.4'
+      - name: Подпись ISO
+        env:
+          COSIGN_EXPERIMENTAL: "true"
+        run: cosign sign-blob --yes --output-signature build/kolibri.iso.sig build/kolibri.iso
+      - name: Подготовка ISO артефактов
+        run: |
+          mkdir -p artifacts/iso
+          cp build/kolibri.iso artifacts/iso/
+          cp build/kolibri.iso.sha256 artifacts/iso/
+          cp build/kolibri.iso.sig artifacts/iso/
       - name: Публикация артефакта ISO
         uses: actions/upload-artifact@v4
         with:
           name: kolibri-iso
-          path: build/kolibri.iso
+          path: artifacts/iso
 
   wasm-build:
     name: WebAssembly
@@ -63,13 +79,8 @@ jobs:
       - name: Установка Emscripten
         uses: mymindstorm/setup-emsdk@v13
         with:
-          emsdk-version: latest
-      - name: Конфигурация CMake
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          version: latest
       - name: Сборка kolibri.wasm
-
-        run: cmake --build build --target kolibri_wasm
-
         run: ./scripts/build_wasm.sh
       - name: Подготовка wasm для предпросмотра фронтенда
         run: |
@@ -83,11 +94,208 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      - name: Установка cosign
+        uses: sigstore/cosign-installer@v3
+        with:
+          cosign-release: 'v2.2.4'
+      - name: Подпись wasm
+        env:
+          COSIGN_EXPERIMENTAL: "true"
+        run: cosign sign-blob --yes --output-signature build/wasm/kolibri.wasm.sig build/wasm/kolibri.wasm
+      - name: Подготовка артефактов WASM
+        run: |
+          mkdir -p artifacts/wasm
+          cp build/wasm/kolibri.wasm artifacts/wasm/
+          cp build/wasm/kolibri.wasm.sha256 artifacts/wasm/
+          cp build/wasm/kolibri.wasm.txt artifacts/wasm/
+          cp build/wasm/kolibri.wasm.sig artifacts/wasm/
       - name: Публикация артефактов WASM
         uses: actions/upload-artifact@v4
         with:
           name: kolibri-wasm
-          path: |
-            build/wasm/kolibri.wasm
-            build/wasm/kolibri.wasm.sha256
-            build/wasm/kolibri.wasm.txt
+          path: artifacts/wasm
+
+  fuzz-parser:
+    name: Parser fuzz smoke
+    runs-on: ubuntu-latest
+    needs: core-build
+    steps:
+      - uses: actions/checkout@v4
+      - name: Установка Clang и зависимостей
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake libsqlite3-dev libssl-dev
+      - name: Конфигурация fuzz таргета
+        run: cmake -S . -B build-fuzz -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_C_COMPILER=clang -DKOLIBRI_ENABLE_FUZZ=ON
+      - name: Сборка fuzz таргета
+        run: cmake --build build-fuzz --target kolibri_fuzz_script -j
+      - name: Smoke fuzz run
+        run: ./build-fuzz/kolibri_fuzz_script -runs=1000 -max_total_time=60
+
+  frontend-build:
+    name: Frontend build & tests
+    runs-on: ubuntu-latest
+    needs: wasm-build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      - name: Сборка wasm (предварительно)
+        run: ./scripts/build_wasm.sh
+      - name: Установка зависимостей npm
+        run: npm ci
+        working-directory: frontend
+      - name: Сборка фронтенда
+        run: npm run build
+        working-directory: frontend
+      - name: Тесты Vitest
+        run: npm run test -- --runInBand
+        working-directory: frontend
+      - name: Архив dist
+        run: |
+          tar -czf frontend-dist.tar.gz -C frontend dist
+          sha256sum frontend-dist.tar.gz > frontend-dist.tar.gz.sha256
+      - name: Установка cosign
+        uses: sigstore/cosign-installer@v3
+        with:
+          cosign-release: 'v2.2.4'
+      - name: Подпись dist
+        env:
+          COSIGN_EXPERIMENTAL: "true"
+        run: cosign sign-blob --yes --output-signature frontend-dist.tar.gz.sig frontend-dist.tar.gz
+      - name: Подготовка артефактов фронтенда
+        run: |
+          mkdir -p artifacts/frontend
+          mv frontend-dist.tar.gz artifacts/frontend/
+          mv frontend-dist.tar.gz.sha256 artifacts/frontend/
+          mv frontend-dist.tar.gz.sig artifacts/frontend/
+      - name: Публикация артефакта фронтенда
+        uses: actions/upload-artifact@v4
+        with:
+          name: kolibri-frontend-dist
+          path: artifacts/frontend
+
+  docker-smoke:
+    name: Docker packaging smoke tests
+    runs-on: ubuntu-latest
+    needs: frontend-build
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build backend image
+        run: docker build -f backend/Dockerfile -t kolibri-backend:ci .
+      - name: Build indexer image
+        run: docker build -f apps/Dockerfile.indexer -t kolibri-indexer:ci .
+      - name: Build frontend image
+        run: docker build -f frontend/Dockerfile -t kolibri-frontend:ci .
+      - name: Smoke backend container
+        run: |
+          docker rm -f kolibri-backend-ci-test 2>/dev/null || true
+          docker run -d --name kolibri-backend-ci-test -p 4051:4050 kolibri-backend:ci --listen 4050
+          sleep 5
+          docker logs kolibri-backend-ci-test | tail -n 20 || true
+          docker rm -f kolibri-backend-ci-test
+      - name: Smoke indexer container
+        run: docker run --rm kolibri-indexer:ci --help
+      - name: Smoke frontend container
+        run: |
+          docker rm -f kolibri-frontend-ci-test 2>/dev/null || true
+          docker run -d --name kolibri-frontend-ci-test -p 8081:80 kolibri-frontend:ci
+          sleep 5
+          docker logs kolibri-frontend-ci-test | tail -n 20 || true
+          docker rm -f kolibri-frontend-ci-test
+      - name: Test deployment script
+        run: |
+          rm -rf ci-install
+          mkdir -p ci-install
+          ./scripts/deploy_linux.sh --version ci --backend-image kolibri-backend:ci --frontend-image kolibri-frontend:ci --skip-pull --prefix "$(pwd)/ci-install"
+          docker ps --format '{{.Names}}'
+          docker stop kolibri-backend kolibri-frontend
+          docker rm kolibri-backend kolibri-frontend
+
+  run-all:
+    name: Release script smoke
+    runs-on: ubuntu-latest
+    needs: docker-smoke
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies for ISO/build
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake nasm grub-pc-bin xorriso gcc-multilib
+      - name: Execute scripts/run_all.sh
+        run: ./scripts/run_all.sh --skip-cluster
+
+  release-bundle:
+    name: Assemble release bundle
+    runs-on: ubuntu-latest
+    needs: run-all
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download ISO artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: kolibri-iso
+          path: artifacts/iso
+      - name: Download wasm artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: kolibri-wasm
+          path: artifacts/wasm
+      - name: Download frontend dist
+        uses: actions/download-artifact@v4
+        with:
+          name: kolibri-frontend-dist
+          path: artifacts/frontend
+      - name: Prepare manifest
+        shell: bash
+        run: |
+          VERSION=$(jq -r '.version' frontend/package.json)
+          DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          mkdir -p artifacts
+          export VERSION DATE
+          python3 - <<'PY'
+            import json
+            import os
+            from pathlib import Path
+            
+            
+            def read_sha(path: str) -> str:
+                return Path(path).read_text(encoding="utf-8").split()[0]
+            
+            
+            manifest = {
+                "version": f"v{os.environ['VERSION']}",
+                "date": os.environ["DATE"],
+                "artifacts": [
+                    {
+                        "name": "kolibri.iso",
+                        "sha256": read_sha("artifacts/iso/kolibri.iso.sha256"),
+                        "signature": "kolibri.iso.sig",
+                    },
+                    {
+                        "name": "kolibri.wasm",
+                        "sha256": read_sha("artifacts/wasm/kolibri.wasm.sha256"),
+                        "signature": "kolibri.wasm.sig",
+                    },
+                    {
+                        "name": "frontend-dist.tar.gz",
+                        "sha256": read_sha("artifacts/frontend/frontend-dist.tar.gz.sha256"),
+                        "signature": "frontend-dist.tar.gz.sig",
+                    },
+                ],
+            }
+            
+            
+            Path("artifacts/release-manifest.json").write_text(
+                json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
+          PY
+      - name: Upload release bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: kolibri-release-bundle
+          path: artifacts

@@ -12,6 +12,9 @@ extern "C" {
 #define KOLIBRI_EVENT_TYPE_SIZE 32
 #define KOLIBRI_PAYLOAD_SIZE 256
 #define KOLIBRI_HMAC_KEY_SIZE 64
+#define KOLIBRI_BLOCK_SIZE                                                     \
+  (sizeof(uint64_t) + sizeof(uint64_t) + KOLIBRI_HASH_SIZE +                   \
+   KOLIBRI_HASH_SIZE + KOLIBRI_EVENT_TYPE_SIZE + KOLIBRI_PAYLOAD_SIZE)
 
 typedef struct {
   uint64_t index;
@@ -25,10 +28,12 @@ typedef struct {
 typedef struct {
   FILE *file;
   unsigned char last_hash[KOLIBRI_HASH_SIZE];
+  unsigned char last_block[KOLIBRI_BLOCK_SIZE];
   unsigned char hmac_key[KOLIBRI_HMAC_KEY_SIZE];
   size_t hmac_key_len;
   char path[260];
   uint64_t next_index;
+  int has_last_block;
 } KolibriGenome;
 
 int kg_open(KolibriGenome *ctx, const char *path, const unsigned char *key,
@@ -38,6 +43,7 @@ int kg_append(KolibriGenome *ctx, const char *event_type, const char *payload,
               ReasonBlock *out_block);
 int kg_verify_file(const char *path, const unsigned char *key,
                    size_t key_len);
+int kg_encode_payload(const char *utf8, char *out, size_t out_len);
 
 #ifdef __cplusplus
 }

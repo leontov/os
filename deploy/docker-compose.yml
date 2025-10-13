@@ -1,0 +1,47 @@
+version: "3.9"
+
+services:
+  kolibri-node:
+    image: REPLACE_WITH_REGISTRY/kolibri-backend:RELEASE_TAG
+    command: ["kolibri_node", "--listen", "4050"]
+    ports:
+      - "4050:4050"
+    volumes:
+      - kolibri-data:/var/lib/kolibri
+    environment:
+      - LOG_LEVEL=info
+    healthcheck:
+      test: ["CMD", "kolibri_node", "--health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  knowledge:
+    image: REPLACE_WITH_REGISTRY/kolibri-backend:RELEASE_TAG
+    command: ["kolibri_knowledge_server"]
+    depends_on:
+      - kolibri-node
+    ports:
+      - "8000:8000"
+    volumes:
+      - kolibri-data:/var/lib/kolibri
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  frontend:
+    image: REPLACE_WITH_REGISTRY/kolibri-frontend:RELEASE_TAG
+    ports:
+      - "8080:80"
+    depends_on:
+      - knowledge
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  kolibri-data:

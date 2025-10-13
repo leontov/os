@@ -18,8 +18,8 @@ Kolibri OS aims to deliver a lightweight, reliable, and scriptable operating env
 - Document local setup in `README.md` including bootstrap scripts and environment prerequisites.
 
 ### 2. Simulator Hardening (Weeks 2-3)
-- Complete type coverage for `core/kolibri_sim.py` and related scripts.
-- Expand unit tests in `tests/test_kolibri_sim.py` to cover soak scenarios and journal rollovers.
+- Завершить порт KolibriSim на C (`kolibri/sim.h`) и устранить расхождения с прежней Python-версией.
+- Расширить unit-тесты (`tests/test_sim.c`, `kolibri_sim soak`) для сценариев длительных прогонов и ротации журнала.
 - Profile performance hotspots and add benchmarks for event processing.
 - Introduce structured logging and trace toggles for debugging complex simulations.
 
@@ -54,4 +54,3 @@ Kolibri OS aims to deliver a lightweight, reliable, and scriptable operating env
 - 100% pass rate across CI matrices (Python, CMake, WebAssembly, policy checks).
 - Code coverage above 80% for critical modules; no regressions in soak benchmarks.
 - Positive developer feedback collected via survey on tooling and documentation quality.
-
