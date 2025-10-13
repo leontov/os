@@ -190,8 +190,13 @@ static const char *const KOLIBRI_KEYWORDS[] = {
     "рой",
     "отправить",
     "фитнес",
-    "итог"
+    "итог",
+    "режим"
 };
+
+static void kolibri_to_lower_ascii(const char *src, char *dst, size_t dst_len);
+static void kolibri_script_set_mode(KolibriScript *script, const char *mode);
+static void kolibri_apply_mode(KolibriScript *script, char *answer);
 
 static size_t kolibri_keyword_count(void) {
     return sizeof(KOLIBRI_KEYWORDS) / sizeof(KOLIBRI_KEYWORDS[0]);
@@ -633,7 +638,8 @@ typedef enum {
     KOLIBRI_NODE_PRINT_CANVAS,
     KOLIBRI_NODE_SWARM_SEND,
     KOLIBRI_NODE_IF,
-    KOLIBRI_NODE_WHILE
+    KOLIBRI_NODE_WHILE,
+    KOLIBRI_NODE_MODE
 } KolibriNodeKind;
 
 typedef struct KolibriStatement KolibriStatement;
@@ -685,6 +691,9 @@ struct KolibriStatement {
             KolibriExpression condition;
             KolibriStatementList body;
         } while_stmt;
+        struct {
+            KolibriExpression value;
+        } mode_stmt;
     } data;
 };
 
@@ -776,6 +785,9 @@ static void kolibri_free_statement(KolibriStatement *stmt) {
     case KOLIBRI_NODE_WHILE:
         kolibri_free_expression(&stmt->data.while_stmt.condition);
         kolibri_statement_list_free(&stmt->data.while_stmt.body);
+        break;
+    case KOLIBRI_NODE_MODE:
+        kolibri_free_expression(&stmt->data.mode_stmt.value);
         break;
     case KOLIBRI_NODE_CALL_EVOLUTION:
     case KOLIBRI_NODE_PRINT_CANVAS:
@@ -935,6 +947,26 @@ static void kolibri_trim_spaces(char *text) {
     text[write] = '\0';
 }
 
+static void kolibri_script_set_mode(KolibriScript *script, const char *mode) {
+    if (!script) {
+        return;
+    }
+    char temp[sizeof(script->mode)];
+    if (!mode) {
+        strcpy(temp, "neutral");
+    } else {
+        strncpy(temp, mode, sizeof(temp) - 1U);
+        temp[sizeof(temp) - 1U] = '\0';
+        kolibri_trim_spaces(temp);
+        kolibri_to_lower_ascii(temp, temp, sizeof(temp));
+        if (temp[0] == '\0') {
+            strcpy(temp, "neutral");
+        }
+    }
+    strncpy(script->mode, temp, sizeof(script->mode) - 1U);
+    script->mode[sizeof(script->mode) - 1U] = '\0';
+}
+
 static void kolibri_clean_answer(char *text) {
     if (!text) {
         return;
@@ -951,6 +983,37 @@ static void kolibri_clean_answer(char *text) {
             text[len + 1] = '\0';
         }
     }
+}
+
+static bool kolibri_mode_equals(const KolibriScript *script, const char *expected) {
+    if (!script || !expected) {
+        return false;
+    }
+    char lower[sizeof(script->mode)];
+    kolibri_to_lower_ascii(script->mode, lower, sizeof(lower));
+    kolibri_trim_spaces(lower);
+    return strcmp(lower, expected) == 0;
+}
+
+static void kolibri_apply_mode(KolibriScript *script, char *answer) {
+    if (!script || !answer) {
+        return;
+    }
+    if (kolibri_mode_equals(script, "neutral") || answer[0] == '\0') {
+        return;
+    }
+    char formatted[512];
+    if (kolibri_mode_equals(script, "журнал") || kolibri_mode_equals(script, "journal")) {
+        snprintf(formatted, sizeof(formatted), "Журнал: %s", answer);
+    } else if (kolibri_mode_equals(script, "эмодзи") || kolibri_mode_equals(script, "emoji")) {
+        snprintf(formatted, sizeof(formatted), "%s %s", answer, "😊");
+    } else if (kolibri_mode_equals(script, "аналитика") || kolibri_mode_equals(script, "analytics")) {
+        snprintf(formatted, sizeof(formatted), "• %s", answer);
+    } else {
+        return;
+    }
+    strncpy(answer, formatted, 511);
+    answer[511] = '\0';
 }
 
 static void kolibri_to_lower_ascii(const char *src, char *dst, size_t dst_len) {
@@ -1028,6 +1091,70 @@ static bool kolibri_try_calculate(const char *question, char *buffer, size_t buf
         return true;
     }
     return false;
+}
+
+static void kolibri_record_ngrams(KolibriScript *script,
+                                  const char *question,
+                                  const char *answer,
+                                  const char *source,
+                                  uint64_t timestamp) {
+    if (!script || !script->pool || !question || !answer) {
+        return;
+    }
+    char copy[256];
+    strncpy(copy, question, sizeof(copy) - 1U);
+    copy[sizeof(copy) - 1U] = '\0';
+    kolibri_trim_spaces(copy);
+    if (copy[0] == '\0') {
+        return;
+    }
+    char *tokens[32];
+    size_t token_count = 0;
+    char *saveptr = NULL;
+    for (char *tok = strtok_r(copy, " ", &saveptr);
+         tok && token_count < sizeof(tokens) / sizeof(tokens[0]);
+         tok = strtok_r(NULL, " ", &saveptr)) {
+        tokens[token_count++] = tok;
+    }
+    if (token_count < 2) {
+        return;
+    }
+    char recorded[64][256];
+    size_t recorded_count = 0;
+    for (size_t n = 2; n <= 3 && n <= token_count; ++n) {
+        for (size_t i = 0; i + n <= token_count; ++i) {
+            char ngram[256];
+            ngram[0] = '\0';
+            for (size_t j = 0; j < n; ++j) {
+                if (j > 0) {
+                    strncat(ngram, " ", sizeof(ngram) - strlen(ngram) - 1U);
+                }
+                strncat(ngram, tokens[i + j], sizeof(ngram) - strlen(ngram) - 1U);
+            }
+            if (ngram[0] == '\0') {
+                continue;
+            }
+            bool seen = false;
+            for (size_t r = 0; r < recorded_count; ++r) {
+                if (strcmp(recorded[r], ngram) == 0) {
+                    seen = true;
+                    break;
+                }
+            }
+            if (seen || recorded_count >= sizeof(recorded) / sizeof(recorded[0])) {
+                continue;
+            }
+            strncpy(recorded[recorded_count], ngram, sizeof(recorded[recorded_count]) - 1U);
+            recorded[recorded_count][sizeof(recorded[recorded_count]) - 1U] = '\0';
+            recorded_count++;
+            (void)kf_pool_add_association(script->pool,
+                                          &script->symbol_table,
+                                          ngram,
+                                          answer,
+                                          source ? source : "ngram",
+                                          timestamp);
+        }
+    }
 }
 
 static bool kolibri_token_is_terminator(const KolibriToken *token, const char *const *keywords, size_t keyword_count,
@@ -1167,6 +1294,24 @@ static KolibriStatement *kolibri_parser_parse_variable(KolibriParser *parser) {
         return NULL;
     }
     stmt->data.variable.value = expr;
+    return stmt;
+}
+
+static KolibriStatement *kolibri_parser_parse_mode(KolibriParser *parser) {
+    const KolibriToken *start = kolibri_parser_advance(parser);
+    const char *terminator_keywords[] = { NULL };
+    KolibriTokenType terminator_types[] = { KOLIBRI_TOKEN_NEWLINE, KOLIBRI_TOKEN_EOF };
+    KolibriExpression expr = { 0 };
+    if (!kolibri_parser_parse_expression_until(parser, &expr, terminator_keywords, 0, terminator_types, 2U)) {
+        return NULL;
+    }
+    KolibriStatement *stmt = kolibri_parser_make_statement(KOLIBRI_NODE_MODE,
+                                                           kolibri_make_span(start->span.start, expr.span.end));
+    if (!stmt) {
+        kolibri_free_expression(&expr);
+        return NULL;
+    }
+    stmt->data.mode_stmt.value = expr;
     return stmt;
 }
 
@@ -1442,6 +1587,9 @@ static KolibriStatement *kolibri_parser_parse_statement(KolibriParser *parser) {
     }
     if (strcmp(token->lexeme, "переменная") == 0) {
         return kolibri_parser_parse_variable(parser);
+    }
+    if (strcmp(token->lexeme, "режим") == 0) {
+        return kolibri_parser_parse_mode(parser);
     }
     if (strcmp(token->lexeme, "обучить") == 0) {
         return kolibri_parser_parse_teach(parser);
@@ -2051,6 +2199,29 @@ static int kolibri_execute_variable(KolibriScript *script, const KolibriStatemen
     return 0;
 }
 
+static int kolibri_execute_mode(KolibriScript *script, const KolibriStatement *stmt) {
+    KolibriValue value;
+    if (kolibri_evaluate_expression(script, &stmt->data.mode_stmt.value, &value) != 0) {
+        kolibri_script_log(script, "SCRIPT_ERROR", "Не удалось вычислить режим");
+        return -1;
+    }
+    char *text = NULL;
+    if (kolibri_value_to_string(&value, &text) != 0) {
+        kolibri_value_free(&value);
+        return -1;
+    }
+    kolibri_script_set_mode(script, text);
+    char log_payload[128];
+    snprintf(log_payload, sizeof(log_payload), "mode=%s", script->mode);
+    kolibri_script_log(script, "SCRIPT_MODE", log_payload);
+    if (script->vyvod) {
+        fprintf(script->vyvod, "[Колибри] Режим установлен: %s\n", script->mode);
+    }
+    free(text);
+    kolibri_value_free(&value);
+    return 0;
+}
+
 static int kolibri_execute_teach(KolibriScript *script, const KolibriStatement *stmt) {
     KolibriValue left;
     KolibriValue right;
@@ -2091,6 +2262,7 @@ static int kolibri_execute_teach(KolibriScript *script, const KolibriStatement *
     if (script->pool) {
         uint64_t now = (uint64_t)time(NULL);
         (void)kf_pool_add_association(script->pool, &script->symbol_table, left_text, right_text, "teach", now);
+        kolibri_record_ngrams(script, left_text, right_text, "teach", now);
     }
     kolibri_script_log(script, "SCRIPT_TEACH", assoc->stimulus);
     kolibri_value_free(&left);
@@ -2166,6 +2338,7 @@ static int kolibri_execute_evaluate_formula(KolibriScript *script, const Kolibri
             if (script->pool) {
                 uint64_t now = (uint64_t)time(NULL);
                 (void)kf_pool_add_association(script->pool, &script->symbol_table, task_text, answer_buffer, "auto", now);
+                kolibri_record_ngrams(script, task_text, answer_buffer, "auto", now);
             }
         }
     }
@@ -2182,6 +2355,7 @@ static int kolibri_execute_evaluate_formula(KolibriScript *script, const Kolibri
     binding->last_fitness = fitness;
     kolibri_script_log(script, "SCRIPT_EVALUATE", task_text);
     kolibri_clean_answer(answer_buffer);
+    kolibri_apply_mode(script, answer_buffer);
     KolibriValue result_value = kolibri_value_from_string(answer_buffer);
     kolibri_script_set_variable(script, "итог", result_value);
     free(task_text);
@@ -2325,6 +2499,8 @@ static int kolibri_execute_statement(KolibriScript *script, const KolibriStateme
         return kolibri_execute_if(script, stmt);
     case KOLIBRI_NODE_WHILE:
         return kolibri_execute_while(script, stmt);
+    case KOLIBRI_NODE_MODE:
+        return kolibri_execute_mode(script, stmt);
     default:
         return 0;
     }
@@ -2334,6 +2510,9 @@ static void kolibri_script_reset(KolibriScript *script) {
     kolibri_script_clear_variables(script);
     kolibri_script_clear_associations(script);
     kolibri_script_clear_formulas(script);
+    if (script) {
+        kolibri_script_set_mode(script, "neutral");
+    }
 }
 
 /* ===================== Public API ===================== */
@@ -2349,6 +2528,7 @@ int ks_init(KolibriScript *skript, KolibriFormulaPool *pool, KolibriGenome *geno
     skript->source_text = NULL;
     kolibri_symbol_table_init(&skript->symbol_table, genome);
     kolibri_symbol_table_load(&skript->symbol_table);
+    kolibri_script_set_mode(skript, "neutral");
     return 0;
 }
 

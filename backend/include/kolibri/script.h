@@ -29,6 +29,7 @@ typedef struct {
     FILE *vyvod;
     char *source_text;
     KolibriSymbolTable symbol_table;
+    char mode[32];
 
     /* Runtime state */
     struct KolibriScriptVariable *variables;
