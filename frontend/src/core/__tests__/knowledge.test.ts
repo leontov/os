@@ -8,8 +8,8 @@ afterEach(() => {
 
 describe("knowledge search helpers", () => {
   it("builds search URLs with optional limit", () => {
-    expect(buildSearchUrl("kolibri")).toBe("/knowledge/search?q=kolibri");
-    expect(buildSearchUrl("kolibri", { topK: 5 })).toBe("/knowledge/search?q=kolibri&limit=5");
+    expect(buildSearchUrl("kolibri")).toBe("/api/knowledge/search?q=kolibri");
+    expect(buildSearchUrl("kolibri", { topK: 5 })).toBe("/api/knowledge/search?q=kolibri&limit=5");
   });
 
   it("returns snippets when the backend responds successfully", async () => {
@@ -25,7 +25,7 @@ describe("knowledge search helpers", () => {
 
     const snippets = await searchKnowledge("Kolibri", { topK: 2 });
 
-    expect(fetchMock).toHaveBeenCalledWith("/knowledge/search?q=Kolibri&limit=2", {
+    expect(fetchMock).toHaveBeenCalledWith("/api/knowledge/search?q=Kolibri&limit=2", {
       signal: undefined,
     });
     expect(snippets).toHaveLength(1);

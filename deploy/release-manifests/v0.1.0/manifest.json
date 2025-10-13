@@ -1,0 +1,21 @@
+{
+  "version": "v0.1.0",
+  "date": "2025-01-01T00:00:00Z",
+  "artifacts": [
+    {
+      "name": "kolibri.iso",
+      "sha256": "AUTO_GENERATED_BY_CI",
+      "signature": "kolibri.iso.sig"
+    },
+    {
+      "name": "kolibri.wasm",
+      "sha256": "AUTO_GENERATED_BY_CI",
+      "signature": "kolibri.wasm.sig"
+    },
+    {
+      "name": "frontend-dist.tar.gz",
+      "sha256": "AUTO_GENERATED_BY_CI",
+      "signature": "frontend-dist.tar.gz.sig"
+    }
+  ]
+}

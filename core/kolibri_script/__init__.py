@@ -1,5 +1,4 @@
-
-"""Парсер KolibriScript и связанные структуры данных."""
+"""Parsers and genome helpers for KolibriScript."""
 
 from .parser import (
     CallEvolution,
@@ -21,6 +20,15 @@ from .parser import (
     VariableDeclaration,
     WhileStatement,
     parse_script,
+)
+from .genome import (
+    KsdBlock,
+    KsdValidationError,
+    KolibriGenomeLedger,
+    SecretsConfig,
+    deserialize_ksd,
+    load_secrets_config,
+    serialize_ksd,
 )
 
 __all__ = [
@@ -57,6 +65,7 @@ from .genome import (
 )
 
 __all__ += [
+    "KsdBlock",
     "KsdValidationError",
     "KolibriGenomeLedger",
     "SecretsConfig",

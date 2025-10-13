@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Layout from "./components/Layout";
+import NavigationRail from "./components/NavigationRail";
 import Sidebar from "./components/Sidebar";
+import StatusBar from "./components/StatusBar";
 import WelcomeScreen from "./components/WelcomeScreen";
 import ChatInput from "./components/ChatInput";
 import ChatView from "./components/ChatView";
 import type { ChatMessage } from "./types/chat";
 import kolibriBridge from "./core/kolibri-bridge";
-import { searchKnowledge } from "./core/knowledge";
+import { fetchKnowledgeStatus, searchKnowledge } from "./core/knowledge";
 import type { KnowledgeSnippet } from "./types/knowledge";
+import { findModeLabel, MODE_OPTIONS } from "./core/modes";
 
 const formatPromptWithContext = (question: string, context: KnowledgeSnippet[]): string => {
   if (!context.length) {
@@ -25,10 +28,13 @@ const formatPromptWithContext = (question: string, context: KnowledgeSnippet[]):
 const App = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
-  const [mode, setMode] = useState("Быстрый ответ");
+  const [mode, setMode] = useState(MODE_OPTIONS[0]?.value ?? "neutral");
   const [isProcessing, setIsProcessing] = useState(false);
   const [bridgeReady, setBridgeReady] = useState(false);
   const [conversationId, setConversationId] = useState(() => crypto.randomUUID());
+  const [knowledgeStatus, setKnowledgeStatus] = useState<Awaited<ReturnType<typeof fetchKnowledgeStatus>> | null>(null);
+  const [knowledgeError, setKnowledgeError] = useState<string | undefined>();
+  const [statusLoading, setStatusLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -58,6 +64,25 @@ const App = () => {
       cancelled = true;
     };
   }, []);
+
+  const refreshKnowledgeStatus = useCallback(async () => {
+    setStatusLoading(true);
+    try {
+      const status = await fetchKnowledgeStatus();
+      setKnowledgeStatus(status);
+      setKnowledgeError(undefined);
+    } catch (error) {
+      setKnowledgeError(
+        error instanceof Error && error.message ? error.message : "Не удалось получить состояние знаний.",
+      );
+    } finally {
+      setStatusLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshKnowledgeStatus();
+  }, [refreshKnowledgeStatus]);
 
   const handleSuggestionSelect = useCallback((prompt: string) => {
     setDraft(prompt);
@@ -129,13 +154,14 @@ const App = () => {
     const prompt = knowledgeContext.length ? formatPromptWithContext(content, knowledgeContext) : content;
 
     try {
-      const answer = await kolibriBridge.ask(prompt, mode);
+      const answer = await kolibriBridge.ask(prompt, mode, knowledgeContext);
       const assistantMessage: ChatMessage = {
         id: crypto.randomUUID(),
         role: "assistant",
         content: answer,
         timestamp: new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }),
-        mode,
+        modeValue: mode,
+        modeLabel: findModeLabel(mode),
       };
       if (knowledgeContext.length) {
         assistantMessage.context = knowledgeContext;
@@ -157,8 +183,9 @@ const App = () => {
       setMessages((prev) => [...prev, assistantMessage]);
     } finally {
       setIsProcessing(false);
+      void refreshKnowledgeStatus();
     }
-  }, [bridgeReady, draft, isProcessing, mode]);
+  }, [bridgeReady, draft, isProcessing, mode, refreshKnowledgeStatus]);
 
   const content = useMemo(() => {
     if (!messages.length) {
@@ -175,17 +202,25 @@ const App = () => {
   }, [conversationId, handleSuggestionSelect, isProcessing, messages]);
 
   return (
-    <Layout sidebar={<Sidebar />}>
-      <div className="flex-1">{content}</div>
-      <ChatInput
-        value={draft}
-        mode={mode}
-        isBusy={isProcessing || !bridgeReady}
-        onChange={setDraft}
-        onModeChange={setMode}
-        onSubmit={sendMessage}
-        onReset={resetConversation}
-      />
+    <Layout navigation={<NavigationRail />} sidebar={<Sidebar />}>
+      <div className="flex flex-1 flex-col gap-6">
+        <StatusBar
+          status={knowledgeStatus}
+          error={knowledgeError}
+          isLoading={statusLoading}
+          onRefresh={refreshKnowledgeStatus}
+        />
+        <div className="flex-1">{content}</div>
+        <ChatInput
+          value={draft}
+          mode={mode}
+          isBusy={isProcessing || !bridgeReady}
+          onChange={setDraft}
+          onModeChange={setMode}
+          onSubmit={sendMessage}
+          onReset={resetConversation}
+        />
+      </div>
     </Layout>
   );
 };

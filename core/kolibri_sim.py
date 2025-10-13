@@ -6,12 +6,13 @@ import ast
 import dataclasses
 import hashlib
 import hmac
+import io
 import json
 import os
 import random
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Protocol, Sequence, TypedDict, cast
+from typing import Any, Dict, Iterable, List, Mapping, Optional, Protocol, Sequence, TypedDict, cast
 
 from .kolibri_script.genome import (
     KolibriGenomeLedger,
@@ -148,6 +149,7 @@ class KolibriSim:
         genome_path: "Path | str | None" = None,
         secrets_config: "SecretsConfig | None" = None,
         secrets_path: "Path | str | None" = None,
+        journal_path: "Path | str | None" = None,
     ) -> None:
         self.zerno = zerno
         self.generator = random.Random(zerno)
@@ -164,16 +166,24 @@ class KolibriSim:
         self._tracer_include_genome = False
         self._trace_path: Optional[Path] = None
         self._genome_writer: Optional[KolibriGenomeLedger] = None
+        self._journal_path: Optional[Path] = None
+        self._journal_file: Optional[io.TextIOWrapper] = None
 
         if genome_path is not None:
             secrets = secrets_config or load_secrets_config(secrets_path)
             self._genome_writer = KolibriGenomeLedger(Path(genome_path), secrets)
 
+        journal_file_path = self._vybrat_journal_path(journal_path)
+        if journal_file_path is not None:
+            journal_file_path.parent.mkdir(parents=True, exist_ok=True)
+            self._journal_path = journal_file_path
+            self._journal_file = journal_file_path.open("a", encoding="utf-8")
+
         self._nastroit_avto_tracer(trace_path, trace_include_genome)
 
         genesis = self._sozdanie_bloka("GENESIS", {"seed": zerno})
         writer = self._genome_writer
-        if writer is not None and not writer.records:
+        if writer is not None and not writer.has_records():
             writer.append(
                 dataclasses.asdict(genesis),
                 {"tip": "GENESIS", "soobshenie": f"seed={zerno}", "metka": time.time()},
@@ -240,6 +250,22 @@ class KolibriSim:
         base_dir = Path(log_dir_env) if log_dir_env else Path.cwd()
         return base_dir / "kolibri_trace.jsonl"
 
+    def _vybrat_journal_path(self, journal_path: "Path | str | None") -> Optional[Path]:
+        """Возвращает путь для постоянного текстового журнала."""
+
+        if journal_path is not None:
+            text = str(journal_path).strip()
+            return None if text == "" else Path(text)
+
+        env_path = os.getenv("KOLIBRI_JOURNAL_PATH")
+        if env_path:
+            stripped = env_path.strip()
+            if stripped and stripped.lower() not in {"0", "false", "no", "off"}:
+                return Path(stripped)
+            return None
+
+        return None
+
     @staticmethod
     def _env_flag(value: Optional[str], *, default: bool) -> bool:
         """Интерпретирует переменную окружения как логический флаг."""
@@ -281,6 +307,23 @@ class KolibriSim:
                 tracer.zapisat(zapis, blok_dlya_tracinga)
             except Exception as oshibka:  # pragma: no cover - ошибки трассера должны быть видимы
                 raise RuntimeError("KolibriSim tracer не смог обработать событие") from oshibka
+        self._persist_journal(zapis, blok)
+
+    def _persist_journal(self, zapis: ZhurnalZapis, blok: ZapisBloka) -> None:
+        """Добавляет запись в файловый журнал, если он включён."""
+
+        handle = self._journal_file
+        if handle is None:
+            return
+        payload = {
+            "tip": zapis["tip"],
+            "soobshenie": zapis["soobshenie"],
+            "metka": zapis["metka"],
+            "blok": dataclasses.asdict(blok),
+        }
+        json.dump(payload, handle, ensure_ascii=False, separators=(",", ":"))
+        handle.write("\n")
+        handle.flush()
 
     # --- Базовые операции обучения ---
     def obuchit_svjaz(self, stimul: str, otvet: str) -> None:
@@ -288,6 +331,12 @@ class KolibriSim:
 
         self.znanija[stimul] = otvet
         self._registrirovat("TEACH", f"{stimul}->{otvet}")
+
+    def bulk_obuchit(self, pary: Iterable[tuple[str, str]]) -> None:
+        """Массово обучает связки стимул→ответ."""
+
+        for stimul, otvet in pary:
+            self.obuchit_svjaz(stimul, otvet)
 
     def sprosit(self, stimul: str) -> str:
         """Возвращает ответ из памяти или многоточие, если знания нет."""
@@ -422,6 +471,34 @@ class KolibriSim:
         self._registrirovat("SYNC", f"imported={dobavleno}")
         return dobavleno
 
+    def import_formuly(self, formuly: Mapping[str, FormulaRecord]) -> int:
+        """Импортирует недостающие формулы из другого симулятора."""
+
+        dobavleno = 0
+        for nazvanie, zapis in formuly.items():
+            target_name = nazvanie
+            if target_name in self.formuly:
+                suffix = 1
+                base = target_name
+                while target_name in self.formuly:
+                    target_name = f"{base}@{suffix}"
+                    suffix += 1
+            self.formuly[target_name] = {
+                "kod": zapis["kod"],
+                "fitness": float(zapis["fitness"]),
+                "parents": list(zapis["parents"]),
+                "context": zapis["context"],
+            }
+            if target_name not in self.populyaciya:
+                self.populyaciya.append(target_name)
+            dobavleno += 1
+        if dobavleno:
+            # Удерживаем размер популяции в пределах лимита и фиксируем событие.
+            if len(self.populyaciya) > self.predel_populyacii:
+                self.populyaciya = self.populyaciya[-self.predel_populyacii :]
+            self._registrirovat("FORMULA_SYNC", f"imported={dobavleno}")
+        return dobavleno
+
     def poluchit_canvas(self, glubina: int = 3) -> List[List[int]]:
         """Формирует числовое представление фрактальной памяти для визуализации."""
 
@@ -475,6 +552,11 @@ class KolibriSim:
 
         return self._trace_path
 
+    def poluchit_journal_path(self) -> Optional[Path]:
+        """Возвращает путь к постоянному текстовому журналу, если он настроен."""
+
+        return self._journal_path
+
     def massiv_cifr(self, kolichestvo: int) -> List[int]:
         """Генерирует детерминированную последовательность цифр на основе зерна."""
 
@@ -505,6 +587,58 @@ class KolibriSim:
                 self.obuchit_svjaz(stimul, otvet)
 
         return {"events": len(self.genom) - nachalnyj_razmer, "metrics": metrika}
+
+    def zapustit_roj(self, peers: Sequence["KolibriSim"], cikly: int = 1) -> Dict[str, int]:
+        """Оркестрирует обмен знаниями и формулами между текущим симом и списком пиров."""
+
+        if cikly <= 0:
+            return {"rounds": 0, "knowledge": 0, "formulas": 0}
+
+        unique_peers: List[KolibriSim] = [self]
+        for peer in peers:
+            if peer is self or peer in unique_peers:
+                continue
+            unique_peers.append(peer)
+
+        if len(unique_peers) < 2:
+            return {"rounds": cikly, "knowledge": 0, "formulas": 0}
+
+        knowledge_total = 0
+        formulas_total = 0
+
+        for _ in range(cikly):
+            for source in unique_peers:
+                state = source.vzjat_sostoyanie()
+                formulas = dict(source.formuly)
+                for target in unique_peers:
+                    if target is source:
+                        continue
+                    knowledge_total += target.sinhronizaciya(state)
+                    formulas_total += target.import_formuly(formulas)
+
+        self._registrirovat(
+            "SWARM",
+            f"rounds={cikly},knowledge={knowledge_total},formulas={formulas_total}",
+        )
+        return {"rounds": cikly, "knowledge": knowledge_total, "formulas": formulas_total}
+
+    def zakryt(self) -> None:
+        """Закрывает ресурсы файлового журнала и цифрового генома."""
+
+        if self._journal_file is not None:
+            try:
+                self._journal_file.flush()
+            finally:
+                self._journal_file.close()
+            self._journal_file = None
+        self._journal_path = None
+        self._genome_writer = None
+
+    def __del__(self) -> None:  # pragma: no cover - best effort cleanup
+        try:
+            self.zakryt()
+        except Exception:
+            pass
 
 
 def sohranit_sostoyanie(path: Path, sostoyanie: Mapping[str, Any]) -> None:

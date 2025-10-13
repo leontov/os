@@ -17,8 +17,11 @@ kolichestvo=3
 bazovyj_port=4100
 prodolzhitelnost=60
 bazovoe_zerno=20250923
+propustit_sborku="${KOLIBRI_CLUSTER_SKIP_BUILD:-0}"
 
-while getopts "n:b:d:s:h" flag; do
+koordinator=0
+koordinator_port=4099
+while getopts "n:b:d:s:hA" flag; do
     case "$flag" in
         n)
             kolichestvo="$OPTARG"
@@ -31,6 +34,9 @@ while getopts "n:b:d:s:h" flag; do
             ;;
         s)
             bazovoe_zerno="$OPTARG"
+            ;;
+        A)
+            koordinator=1
             ;;
         h|*)
             usage
@@ -84,8 +90,10 @@ obespechit_klyuch() {
     sozdat_klyuch >"$key_path"
 }
 
-cmake -S "$root_dir" -B "$build_dir" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON >/dev/null
-cmake --build "$build_dir" >/dev/null
+if [ "$propustit_sborku" != "1" ]; then
+    cmake -S "$root_dir" -B "$build_dir" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON >/dev/null
+    cmake --build "$build_dir" >/dev/null
+fi
 
 obespechit_klyuch
 
@@ -112,17 +120,33 @@ for ((indeks = 0; indeks < kolichestvo; ++indeks)); do
     geneticheskij="$cluster_dir/genome_${nomer}.dat"
     zhurnal="$cluster_dir/node_${nomer}.log"
     seed=$((bazovoe_zerno + nomer))
-    komanda=("$build_dir/kolibri_node" "--node-id" "$nomer" "--listen" "$port" "--genome" "$geneticheskij" "--seed" "$seed" "--verify-genome" "--hmac-key" "$key_path")
-    if [ "$kolichestvo" -gt 1 ]; then
-        komanda+=("--peer" "127.0.0.1:${port_soseda}")
+    komanda=("$build_dir/kolibri_node" "--node-id" "$nomer" "--listen" "$port" "--genome" "$geneticheskij" "--seed" "$seed" "--verify-genome" "--hmac-key" "$key_path" "--auto-learn")
+    if [ "$koordinator" -eq 1 ]; then
+        komanda+=("--peer" "127.0.0.1:${koordinator_port}")
+    else
+        if [ "$kolichestvo" -gt 1 ]; then
+            komanda+=("--peer" "127.0.0.1:${port_soseda}")
+        fi
     fi
     echo "[Рой] узел $nomer слушает $port, лог: $zhurnal"
-    "${komanda[@]}" >"$zhurnal" 2>&1 &
+    ( tail -f /dev/null | "${komanda[@]}" ) >"$zhurnal" 2>&1 &
     pids+=($!)
     sleep 0.2
 done
 
 echo "[Рой] Все узлы запущены. Для остановки нажмите Ctrl+C."
+if [ "$koordinator" -eq 1 ]; then
+    echo "[Рой] Запускаю координатор на порту $koordinator_port"
+    targets_args=()
+    for ((indeks = 0; indeks < kolichestvo; ++indeks)); do
+        port=$((bazovyj_port + indeks))
+        targets_args+=("--node" "127.0.0.1:${port}")
+    done
+    "$build_dir/kolibri_coordinator" --listen "$koordinator_port" "${targets_args[@]}" \
+        >"$cluster_dir/coordinator.log" 2>&1 &
+    pids+=($!)
+    echo "[Рой] Координатор запущен, лог: $cluster_dir/coordinator.log"
+fi
 if [ "$prodolzhitelnost" -gt 0 ]; then
     sleep "$prodolzhitelnost"
     echo "[Рой] Время истекло, останавливаем кластер"

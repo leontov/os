@@ -6,14 +6,16 @@
  * exported by the module, and exposes a single `ask` method used by the UI.
  */
 import { createWasiContext } from "./wasi";
+import { teachKnowledge, sendKnowledgeFeedback } from "./knowledge";
+import type { KnowledgeSnippet } from "../types/knowledge";
 
 export interface KolibriBridge {
   readonly ready: Promise<void>;
-  ask(prompt: string, mode?: string): Promise<string>;
+  ask(prompt: string, mode?: string, context?: KnowledgeSnippet[]): Promise<string>;
   reset(): Promise<void>;
 }
 
-interface KolibriWasmExports extends WebAssembly.Exports {
+interface KolibriWasmExports {
   memory: WebAssembly.Memory;
   _malloc(size: number): number;
   _free(ptr: number): void;
@@ -31,8 +33,54 @@ const COMMAND_PATTERN = /^(показать|обучить|спросить|ти
 const PROGRAM_START_PATTERN = /начало\s*:/i;
 const PROGRAM_END_PATTERN = /конец\./i;
 
+type WasiInstanceContext = ReturnType<typeof createWasiContext>;
+type WasmExportFunction = (...args: number[]) => number;
+
+const resolveMemory = (exports: WebAssembly.Exports): WebAssembly.Memory => {
+  const memory = (exports as Record<string, unknown>).memory;
+  if (memory instanceof WebAssembly.Memory) {
+    return memory;
+  }
+  throw new Error("WASM-модуль не экспортирует память WebAssembly");
+};
+
+const resolveFunction = (exports: WebAssembly.Exports, candidates: readonly string[]): WasmExportFunction => {
+  const lookup = exports as Record<string, unknown>;
+  for (const name of candidates) {
+    const candidate = lookup[name];
+    if (typeof candidate === "function") {
+      return candidate as WasmExportFunction;
+    }
+  }
+  throw new Error(`WASM-модуль не экспортирует функции ${candidates.join(" или ")}`);
+};
+
+const createKolibriWasmExports = (
+  rawExports: WebAssembly.Exports,
+  wasi: WasiInstanceContext,
+): KolibriWasmExports => {
+  const memory = resolveMemory(rawExports);
+  wasi.setMemory(memory);
+
+  return {
+    memory,
+    _malloc: resolveFunction(rawExports, ["_malloc", "malloc"]) as (size: number) => number,
+    _free: resolveFunction(rawExports, ["_free", "free"]) as (ptr: number) => void,
+    _kolibri_bridge_init: resolveFunction(rawExports, ["_kolibri_bridge_init", "kolibri_bridge_init"]) as () => number,
+    _kolibri_bridge_reset: resolveFunction(rawExports, ["_kolibri_bridge_reset", "kolibri_bridge_reset"]) as () => number,
+    _kolibri_bridge_execute: resolveFunction(rawExports, ["_kolibri_bridge_execute", "kolibri_bridge_execute"]) as (
+      programPtr: number,
+      outputPtr: number,
+      outputCapacity: number,
+    ) => number,
+  };
+};
+
 function escapeScriptString(value: string): string {
-  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  return value
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, '\\"')
+    .replace(/\r?\n/g, "\\n");
 }
 
 function normaliseLines(input: string): string[] {
@@ -42,7 +90,7 @@ function normaliseLines(input: string): string[] {
     .filter((line) => line.length > 0);
 }
 
-function buildScript(prompt: string, mode: string): string {
+export function buildScript(prompt: string, mode: string, context: KnowledgeSnippet[]): string {
   const trimmed = prompt.trim();
   if (!trimmed) {
     return `начало:\n    показать "Пустой запрос"\nконец.\n`;
@@ -52,17 +100,39 @@ function buildScript(prompt: string, mode: string): string {
     return trimmed.endsWith("\n") ? trimmed : `${trimmed}\n`;
   }
 
-  const lines = normaliseLines(trimmed);
-  const modeLine = mode && mode !== DEFAULT_MODE ? `    показать "Режим: ${escapeScriptString(mode)}"\n` : "";
+  const lines: string[] = ["начало:"];
 
-  const scriptLines = lines.map((line) => {
-    if (COMMAND_PATTERN.test(line)) {
-      return `    ${line}`;
+  if (mode && mode !== DEFAULT_MODE) {
+    lines.push(`    показать "Режим: ${escapeScriptString(mode)}"`);
+  }
+
+  lines.push(`    переменная вопрос = "${escapeScriptString(trimmed)}"`);
+  lines.push(`    показать "Вопрос: ${escapeScriptString(trimmed)}"`);
+
+  const uniqueAnswers = new Set<string>();
+  context.forEach((snippet, index) => {
+    const answer = snippet.content.trim();
+    if (!answer) {
+      return;
     }
-    return `    показать "${escapeScriptString(line)}"`;
+    const normalised = answer.length > 400 ? `${answer.slice(0, 397)}…` : answer;
+    if (uniqueAnswers.has(normalised)) {
+      return;
+    }
+    uniqueAnswers.add(normalised);
+    lines.push(`    переменная источник_${index + 1} = "${escapeScriptString(snippet.source ?? snippet.id)}"`);
+    lines.push(`    обучить связь "${escapeScriptString(trimmed)}" -> "${escapeScriptString(normalised)}"`);
+    const sourceLabel = snippet.title || snippet.id;
+    lines.push(`    показать "Источник ${index + 1}: ${escapeScriptString(sourceLabel)}"`);
   });
 
-  return `начало:\n${modeLine}${scriptLines.join("\n")}\nконец.\n`;
+  lines.push(`    создать формулу ответ из "ассоциация"`);
+  lines.push("    вызвать эволюцию");
+  lines.push(`    оценить ответ на задаче "${escapeScriptString(trimmed)}"`);
+  lines.push("    показать итог");
+  lines.push("конец.");
+
+  return `${lines.join("\n")}\n`;
 }
 
 async function describeWasmFailure(error: unknown): Promise<string> {
@@ -97,7 +167,7 @@ class KolibriWasmBridge implements KolibriBridge {
     this.ready = this.initialise();
   }
 
-  private async instantiateWasm(): Promise<WebAssembly.Instance> {
+  private async instantiateWasm(): Promise<KolibriWasmExports> {
     const wasi = createWasiContext((text) => {
       console.debug("[kolibri-bridge][wasi]", text);
     });
@@ -105,40 +175,32 @@ class KolibriWasmBridge implements KolibriBridge {
       wasi_snapshot_preview1: wasi.imports,
     };
 
+    let instance: WebAssembly.Instance | null = null;
     if ("instantiateStreaming" in WebAssembly) {
       try {
         const streamingResult = await WebAssembly.instantiateStreaming(fetch(WASM_RESOURCE_URL), importObject);
-        const instance = streamingResult.instance;
-        const exports = instance.exports as KolibriWasmExports;
-        if (exports.memory instanceof WebAssembly.Memory) {
-          wasi.setMemory(exports.memory);
-        }
-        return instance;
+        instance = streamingResult.instance;
       } catch (error) {
         // Fallback to ArrayBuffer path when MIME type is missing.
         console.warn("Kolibri WASM streaming instantiation failed, retrying with ArrayBuffer.", error);
       }
     }
 
-    const response = await fetch(WASM_RESOURCE_URL);
-    if (!response.ok) {
-      throw new Error(`Не удалось загрузить kolibri.wasm: ${response.status} ${response.statusText}`);
+    if (!instance) {
+      const response = await fetch(WASM_RESOURCE_URL);
+      if (!response.ok) {
+        throw new Error(`Не удалось загрузить kolibri.wasm: ${response.status} ${response.statusText}`);
+      }
+      const bytes = await response.arrayBuffer();
+      const fallbackResult = await WebAssembly.instantiate(bytes, importObject);
+      instance = fallbackResult.instance;
     }
-    const bytes = await response.arrayBuffer();
-    const { instance } = await WebAssembly.instantiate(bytes, importObject);
-    const exports = instance.exports as KolibriWasmExports;
-    if (exports.memory instanceof WebAssembly.Memory) {
-      wasi.setMemory(exports.memory);
-    }
-    return instance;
+
+    return createKolibriWasmExports(instance.exports, wasi);
   }
 
   private async initialise(): Promise<void> {
-    const instance = await this.instantiateWasm();
-    const exports = instance.exports as KolibriWasmExports;
-    if (typeof exports._kolibri_bridge_init !== "function") {
-      throw new Error("WASM-модуль не содержит kolibri_bridge_init");
-    }
+    const exports = await this.instantiateWasm();
     const result = exports._kolibri_bridge_init();
     if (result !== 0) {
       throw new Error(`Не удалось инициализировать KolibriScript (код ${result})`);
@@ -146,14 +208,15 @@ class KolibriWasmBridge implements KolibriBridge {
     this.exports = exports;
   }
 
-  async ask(prompt: string, mode: string = DEFAULT_MODE): Promise<string> {
+  async ask(prompt: string, mode: string = DEFAULT_MODE, context: KnowledgeSnippet[] = []): Promise<string> {
     await this.ready;
     if (!this.exports) {
       throw new Error("Kolibri WASM мост не готов");
     }
 
     const exports = this.exports;
-    const script = buildScript(prompt, mode);
+   const script = buildScript(prompt, mode, context);
+    console.debug("[kolibri-bridge] generated script:\n", script);
     const scriptBytes = this.encoder.encode(script);
     const programPtr = exports._malloc(scriptBytes.length + 1);
     const outputPtr = exports._malloc(OUTPUT_CAPACITY);
@@ -179,8 +242,14 @@ class KolibriWasmBridge implements KolibriBridge {
       }
 
       const outputBytes = heap.subarray(outputPtr, outputPtr + written);
-      const text = this.decoder.decode(outputBytes);
-      return text.trim().length === 0 ? "KolibriScript завершил работу без вывода." : text.trimEnd();
+      const text = this.decoder.decode(outputBytes).trim();
+      const answer = text.length === 0 ? "KolibriScript завершил работу без вывода." : text;
+
+      // Автоматическое самообучение: фиксируем связку вопрос -> ответ
+      void teachKnowledge(prompt, answer);
+      void sendKnowledgeFeedback("good", prompt, answer);
+
+      return answer;
     } finally {
       exports._free(programPtr);
       exports._free(outputPtr);
@@ -229,9 +298,10 @@ class KolibriFallbackBridge implements KolibriBridge {
     }
   }
 
-  async ask(_prompt: string, _mode?: string): Promise<string> {
+  async ask(_prompt: string, _mode?: string, _context: KnowledgeSnippet[] = []): Promise<string> {
     void _prompt;
     void _mode;
+    void _context;
     return [
       "KolibriScript недоступен: kolibri.wasm не был загружен.",
       `Причина: ${this.reason}`,
@@ -261,9 +331,9 @@ const bridgePromise: Promise<KolibriBridge> = createBridge();
 
 const kolibriBridge: KolibriBridge = {
   ready: bridgePromise.then(() => undefined),
-  async ask(prompt: string, mode?: string): Promise<string> {
+  async ask(prompt: string, mode?: string, context: KnowledgeSnippet[] = []): Promise<string> {
     const bridge = await bridgePromise;
-    return bridge.ask(prompt, mode);
+    return bridge.ask(prompt, mode, context);
   },
   async reset(): Promise<void> {
     const bridge = await bridgePromise;
