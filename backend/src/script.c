@@ -4,6 +4,7 @@
  */
 
 #include "kolibri/script.h"
+#include "kolibri/decimal.h"
 
 #include <ctype.h>
 #include <errno.h>
@@ -13,6 +14,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #define KOLIBRI_MAX_LOOP_ITERATIONS 1024
 #define KOLIBRI_ARRAY_GROWTH_FACTOR 2U
@@ -217,6 +219,64 @@ static bool kolibri_is_word_delimiter(unsigned char ch) {
         return false;
     }
 }
+
+static void kolibri_generate_text_from_gene(const KolibriFormula *formula,
+                                            const char *question,
+                                            int numeric_answer,
+                                            char *buffer,
+                                            size_t buffer_len) {
+    if (!buffer || buffer_len == 0) {
+        return;
+    }
+    buffer[0] = '\0';
+    if (!formula || formula->gene.length == 0) {
+        return;
+    }
+    static const char alphabet[] = "abcdefghijklmnopqrstuvwxyz";
+    const size_t alphabet_len = sizeof(alphabet) - 1U;
+    if (alphabet_len == 0) {
+        return;
+    }
+    uint64_t seed = numeric_answer >= 0 ? (uint64_t)numeric_answer : (uint64_t)(-(int64_t)numeric_answer);
+    if (seed == 0) {
+        seed = 1U;
+    }
+    for (size_t i = 0; i < formula->gene.length; ++i) {
+        seed = seed * 1315423911ULL + (uint64_t)(formula->gene.digits[i] + 1U);
+    }
+    if (question) {
+        for (const unsigned char *p = (const unsigned char *)question; *p; ++p) {
+            seed ^= (uint64_t)(*p + 17U);
+            seed *= 11400714819323198485ULL;
+        }
+    }
+    size_t pos = 0;
+    size_t words = 3U + (size_t)(seed % 4U); /* 3..6 слов */
+    seed = seed * 2862933555777941757ULL + 3037000493ULL;
+    for (size_t w = 0; w < words && pos + 2 < buffer_len; ++w) {
+        size_t letters = 3U + (size_t)((seed >> 12) % 4U); /* 3..6 букв в слове */
+        if (w > 0) {
+            buffer[pos++] = ' ';
+        }
+        for (size_t i = 0; i < letters && pos + 1 < buffer_len; ++i) {
+            seed = seed * 1103515245ULL + 12345ULL;
+            size_t idx = (size_t)((seed >> 16) % alphabet_len);
+            buffer[pos++] = alphabet[idx];
+        }
+    }
+    if (pos >= buffer_len) {
+        pos = buffer_len - 1U;
+    }
+    buffer[pos] = '\0';
+    if (pos > 0) {
+        buffer[0] = (char)toupper((unsigned char)buffer[0]);
+        if (pos + 1 < buffer_len) {
+            buffer[pos++] = '.';
+            buffer[pos] = '\0';
+        }
+    }
+}
+
 
 static char *kolibri_strndup(const char *src, size_t len) {
     char *copy = (char *)malloc(len + 1U);
@@ -839,6 +899,135 @@ static char *kolibri_expression_build_string(const KolibriToken *start, const Ko
         token += 1;
     }
     return buffer;
+}
+
+static void kolibri_trim_spaces(char *text) {
+    if (!text) {
+        return;
+    }
+    size_t len = strlen(text);
+    size_t start = 0;
+    while (start < len && isspace((unsigned char)text[start])) {
+        start++;
+    }
+    size_t end = len;
+    while (end > start && isspace((unsigned char)text[end - 1])) {
+        end--;
+    }
+    if (start > 0 || end < len) {
+        memmove(text, text + start, end - start);
+        text[end - start] = '\0';
+    }
+    size_t write = 0;
+    bool last_space = false;
+    for (size_t i = 0; text[i]; ++i) {
+        unsigned char ch = (unsigned char)text[i];
+        if (isspace(ch)) {
+            if (!last_space) {
+                text[write++] = ' ';
+                last_space = true;
+            }
+        } else {
+            text[write++] = text[i];
+            last_space = false;
+        }
+    }
+    text[write] = '\0';
+}
+
+static void kolibri_clean_answer(char *text) {
+    if (!text) {
+        return;
+    }
+    kolibri_trim_spaces(text);
+    size_t len = strlen(text);
+    if (len == 0) {
+        return;
+    }
+    text[0] = (char)toupper((unsigned char)text[0]);
+    if (text[len - 1] != '.' && text[len - 1] != '!' && text[len - 1] != '?') {
+        if (len + 1 < KOLIBRI_PAYLOAD_SIZE) {
+            text[len] = '.';
+            text[len + 1] = '\0';
+        }
+    }
+}
+
+static void kolibri_to_lower_ascii(const char *src, char *dst, size_t dst_len) {
+    if (!src || !dst || dst_len == 0) {
+        return;
+    }
+    size_t i = 0;
+    for (; src[i] && i + 1 < dst_len; ++i) {
+        unsigned char ch = (unsigned char)src[i];
+        dst[i] = (char)tolower(ch);
+    }
+    dst[i] = '\0';
+}
+
+static const KolibriAssociation *kolibri_find_partial_association(const KolibriFormulaPool *pool,
+                                                                  const char *question) {
+    if (!pool || !question) {
+        return NULL;
+    }
+    char lowered_question[256];
+    kolibri_to_lower_ascii(question, lowered_question, sizeof(lowered_question));
+    size_t best_len = 0U;
+    const KolibriAssociation *best = NULL;
+    for (size_t i = 0; i < pool->association_count; ++i) {
+        const KolibriAssociation *assoc = &pool->associations[i];
+        char lowered_assoc[256];
+        kolibri_to_lower_ascii(assoc->question, lowered_assoc, sizeof(lowered_assoc));
+        if (strstr(lowered_question, lowered_assoc) || strstr(lowered_assoc, lowered_question)) {
+            size_t len = strlen(assoc->question);
+            if (len > best_len) {
+                best_len = len;
+                best = assoc;
+            }
+        }
+    }
+    return best;
+}
+
+static bool kolibri_try_calculate(const char *question, char *buffer, size_t buffer_len) {
+    if (!question || !buffer || buffer_len == 0) {
+        return false;
+    }
+    char expr[256];
+    kolibri_to_lower_ascii(question, expr, sizeof(expr));
+    for (char *p = expr; *p; ++p) {
+        if (*p == ',' || *p == '?') {
+            *p = ' ';
+        }
+    }
+    double a = 0.0, b = 0.0;
+    char op = 0;
+    if (sscanf(expr, "%lf %c %lf", &a, &op, &b) == 3) {
+        double result = 0.0;
+        switch (op) {
+        case '+':
+            result = a + b;
+            break;
+        case '-':
+            result = a - b;
+            break;
+        case '*':
+        case 'x':
+            result = a * b;
+            break;
+        case '/':
+            if (fabs(b) < 1e-12) {
+                return false;
+            }
+            result = a / b;
+            break;
+        default:
+            return false;
+        }
+        snprintf(buffer, buffer_len, "%.6g", result);
+        return true;
+    }
+    return false;
 }
 
 static bool kolibri_token_is_terminator(const KolibriToken *token, const char *const *keywords, size_t keyword_count,
@@ -1900,7 +2089,8 @@ static int kolibri_execute_teach(KolibriScript *script, const KolibriStatement *
     assoc->response = right_text;
 
     if (script->pool) {
-        (void)kf_pool_add_association(script->pool, left_text, right_text);
+        uint64_t now = (uint64_t)time(NULL);
+        (void)kf_pool_add_association(script->pool, &script->symbol_table, left_text, right_text, "teach", now);
     }
     kolibri_script_log(script, "SCRIPT_TEACH", assoc->stimulus);
     kolibri_value_free(&left);
@@ -1949,12 +2139,49 @@ static int kolibri_execute_evaluate_formula(KolibriScript *script, const Kolibri
         return -1;
     }
     char answer_buffer[512];
-    if (kf_formula_lookup_answer(formula, task_int, answer_buffer, sizeof(answer_buffer)) != 0) {
-        snprintf(answer_buffer, sizeof(answer_buffer), "%d", output);
+    bool answer_generated = false;
+    if (kf_formula_lookup_answer(formula, task_int, answer_buffer, sizeof(answer_buffer)) == 0) {
+        answer_generated = true;
+    }
+    if (!answer_generated) {
+        const KolibriAssociation *partial = kolibri_find_partial_association(script->pool, task_text);
+        if (partial) {
+            strncpy(answer_buffer, partial->answer, sizeof(answer_buffer) - 1U);
+            answer_buffer[sizeof(answer_buffer) - 1U] = '\0';
+            answer_generated = true;
+        }
+    }
+    if (!answer_generated) {
+        if (kolibri_try_calculate(task_text, answer_buffer, sizeof(answer_buffer))) {
+            answer_generated = true;
+        }
+    }
+    if (!answer_generated) {
+        char synthesized[256];
+        kolibri_generate_text_from_gene(formula, task_text, output, synthesized, sizeof(synthesized));
+        if (synthesized[0] != '\0') {
+            strncpy(answer_buffer, synthesized, sizeof(answer_buffer) - 1U);
+            answer_buffer[sizeof(answer_buffer) - 1U] = '\0';
+            answer_generated = true;
+            if (script->pool) {
+                uint64_t now = (uint64_t)time(NULL);
+                (void)kf_pool_add_association(script->pool, &script->symbol_table, task_text, answer_buffer, "auto", now);
+            }
+        }
+    }
+    if (!answer_generated) {
+        if (snprintf(answer_buffer,
+                     sizeof(answer_buffer),
+                     "Колибри ещё учится и предлагает числовой ответ: %d",
+                     output) < 0) {
+            strncpy(answer_buffer, "Колибри ещё учится и не готов ответить.", sizeof(answer_buffer) - 1U);
+            answer_buffer[sizeof(answer_buffer) - 1U] = '\0';
+        }
     }
     double fitness = formula->fitness;
     binding->last_fitness = fitness;
     kolibri_script_log(script, "SCRIPT_EVALUATE", task_text);
+    kolibri_clean_answer(answer_buffer);
     KolibriValue result_value = kolibri_value_from_string(answer_buffer);
     kolibri_script_set_variable(script, "итог", result_value);
     free(task_text);
@@ -2120,6 +2347,8 @@ int ks_init(KolibriScript *skript, KolibriFormulaPool *pool, KolibriGenome *geno
     skript->genome = genome;
     skript->vyvod = stdout;
     skript->source_text = NULL;
+    kolibri_symbol_table_init(&skript->symbol_table, genome);
+    kolibri_symbol_table_load(&skript->symbol_table);
     return 0;
 }
 
@@ -2231,3 +2460,5 @@ int ks_execute(KolibriScript *skript) {
 
     return status;
 }
+#include <ctype.h>
+#include <inttypes.h>

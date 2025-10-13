@@ -14,6 +14,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/select.h>
+#include <sys/time.h>
 
 
 #define KOLIBRI_MEMORY_CAPACITY 8192U
@@ -40,6 +42,9 @@ typedef struct {
     size_t hmac_key_inline_len;
     char hmac_key_path[260];
     bool health_check;
+    bool auto_learn;
+    uint32_t auto_evolve_ms;
+    uint32_t auto_sync_ms;
 } KolibriNodeOptions;
 
 typedef struct {
@@ -60,6 +65,8 @@ typedef struct {
     unsigned char hmac_key[KOLIBRI_HMAC_KEY_SIZE];
     size_t hmac_key_len;
     char hmac_key_origin[320];
+    uint64_t last_evolve_ms;
+    uint64_t last_sync_ms;
 } KolibriNode;
 
 static const unsigned char KOLIBRI_HMAC_KEY[] = "kolibri-secret-key";
@@ -81,6 +88,9 @@ static void options_init(KolibriNodeOptions *options) {
     options->hmac_key_inline_len = 0U;
     options->hmac_key_path[0] = '\0';
     options->health_check = false;
+    options->auto_learn = true;
+    options->auto_evolve_ms = 500U;
+    options->auto_sync_ms = 2000U;
 }
 
 static void parse_options(int argc, char **argv, KolibriNodeOptions *options) {
@@ -167,7 +177,37 @@ static void parse_options(int argc, char **argv, KolibriNodeOptions *options) {
             ++i;
             continue;
         }
+        if (strcmp(argv[i], "--auto-learn") == 0) {
+            options->auto_learn = true;
+            continue;
+        }
+        if (strcmp(argv[i], "--no-auto-learn") == 0) {
+            options->auto_learn = false;
+            continue;
+        }
+        if (strcmp(argv[i], "--auto-evolve-ms") == 0 && i + 1 < argc) {
+            options->auto_evolve_ms = (uint32_t)strtoul(argv[i + 1], NULL, 10);
+            ++i;
+            continue;
+        }
+        if (strcmp(argv[i], "--auto-sync-ms") == 0 && i + 1 < argc) {
+            options->auto_sync_ms = (uint32_t)strtoul(argv[i + 1], NULL, 10);
+            ++i;
+            continue;
+        }
     }
+}
+
+static uint64_t now_ms(void) {
+#if defined(CLOCK_MONOTONIC)
+    struct timespec ts;
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) == 0) {
+        return (uint64_t)ts.tv_sec * 1000ULL + (uint64_t)ts.tv_nsec / 1000000ULL;
+    }
+#endif
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (uint64_t)tv.tv_sec * 1000ULL + (uint64_t)(tv.tv_usec / 1000ULL);
 }
 
 static int node_load_hmac_key(KolibriNode *node) {
@@ -711,6 +751,7 @@ static void node_print_help(void) {
     printf(":sync — поделиться формулой с соседом\n");
     printf(":verify — проверить геном\n");
     printf(":script <файл> — выполнить KolibriScript из файла\n");
+    printf(":fractal — показать фрактальную канву памяти\n");
     printf(":quit — завершить работу\n");
 }
 
@@ -720,22 +761,38 @@ static void node_run(KolibriNode *node) {
     if (node->options.bootstrap_script[0] != '\0') {
         node_execute_script(node, node->options.bootstrap_script);
     }
+    node->last_evolve_ms = now_ms();
+    node->last_sync_ms = node->last_evolve_ms;
     char line[512];
+    bool prompt_printed = false;
     while (true) {
         node_poll_listener(node);
-        printf("колибри-%u> ", node->options.node_id);
-        fflush(stdout);
-        if (!fgets(line, sizeof(line), stdin)) {
-            printf("\n[Сессия] входной поток закрыт\n");
-            break;
+        fd_set rfds;
+        FD_ZERO(&rfds);
+        FD_SET(0, &rfds);
+        struct timeval tv;
+        uint32_t timeout_ms = node->options.auto_learn ? (node->options.auto_evolve_ms > 0 ? node->options.auto_evolve_ms : 500U) : 1000U;
+        tv.tv_sec = timeout_ms / 1000U;
+        tv.tv_usec = (timeout_ms % 1000U) * 1000U;
+        if (!prompt_printed) {
+            printf("колибри-%u> ", node->options.node_id);
+            fflush(stdout);
+            prompt_printed = true;
         }
-        trim_newline(line);
-        trim_spaces(line);
-        if (line[0] == '\0') {
-            continue;
-        }
-        node_poll_listener(node);
-        if (line[0] == ':') {
+        int ready = select(1, &rfds, NULL, NULL, &tv);
+        if (ready > 0 && FD_ISSET(0, &rfds)) {
+            if (!fgets(line, sizeof(line), stdin)) {
+                printf("\n[Сессия] входной поток закрыт\n");
+                break;
+            }
+            prompt_printed = false;
+            trim_newline(line);
+            trim_spaces(line);
+            if (line[0] == '\0') {
+                continue;
+            }
+            node_poll_listener(node);
+            if (line[0] == ':') {
             const char *command = line + 1;
             while (*command && !isspace((unsigned char)*command)) {
                 ++command;
@@ -764,25 +821,25 @@ static void node_run(KolibriNode *node) {
                 continue;
             }
             if (strcmp(name, "tick") == 0) {
-                int generations = 1;
+                int gens = 1;
                 if (command[0] != '\0') {
-                    if (!parse_int32(command, &generations) || generations <= 0) {
+                    if (!parse_int32(command, &gens) || gens <= 0) {
                         printf("[Формулы] ожидалось натуральное число\n");
                         continue;
                     }
                 }
-                node_handle_tick(node, (size_t)generations);
+                node_handle_tick(node, (size_t)gens);
                 continue;
             }
             if (strcmp(name, "evolve") == 0) {
-                int generations = 32;
+                int gens = 32;
                 if (command[0] != '\0') {
-                    if (!parse_int32(command, &generations) || generations <= 0) {
+                    if (!parse_int32(command, &gens) || gens <= 0) {
                         printf("[Формулы] ожидалось натуральное число\n");
                         continue;
                     }
                 }
-                node_handle_tick(node, (size_t)generations);
+                node_handle_tick(node, (size_t)gens);
                 continue;
             }
             if (strcmp(name, "why") == 0) {
@@ -809,6 +866,10 @@ static void node_run(KolibriNode *node) {
                 node_execute_script(node, command);
                 continue;
             }
+            if (strcmp(name, "fractal") == 0) {
+                node_print_canvas(node);
+                continue;
+            }
             if (strcmp(name, "help") == 0) {
                 node_print_help();
                 continue;
@@ -819,9 +880,23 @@ static void node_run(KolibriNode *node) {
             }
             printf("[Команда] неизвестная директива %s\n", name);
             continue;
+            }
+            node_store_text(node, line);
+            node_record_event(node, "NOTE", "свободный текст сохранён");
+        } else {
+            if (node->options.auto_learn) {
+                uint64_t now = now_ms();
+                if (node->pool.examples > 0 && (now - node->last_evolve_ms) >= node->options.auto_evolve_ms) {
+                    kf_pool_tick(&node->pool, 1);
+                    node_record_event(node, "EVOLVE", "автоцикл");
+                    node->last_evolve_ms = now;
+                }
+                if (node->options.peer_enabled && (now - node->last_sync_ms) >= node->options.auto_sync_ms) {
+                    node_share_formula(node);
+                    node->last_sync_ms = now;
+                }
+            }
         }
-        node_store_text(node, line);
-        node_record_event(node, "NOTE", "свободный текст сохранён");
     }
 }
 

@@ -5,8 +5,34 @@ export interface KnowledgeSearchOptions {
   topK?: number;
 }
 
+export interface KnowledgeStatus {
+  status: string;
+  documents: number;
+  timestamp?: string;
+}
+
 const DEFAULT_ENDPOINT = "/api/knowledge/search";
-const KNOWLEDGE_API_BASE = (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_KNOWLEDGE_API) || DEFAULT_ENDPOINT;
+const KNOWLEDGE_API_BASE =
+  (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_KNOWLEDGE_API) || DEFAULT_ENDPOINT;
+
+const resolveBaseUrl = (): URL => {
+  const origin = typeof window !== "undefined" && window.location ? window.location.origin : "http://localhost";
+  try {
+    if (KNOWLEDGE_API_BASE.startsWith("http")) {
+      return new URL(KNOWLEDGE_API_BASE);
+    }
+    return new URL(KNOWLEDGE_API_BASE, origin);
+  } catch {
+    return new URL(DEFAULT_ENDPOINT, origin);
+  }
+};
+
+const baseUrl = resolveBaseUrl();
+const basePath = baseUrl.pathname.endsWith("/search")
+  ? baseUrl.pathname.slice(0, -"search".length)
+  : baseUrl.pathname.replace(/[^/]+$/, "");
+const rootPath = basePath.endsWith("/") ? basePath : `${basePath}/`;
+const healthEndpoint = `${baseUrl.origin}${rootPath}healthz`;
 
 const normaliseSnippet = (value: unknown, index: number): KnowledgeSnippet | null => {
   if (!value || typeof value !== "object") {
@@ -78,4 +104,55 @@ export async function searchKnowledge(query: string, options?: KnowledgeSearchOp
     .filter((snippet): snippet is KnowledgeSnippet => Boolean(snippet));
 
   return snippets;
+}
+
+export async function fetchKnowledgeStatus(): Promise<KnowledgeStatus> {
+  let response: Response;
+  try {
+    response = await fetch(healthEndpoint, { cache: "no-store" });
+  } catch {
+    throw new Error("Сервис знаний недоступен");
+  }
+
+  if (!response.ok) {
+    throw new Error(`Сервис знаний недоступен: ${response.status}`);
+  }
+
+  try {
+    const payload = (await response.json()) as Record<string, unknown>;
+    const status = typeof payload.status === "string" ? payload.status : "unknown";
+    const documents = typeof payload.documents === "number" ? payload.documents : Number(payload.documents ?? 0);
+    const timestamp = typeof payload.generatedAt === "string" ? payload.generatedAt : undefined;
+    return {
+      status,
+      documents: Number.isFinite(documents) ? documents : 0,
+      timestamp,
+    };
+  } catch {
+    throw new Error("Сервис знаний вернул некорректный ответ");
+  }
+}
+
+export async function sendKnowledgeFeedback(
+  rating: "good" | "bad",
+  q: string,
+  a: string,
+): Promise<void> {
+  const params = new URLSearchParams({ rating, q, a });
+  const endpoint = `${healthEndpoint.replace(/healthz$/, "feedback")}?${params.toString()}`;
+  try {
+    await fetch(endpoint, { method: "GET", cache: "no-store" });
+  } catch {
+    // ignore network errors for auxiliary feedback channel
+  }
+}
+
+export async function teachKnowledge(q: string, a: string): Promise<void> {
+  const params = new URLSearchParams({ q, a });
+  const endpoint = `${healthEndpoint.replace(/healthz$/, "teach")}?${params.toString()}`;
+  try {
+    await fetch(endpoint, { method: "GET", cache: "no-store" });
+  } catch {
+    // ignore network errors for auxiliary teach channel
+  }
 }

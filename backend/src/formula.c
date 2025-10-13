@@ -5,6 +5,7 @@
 #include "kolibri/formula.h"
 
 #include "kolibri/decimal.h"
+#include "kolibri/symbol_table.h"
 
 #include <ctype.h>
 #include <limits.h>
@@ -74,9 +75,18 @@ static void association_reset(KolibriAssociation *assoc) {
     assoc->output_hash = 0;
     assoc->question[0] = '\0';
     assoc->answer[0] = '\0';
+    assoc->question_digits_length = 0U;
+    assoc->answer_digits_length = 0U;
+    assoc->timestamp = 0U;
+    assoc->source[0] = '\0';
 }
 
-static void association_set(KolibriAssociation *assoc, const char *question, const char *answer) {
+static void association_set(KolibriAssociation *assoc,
+                            KolibriSymbolTable *symbols,
+                            const char *question,
+                            const char *answer,
+                            const char *source,
+                            uint64_t timestamp) {
     if (!assoc) {
         return;
     }
@@ -87,8 +97,30 @@ static void association_set(KolibriAssociation *assoc, const char *question, con
     if (answer) {
         strncpy(assoc->answer, answer, sizeof(assoc->answer) - 1U);
     }
+    if (source) {
+        strncpy(assoc->source, source, sizeof(assoc->source) - 1U);
+    }
+    assoc->timestamp = timestamp;
     assoc->input_hash = kolibri_hash_to_int(fnv1a32(assoc->question));
     assoc->output_hash = kolibri_hash_to_int(fnv1a32(assoc->answer));
+    if (symbols) {
+        size_t qlen = strlen(assoc->question);
+        for (size_t i = 0; i < qlen && assoc->question_digits_length + KOLIBRI_SYMBOL_DIGITS <= KOLIBRI_ASSOC_DIGITS_MAX; ++i) {
+            uint8_t digits[KOLIBRI_SYMBOL_DIGITS];
+            if (kolibri_symbol_encode(symbols, assoc->question[i], digits) == 0) {
+                memcpy(&assoc->question_digits[assoc->question_digits_length], digits, KOLIBRI_SYMBOL_DIGITS);
+                assoc->question_digits_length += KOLIBRI_SYMBOL_DIGITS;
+            }
+        }
+        size_t alen = strlen(assoc->answer);
+        for (size_t i = 0; i < alen && assoc->answer_digits_length + KOLIBRI_SYMBOL_DIGITS <= KOLIBRI_ASSOC_DIGITS_MAX; ++i) {
+            uint8_t digits[KOLIBRI_SYMBOL_DIGITS];
+            if (kolibri_symbol_encode(symbols, assoc->answer[i], digits) == 0) {
+                memcpy(&assoc->answer_digits[assoc->answer_digits_length], digits, KOLIBRI_SYMBOL_DIGITS);
+                assoc->answer_digits_length += KOLIBRI_SYMBOL_DIGITS;
+            }
+        }
+    }
 }
 
 static int association_equals(const KolibriAssociation *a, const KolibriAssociation *b) {
@@ -361,13 +393,17 @@ int kf_pool_add_example(KolibriFormulaPool *pool, int input, int target) {
     return 0;
 }
 
-int kf_pool_add_association(KolibriFormulaPool *pool, const char *question,
-                            const char *answer) {
+int kf_pool_add_association(KolibriFormulaPool *pool,
+                            KolibriSymbolTable *symbols,
+                            const char *question,
+                            const char *answer,
+                            const char *source,
+                            uint64_t timestamp) {
     if (!pool || !question || !answer) {
         return -1;
     }
     KolibriAssociation assoc;
-    association_set(&assoc, question, answer);
+    association_set(&assoc, symbols, question, answer, source, timestamp);
 
     /* Обновляем существующую запись, если такой вопрос уже был */
     for (size_t i = 0; i < pool->association_count; ++i) {

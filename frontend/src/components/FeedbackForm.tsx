@@ -1,6 +1,7 @@
 import { FormEvent, useCallback, useState } from "react";
 import { twMerge } from "tailwind-merge";
 import { submitFeedback } from "../core/api";
+import { sendKnowledgeFeedback, teachKnowledge } from "../core/knowledge";
 import type { ChatMessage } from "../types/chat";
 import type { FeedbackRating } from "../types/feedback";
 
@@ -54,6 +55,11 @@ const FeedbackForm = ({ conversationId, message, latestUserMessage }: FeedbackFo
           comment: comment.trim() || undefined,
           mode: message.mode,
         });
+        // Also forward feedback to knowledge service for online learning
+        const mapped = rating === "useful" ? "good" : "bad";
+        if (userMessage) {
+          void sendKnowledgeFeedback(mapped, userMessage, assistantMessage);
+        }
         setStatus("success");
       } catch (feedbackError) {
         setStatus("idle");
@@ -119,6 +125,21 @@ const FeedbackForm = ({ conversationId, message, latestUserMessage }: FeedbackFo
           disabled={isSubmitting || isCompleted || !rating}
         >
           {isSubmitting ? "Отправка..." : isCompleted ? "Отправлено" : "Отправить"}
+        </button>
+        <button
+          type="button"
+          className={twMerge(
+            "rounded-full border border-primary px-5 py-2 text-sm font-semibold text-primary transition-colors hover:bg-primary/10",
+            (isSubmitting || isCompleted) && "opacity-70",
+          )}
+          disabled={isSubmitting || isCompleted}
+          onClick={() => {
+            if (userMessage) {
+              void teachKnowledge(userMessage, assistantMessage);
+            }
+          }}
+        >
+          Обучить
         </button>
         {isCompleted && <span className="text-sm text-text-light">Спасибо за отзыв!</span>}
       </div>

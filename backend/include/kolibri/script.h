@@ -7,6 +7,7 @@
 
 #include "kolibri/formula.h"
 #include "kolibri/genome.h"
+#include "kolibri/symbol_table.h"
 
 #include <stdio.h>
 
@@ -27,6 +28,7 @@ typedef struct {
     KolibriGenome *genome;
     FILE *vyvod;
     char *source_text;
+    KolibriSymbolTable symbol_table;
 
     /* Runtime state */
     struct KolibriScriptVariable *variables;

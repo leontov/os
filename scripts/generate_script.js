@@ -58,7 +58,6 @@ async function main() {
     lines.push(`    показать "Источник ${index + 1}: ${escapeScriptString(sourceLabel)}"`);
   });
   if (uniqueAnswers.size === 0) {
-    lines.push('    показать "В памяти нет готового ответа, фиксирую запрос"');
     lines.push(`    обучить связь "${escapeScriptString(trimmed)}" -> "${escapeScriptString('Информации недостаточно')}"`);
   }
   lines.push('    создать формулу ответ из "ассоциация"');

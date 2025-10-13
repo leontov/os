@@ -6,6 +6,7 @@
  * exported by the module, and exposes a single `ask` method used by the UI.
  */
 import { createWasiContext } from "./wasi";
+import { teachKnowledge, sendKnowledgeFeedback } from "./knowledge";
 import type { KnowledgeSnippet } from "../types/knowledge";
 
 export interface KolibriBridge {
@@ -125,11 +126,6 @@ export function buildScript(prompt: string, mode: string, context: KnowledgeSnip
     lines.push(`    показать "Источник ${index + 1}: ${escapeScriptString(sourceLabel)}"`);
   });
 
-  if (uniqueAnswers.size === 0) {
-    lines.push(`    показать "В памяти нет готового ответа, фиксирую запрос"`);
-    lines.push(`    обучить связь "${escapeScriptString(trimmed)}" -> "${escapeScriptString("Информации недостаточно")}"`);
-  }
-
   lines.push(`    создать формулу ответ из "ассоциация"`);
   lines.push("    вызвать эволюцию");
   lines.push(`    оценить ответ на задаче "${escapeScriptString(trimmed)}"`);
@@ -246,8 +242,14 @@ class KolibriWasmBridge implements KolibriBridge {
       }
 
       const outputBytes = heap.subarray(outputPtr, outputPtr + written);
-      const text = this.decoder.decode(outputBytes);
-      return text.trim().length === 0 ? "KolibriScript завершил работу без вывода." : text.trimEnd();
+      const text = this.decoder.decode(outputBytes).trim();
+      const answer = text.length === 0 ? "KolibriScript завершил работу без вывода." : text;
+
+      // Автоматическое самообучение: фиксируем связку вопрос -> ответ
+      void teachKnowledge(prompt, answer);
+      void sendKnowledgeFeedback("good", prompt, answer);
+
+      return answer;
     } finally {
       exports._free(programPtr);
       exports._free(outputPtr);

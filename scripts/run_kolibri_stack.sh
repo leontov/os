@@ -81,4 +81,5 @@ start_knowledge_server
 
 echo "[kolibri-stack] Запускаю Vite preview (Ctrl+C для остановки)"
 cd "$ROOT_DIR/frontend"
-KOLIBRI_KNOWLEDGE_API="http://127.0.0.1:$PORT/api/knowledge/search" npm run preview
+# Для preview Vite не проксирует запросы, поэтому передаём абсолютный эндпоинт через VITE_ переменную
+VITE_KNOWLEDGE_API="http://127.0.0.1:$PORT/api/knowledge/search" npm run preview

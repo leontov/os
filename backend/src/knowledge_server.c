@@ -1,6 +1,5 @@
 #include "kolibri/knowledge.h"
-
-#include "kolibri/knowledge.h"
+#include "kolibri/genome.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -13,18 +12,26 @@
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
+#include <sys/stat.h>
 
 #define KOLIBRI_SERVER_PORT 8000
 #define KOLIBRI_SERVER_BACKLOG 16
 #define KOLIBRI_REQUEST_BUFFER 8192
 #define KOLIBRI_RESPONSE_BUFFER 32768
 #define KOLIBRI_BOOTSTRAP_SCRIPT "knowledge_bootstrap.ks"
+#define KOLIBRI_KNOWLEDGE_GENOME ".kolibri/knowledge_genome.dat"
 
 static volatile sig_atomic_t kolibri_server_running = 1;
 static size_t kolibri_requests_total = 0U;
 static size_t kolibri_search_hits = 0U;
 static size_t kolibri_search_misses = 0U;
 static time_t kolibri_bootstrap_timestamp = 0;
+
+static KolibriGenome kolibri_genome;
+static int kolibri_genome_ready = 0;
+static unsigned char kolibri_hmac_key[KOLIBRI_HMAC_KEY_SIZE];
+static size_t kolibri_hmac_key_len = 0U;
+static char kolibri_hmac_key_origin[128];
 
 static void handle_signal(int sig) {
     (void)sig;
@@ -75,6 +82,92 @@ static char *snippet_preview(const char *content, size_t limit) {
     snippet[limit] = '\0';
     strcat(snippet, "...");
     return snippet;
+}
+
+static void ensure_dir_exists(const char *path) {
+    if (!path) {
+        return;
+    }
+    /* create a single-level directory like .kolibri if missing */
+    struct stat st;
+    if (stat(path, &st) == 0) {
+        return;
+    }
+    mkdir(path, 0755);
+}
+
+static int load_hmac_key_from_file(const char *path, unsigned char *out, size_t *out_len) {
+    if (!path || !out || !out_len) {
+        return -1;
+    }
+    FILE *f = fopen(path, "rb");
+    if (!f) {
+        return -1;
+    }
+    size_t total = 0U;
+    while (total < KOLIBRI_HMAC_KEY_SIZE) {
+        size_t n = fread(out + total, 1, KOLIBRI_HMAC_KEY_SIZE - total, f);
+        if (n == 0) {
+            break;
+        }
+        total += n;
+    }
+    fclose(f);
+    if (total == 0U) {
+        return -1;
+    }
+    *out_len = total;
+    return 0;
+}
+
+static void kolibri_genome_init_or_open(void) {
+    /* Try to load key from root.key, fallback to default literal */
+    kolibri_hmac_key_len = 0U;
+    kolibri_hmac_key_origin[0] = '\0';
+    if (load_hmac_key_from_file("root.key", kolibri_hmac_key, &kolibri_hmac_key_len) == 0) {
+        snprintf(kolibri_hmac_key_origin, sizeof(kolibri_hmac_key_origin), "root.key (%zu байт)", kolibri_hmac_key_len);
+    } else {
+        const char *def = "kolibri-secret-key";
+        size_t len = strlen(def);
+        if (len > KOLIBRI_HMAC_KEY_SIZE) {
+            len = KOLIBRI_HMAC_KEY_SIZE;
+        }
+        memcpy(kolibri_hmac_key, def, len);
+        kolibri_hmac_key_len = len;
+        snprintf(kolibri_hmac_key_origin, sizeof(kolibri_hmac_key_origin), "встроенный (%zu байт)", kolibri_hmac_key_len);
+    }
+
+    ensure_dir_exists(".kolibri");
+    if (kg_open(&kolibri_genome, KOLIBRI_KNOWLEDGE_GENOME, kolibri_hmac_key, kolibri_hmac_key_len) == 0) {
+        kolibri_genome_ready = 1;
+        char payload[128];
+        snprintf(payload, sizeof(payload), "knowledge_server стартовал (ключ: %s)", kolibri_hmac_key_origin);
+        char encoded[KOLIBRI_PAYLOAD_SIZE];
+        if (kg_encode_payload(payload, encoded, sizeof(encoded)) == 0) {
+            kg_append(&kolibri_genome, "BOOT", encoded, NULL);
+        }
+    } else {
+        kolibri_genome_ready = 0;
+        fprintf(stderr, "[kolibri-knowledge] genome open failed\n");
+    }
+}
+
+static void kolibri_genome_close(void) {
+    if (kolibri_genome_ready) {
+        kg_close(&kolibri_genome);
+        kolibri_genome_ready = 0;
+    }
+}
+
+static void knowledge_record_event(const char *event, const char *payload) {
+    if (!kolibri_genome_ready || !event || !payload) {
+        return;
+    }
+    char encoded[KOLIBRI_PAYLOAD_SIZE];
+    if (kg_encode_payload(payload, encoded, sizeof(encoded)) != 0) {
+        return;
+    }
+    kg_append(&kolibri_genome, event, encoded, NULL);
 }
 
 static void write_bootstrap_script(const KolibriKnowledgeIndex *index, const char *path) {
@@ -278,14 +371,16 @@ static void handle_client(int client_fd, const KolibriKnowledgeIndex *index) {
     }
     *space = '\0';
 
-    if (strcmp(path_start, "/healthz") == 0) {
+    if (strcmp(path_start, "/healthz") == 0 ||
+        starts_with(path_start, "/api/knowledge/healthz")) {
         char body[128];
         snprintf(body, sizeof(body), "{\"status\":\"ok\",\"documents\":%zu}", index->count);
         send_response(client_fd, 200, "application/json", body);
         return;
     }
 
-    if (strcmp(path_start, "/metrics") == 0) {
+    if (strcmp(path_start, "/metrics") == 0 ||
+        starts_with(path_start, "/api/knowledge/metrics")) {
         char body[512];
         int len = snprintf(body,
                            sizeof(body),
@@ -314,6 +409,83 @@ static void handle_client(int client_fd, const KolibriKnowledgeIndex *index) {
             return;
         }
         send_response(client_fd, 200, "text/plain; version=0.0.4", body);
+        return;
+    }
+
+    if (starts_with(path_start, "/api/knowledge/feedback")) {
+        /* Very simple GET handler: /api/knowledge/feedback?rating=good|bad&q=...&a=... */
+        char q[512];
+        size_t dummy = 0U;
+        parse_query(path_start, q, sizeof(q), &dummy);
+        /* Extract rating and answer from query string */
+        const char *rating = NULL;
+        const char *answer = NULL;
+        const char *params = strchr(path_start, '?');
+        if (params) {
+            char tmp[1024];
+            strncpy(tmp, params + 1, sizeof(tmp) - 1U);
+            tmp[sizeof(tmp) - 1U] = '\0';
+            char *tok = strtok(tmp, "&");
+            while (tok) {
+                if (starts_with(tok, "rating=")) {
+                    rating = tok + 7;
+                } else if (starts_with(tok, "a=")) {
+                    answer = tok + 2;
+                }
+                tok = strtok(NULL, "&");
+            }
+        }
+        char decoded_q[512];
+        char decoded_a[512];
+        strncpy(decoded_q, q, sizeof(decoded_q) - 1U);
+        decoded_q[sizeof(decoded_q) - 1U] = '\0';
+        if (answer) {
+            strncpy(decoded_a, answer, sizeof(decoded_a) - 1U);
+            decoded_a[sizeof(decoded_a) - 1U] = '\0';
+            url_decode(decoded_a);
+        } else {
+            decoded_a[0] = '\0';
+        }
+        url_decode(decoded_q);
+        char payload[512];
+        snprintf(payload, sizeof(payload), "rating=%s q=%s a=%s",
+                 rating ? rating : "unknown",
+                 decoded_q,
+                 decoded_a);
+        knowledge_record_event("USER_FEEDBACK", payload);
+        send_response(client_fd, 200, "application/json", "{\"status\":\"ok\"}");
+        return;
+    }
+
+    if (starts_with(path_start, "/api/knowledge/teach")) {
+        /* GET /api/knowledge/teach?q=...&a=... */
+        const char *params = strchr(path_start, '?');
+        char qbuf[512] = {0};
+        char abuf[512] = {0};
+        if (params) {
+            char tmp[1024];
+            strncpy(tmp, params + 1, sizeof(tmp) - 1U);
+            tmp[sizeof(tmp) - 1U] = '\0';
+            char *tok = strtok(tmp, "&");
+            while (tok) {
+                if (starts_with(tok, "q=")) {
+                    strncpy(qbuf, tok + 2, sizeof(qbuf) - 1U);
+                } else if (starts_with(tok, "a=")) {
+                    strncpy(abuf, tok + 2, sizeof(abuf) - 1U);
+                }
+                tok = strtok(NULL, "&");
+            }
+        }
+        url_decode(qbuf);
+        url_decode(abuf);
+        if (qbuf[0] != '\0' && abuf[0] != '\0') {
+            char payload[512];
+            snprintf(payload, sizeof(payload), "q=%s a=%s", qbuf, abuf);
+            knowledge_record_event("TEACH", payload);
+            send_response(client_fd, 200, "application/json", "{\"status\":\"ok\"}");
+        } else {
+            send_response(client_fd, 400, "application/json", "{\"error\":\"missing q or a\"}");
+        }
         return;
     }
 
@@ -374,6 +546,22 @@ static void handle_client(int client_fd, const KolibriKnowledgeIndex *index) {
     response[sizeof(response) - 1U] = '\0';
 
     send_response(client_fd, 200, "application/json", response);
+
+    /* online learning: record query and proposed answers */
+    if (kolibri_genome_ready) {
+        char ask_payload[512];
+        snprintf(ask_payload, sizeof(ask_payload), "q=%s", query);
+        knowledge_record_event("ASK", ask_payload);
+        for (size_t i = 0; i < found && i < 3U; ++i) {
+            const KolibriKnowledgeDocument *doc = results[i];
+            const char *answer_src = doc->content ? doc->content : "";
+            char *preview = snippet_preview(answer_src, 200U);
+            char teach_payload[512];
+            snprintf(teach_payload, sizeof(teach_payload), "q=%s a=%s", query, preview ? preview : "");
+            knowledge_record_event("TEACH", teach_payload);
+            free(preview);
+        }
+    }
 }
 
 int main(void) {
@@ -388,6 +576,8 @@ int main(void) {
     if (index.count > 0) {
         write_bootstrap_script(&index, KOLIBRI_BOOTSTRAP_SCRIPT);
     }
+
+    kolibri_genome_init_or_open();
 
     signal(SIGINT, handle_signal);
     signal(SIGTERM, handle_signal);
@@ -436,6 +626,7 @@ int main(void) {
     }
 
     close(server_fd);
+    kolibri_genome_close();
     kolibri_knowledge_index_free(&index);
     fprintf(stdout, "[kolibri-knowledge] shutdown\n");
     return 0;
