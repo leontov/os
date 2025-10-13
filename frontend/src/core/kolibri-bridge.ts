@@ -29,6 +29,22 @@ interface KolibriWasmExports {
 const OUTPUT_CAPACITY = 8192;
 const DEFAULT_MODE = "Быстрый ответ";
 const WASM_RESOURCE_URL = "/kolibri.wasm";
+const DEFAULT_API_BASE = "/api";
+
+const RESPONSE_MODE = (import.meta.env.VITE_KOLIBRI_RESPONSE_MODE ?? "script").toLowerCase();
+const RAW_API_BASE = import.meta.env.VITE_KOLIBRI_API_BASE ?? DEFAULT_API_BASE;
+
+function normaliseApiBase(base: string): string {
+  const trimmed = base.trim();
+  if (!trimmed) {
+    return "";
+  }
+  return trimmed.endsWith("/") ? trimmed.slice(0, -1) : trimmed;
+}
+
+const API_BASE = normaliseApiBase(RAW_API_BASE) || DEFAULT_API_BASE;
+const LLM_INFERENCE_URL = `${API_BASE}/v1/infer`;
+const SHOULD_USE_LLM = RESPONSE_MODE === "llm";
 const WASM_INFO_URL = "/kolibri.wasm.txt";
 
 const COMMAND_PATTERN = /^(показать|обучить|спросить|тикнуть|сохранить)/i;
@@ -325,17 +341,78 @@ class KolibriFallbackBridge implements KolibriBridge {
   }
 }
 
+class KolibriLLMBridge implements KolibriBridge {
+  readonly ready = Promise.resolve();
+
+  constructor(private readonly endpoint: string, private readonly fallback: KolibriBridge) {}
+
+  async ask(prompt: string, mode: string = DEFAULT_MODE): Promise<string> {
+    const payload = {
+      prompt,
+      mode,
+    };
+
+    try {
+      const response = await fetch(this.endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error(`LLM proxy responded with ${response.status} ${response.statusText}`);
+      }
+
+      let data: unknown;
+      try {
+        data = await response.json();
+      } catch (jsonError) {
+        throw new Error(`Failed to parse LLM proxy response: ${String(jsonError)}`);
+      }
+
+      if (!data || typeof data !== "object" || typeof (data as { response?: unknown }).response !== "string") {
+        throw new Error("LLM proxy returned an unexpected payload.");
+      }
+
+      const text = ((data as { response: string }).response || "").trim();
+      if (!text) {
+        throw new Error("LLM proxy returned an empty response.");
+      }
+
+      return text;
+    } catch (error) {
+      console.warn("[kolibri-bridge] Ошибка при запросе к LLM, выполняем KolibriScript.", error);
+      const fallbackResponse = await this.fallback.ask(prompt, mode);
+      return `${fallbackResponse}\n\n(Ответ сгенерирован KolibriScript из-за ошибки LLM.)`;
+    }
+  }
+
+  async reset(): Promise<void> {
+    await this.fallback.reset();
+  }
+}
+
 const createBridge = async (): Promise<KolibriBridge> => {
   const wasmBridge = new KolibriWasmBridge();
 
+  let fallback: KolibriBridge;
   try {
     await wasmBridge.ready;
-    return wasmBridge;
+    fallback = wasmBridge;
   } catch (error) {
     console.warn("[kolibri-bridge] Переход в деградированный режим без WebAssembly.", error);
+    fallback = new KolibriFallbackBridge(error);
     const reason = await describeWasmFailure(error);
     return new KolibriFallbackBridge(reason);
   }
+
+  if (SHOULD_USE_LLM) {
+    return new KolibriLLMBridge(LLM_INFERENCE_URL, fallback);
+  }
+
+  return fallback;
 };
 
 const bridgePromise: Promise<KolibriBridge> = createBridge();
