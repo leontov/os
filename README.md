@@ -54,3 +54,29 @@
 - [План релиза](docs/project_plan.md) описывает долгосрочные вехи и критерии готовности.
 - Скрипты и утилиты размещены в `scripts/`; каждый скрипт содержит встроенные подсказки по использованию.
 
+## Режимы ответа Kolibri
+Kolibri OS поддерживает два режима генерации ответов:
+
+1. **Deterministic KolibriScript** — ответы собираются локально внутри браузера через WebAssembly-мост. Это режим по умолчанию.
+2. **LLM Proxy** — запросы проксируются в внешний LLM через FastAPI-сервис.
+
+Чтобы активировать режим LLM, задайте переменные окружения и запустите сервис:
+
+```bash
+export KOLIBRI_RESPONSE_MODE=llm
+export KOLIBRI_LLM_ENDPOINT="https://llm.example.com/v1/infer"
+export KOLIBRI_LLM_API_KEY="<token>"  # опционально
+export KOLIBRI_LLM_MODEL="kolibri-pro"  # опционально
+./scripts/run_backend.sh --port 8080
+```
+
+Фронтенд ожидает те же настройки через Vite:
+
+```bash
+export VITE_KOLIBRI_RESPONSE_MODE=llm
+export VITE_KOLIBRI_API_BASE="http://localhost:8080/api"
+npm --prefix frontend run dev
+```
+
+Если `VITE_KOLIBRI_RESPONSE_MODE` не равен `llm`, интерфейс автоматически вернётся к KolibriScript. При ошибке LLM фронтенд повторит запрос через KolibriScript и дополнит ответ примечанием о деградации.
+

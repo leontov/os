@@ -14,8 +14,48 @@ vyhod_wasm="$vyhod_dir/kolibri.wasm"
 vremennaja_map="$vyhod_dir/kolibri.map"
 vremennaja_js="$vyhod_dir/kolibri.js"
 
+emscripten_cache_dir="${KOLIBRI_WASM_CACHE_DIR:-$proekt_koren/build/emscripten_cache}"
+mkdir -p "$emscripten_cache_dir"
+export EM_CACHE="$emscripten_cache_dir"
+
+opredelit_razmer() {
+    local file="$1"
+
+    if command -v python3 >/dev/null 2>&1; then
+        python3 - "$file" <<'PY'
+import os
+import sys
+
+path = sys.argv[1]
+print(os.path.getsize(path))
+PY
+        return 0
+    fi
+
+    if command -v stat >/dev/null 2>&1; then
+        if stat -c '%s' "$file" >/dev/null 2>&1; then
+            stat -c '%s' "$file"
+            return 0
+        fi
+        if stat -f '%z' "$file" >/dev/null 2>&1; then
+            stat -f '%z' "$file"
+            return 0
+        fi
+    fi
+
+    if command -v wc >/dev/null 2>&1; then
+        wc -c <"$file" | tr -d ' ' \
+            || wc -c "${file}" | awk '{print $1}'
+        return 0
+    fi
+
+    echo 0
+    return 0
+}
+
 EMCC="${EMCC:-emcc}"
 sozdat_zaglushku=0
+sobranov_docker=0
 
 vychislit_sha256_stroku() {
     local file="$1"
@@ -66,11 +106,18 @@ EOF
 }
 
 sozdat_stub_wasm() {
-    printf '\x00asm\x01\x00\x00\x00' >"$vyhod_wasm"
+    local stub_istochnik="$proekt_koren/scripts/assets/kolibri_stub.wasm"
+    if [[ -f "$stub_istochnik" ]]; then
+        cp "$stub_istochnik" "$vyhod_wasm"
+    else
+        printf '\x00asm\x01\x00\x00\x00' >"$vyhod_wasm"
+    fi
+
     cat >"$vyhod_dir/kolibri.wasm.txt" <<'EOF_INFO'
 kolibri.wasm: заглушка (WebAssembly ядро недоступно)
-В окружении не найден компилятор Emscripten (emcc) и отсутствует Docker для
-автосборки. Фронтенд Kolibri будет работать в деградированном режиме без WASM.
+Эта заглушка экспортирует минимальные функции моста, которые всегда
+возвращают ошибку и не выполняют KolibriScript. Она нужна лишь для
+диагностики и предотвращения сбоев интерфейса.
 Установите Emscripten или Docker и повторно запустите scripts/build_wasm.sh,
 чтобы получить полноценный модуль kolibri.wasm.
 EOF_INFO
@@ -79,10 +126,14 @@ EOF_INFO
     echo "[ПРЕДУПРЕЖДЕНИЕ] kolibri.wasm заменён заглушкой. Установите Emscripten или Docker для полноценной сборки." >&2
 }
 
-if ! command -v "$EMCC" >/dev/null 2>&1; then
+ensure_emcc() {
+    if command -v "$EMCC" >/dev/null 2>&1; then
+        return 0
+    fi
+
     if [[ "${KOLIBRI_WASM_INVOKED_VIA_DOCKER:-0}" == "1" ]]; then
         echo "[ОШИБКА] Не найден emcc внутри Docker-окружения. Проверьте образ ${KOLIBRI_WASM_DOCKER_IMAGE:-emscripten/emsdk:3.1.61}." >&2
-        exit 1
+        return 1
     fi
 
     if command -v docker >/dev/null 2>&1; then
@@ -96,14 +147,28 @@ if ! command -v "$EMCC" >/dev/null 2>&1; then
             -e KOLIBRI_WASM_GENERATE_MAP \
             "$docker_image" \
             bash -lc "./build_wasm.sh"
-        exit $?
+        local docker_status=$?
+        if (( docker_status == 0 )); then
+            sobranov_docker=1
+        else
+            echo "[ОШИБКА] Сборка kolibri.wasm внутри Docker завершилась с ошибкой." >&2
+        fi
+        return $docker_status
     fi
 
     sozdat_zaglushku=1
-fi
+    return 0
+}
+
+ensure_emcc || exit 1
 
 if (( sozdat_zaglushku )); then
     sozdat_stub_wasm
+    exit 0
+fi
+
+if (( sobranov_docker )) && [[ "${KOLIBRI_WASM_INVOKED_VIA_DOCKER:-0}" != "1" ]] && ! command -v "$EMCC" >/dev/null 2>&1; then
+    # Docker fallback уже собрал артефакт, на хосте больше делать нечего.
     exit 0
 fi
 
@@ -112,12 +177,17 @@ istochniki=(
     "$proekt_koren/backend/src/digits.c"
     "$proekt_koren/backend/src/formula.c"
     "$proekt_koren/backend/src/random.c"
+    "$proekt_koren/backend/src/symbol_table.c"
     "$proekt_koren/backend/src/script.c"
     "$proekt_koren/backend/src/wasm_bridge.c"
+    "$proekt_koren/backend/src/sim.c"
+    "$proekt_koren/wasm/kolibri_sim_wasm.c"
 )
 
 if [[ "${KOLIBRI_WASM_INCLUDE_GENOME:-0}" == "1" ]]; then
     istochniki+=("$proekt_koren/backend/src/genome.c")
+else
+    istochniki+=("$proekt_koren/backend/src/wasm_genome_stub.c")
 fi
 
 flags=(
@@ -126,8 +196,8 @@ flags=(
     -s STANDALONE_WASM=1
     -s SIDE_MODULE=0
     -s ALLOW_MEMORY_GROWTH=0
-    -s EXPORTED_RUNTIME_METHODS='["cwrap","getValue","setValue","UTF8ToString","stringToUTF8","lengthBytesUTF8"]'
-    -s EXPORTED_FUNCTIONS='["_kolibri_potok_cifr_init","_kolibri_potok_cifr_sbros","_kolibri_potok_cifr_vernutsya","_kolibri_potok_cifr_push","_kolibri_potok_cifr_chitat","_kolibri_potok_cifr_ostalos","_kolibri_transducirovat_utf8","_kolibri_izluchit_utf8","_kolibri_dlina_kodirovki_teksta","_kolibri_dlina_dekodirovki_teksta","_kolibri_kodirovat_text","_kolibri_dekodirovat_text","_kolibri_potok_cifr_zapisat_chislo","_kolibri_potok_cifr_schitat_chislo","_kf_pool_init","_kf_pool_clear_examples","_kf_pool_add_example","_kf_pool_tick","_kf_pool_best","_kf_formula_apply","_kf_formula_digits","_kf_formula_describe","_kf_pool_feedback","_k_rng_seed","_k_rng_next","_k_rng_next_double","_kolibri_bridge_init","_kolibri_bridge_reset","_kolibri_bridge_execute","_malloc","_free"]'
+    -s EXPORTED_RUNTIME_METHODS='[]'
+    -s EXPORTED_FUNCTIONS='["_kolibri_bridge_init","_kolibri_bridge_reset","_kolibri_bridge_execute","_kolibri_sim_wasm_init","_kolibri_sim_wasm_tick","_kolibri_sim_wasm_get_logs","_kolibri_sim_wasm_reset","_kolibri_sim_wasm_free","_malloc","_free"]'
     -s DEFAULT_LIBRARY_FUNCS_TO_INCLUDE='[]'
     --no-entry
     -I"$proekt_koren/backend/include"
@@ -140,7 +210,7 @@ fi
 
 "$EMCC" "${istochniki[@]}" "${flags[@]}"
 
-razmer=$(stat -c '%s' "$vyhod_wasm")
+razmer=$(opredelit_razmer "$vyhod_wasm")
 if (( razmer > 1024 * 1024 )); then
     printf '[ОШИБКА] kolibri.wasm превышает бюджет: %.2f МБ\n' "$(awk -v b="$razmer" 'BEGIN {printf "%.2f", b/1048576}')" >&2
     exit 1

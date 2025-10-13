@@ -6,8 +6,9 @@ usage() {
 Usage: $0 <command>
 
 Commands:
-  up      Build and launch the Kolibri node executable.
-  build   Configure and build the Kolibri binaries.
+  up        Сборка, тесты и запуск локального роя Kolibri.
+  node      Сборка и запуск одиночного узла Kolibri.
+  build     Configure and build the Kolibri binaries.
 USAGE
 }
 
@@ -15,6 +16,12 @@ root_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 build_dir="$root_dir/build"
 hmac_key_path="$root_dir/root.key"
 frontend_dir="$root_dir/frontend"
+
+zapustit_testy() {
+    echo "[Kolibri] запускаю тесты (kolibri_tests + ks_compiler + ctest)"
+    cmake --build "$build_dir" --target kolibri_tests --target ks_compiler
+    ctest --test-dir "$build_dir" --output-on-failure
+}
 
 generate_hmac_key() {
     if command -v openssl >/dev/null 2>&1; then
@@ -73,11 +80,26 @@ build_frontend() {
     install_frontend_dependencies
     ensure_frontend_wasm
     echo "[Kolibri] собираю фронтенд"
+    local wasm_info="$build_dir/wasm/kolibri.wasm.txt"
+    if [ -f "$wasm_info" ] && grep -qi 'kolibri\.wasm: заглушка' "$wasm_info"; then
+        echo "[Kolibri] kolibri.wasm собран как заглушка — включаю деградированный режим фронтенда."
+        echo "[Kolibri] Установите Emscripten или Docker и пересоберите scripts/build_wasm.sh для полноценного режима."
+        KOLIBRI_ALLOW_WASM_STUB=1 npm --prefix "$frontend_dir" run build
+        return
+    fi
     npm --prefix "$frontend_dir" run build
 }
 
 case "${1:-}" in
     up)
+        cmake -S "$root_dir" -B "$build_dir" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+        cmake --build "$build_dir"
+        zapustit_testy
+        build_frontend
+        echo "[Kolibri] запускаю локальный рой Kolibri (Ctrl+C для остановки)"
+        KOLIBRI_CLUSTER_SKIP_BUILD=1 exec "$root_dir/scripts/run_cluster.sh" -d 0
+        ;;
+    node)
         cmake -S "$root_dir" -B "$build_dir" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
         cmake --build "$build_dir"
         build_frontend
