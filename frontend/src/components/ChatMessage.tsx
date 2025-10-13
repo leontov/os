@@ -35,7 +35,14 @@ const ChatMessage = ({ message, conversationId, latestUserMessage }: ChatMessage
       </div>
       <div className="max-w-3xl rounded-2xl border border-border-strong bg-background-input/90 p-4">
         <p className="whitespace-pre-line text-sm leading-relaxed text-text-primary">{message.content}</p>
-        <p className="mt-2 text-xs text-text-secondary">{message.timestamp}</p>
+        <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-text-secondary">
+          <span>{message.timestamp}</span>
+          {!isUser && message.modeLabel && (
+            <span className="rounded-lg border border-border-strong bg-background-card/70 px-2 py-1 uppercase tracking-wide text-[0.65rem] text-primary">
+              {message.modeLabel}
+            </span>
+          )}
+        </div>
 
         {!isUser && (hasContext || message.contextError) && (
           <div className="mt-3 space-y-3 border-t border-dashed border-border-strong pt-3 text-xs text-text-secondary">

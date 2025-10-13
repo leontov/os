@@ -7,7 +7,8 @@ export interface ChatMessage {
   role: ChatRole;
   content: string;
   timestamp: string;
-  mode?: string;
+  modeLabel?: string;
+  modeValue?: string;
 
   context?: KnowledgeSnippet[];
   contextError?: string;

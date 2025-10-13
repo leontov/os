@@ -53,7 +53,7 @@ const FeedbackForm = ({ conversationId, message, latestUserMessage }: FeedbackFo
           userMessage,
           rating,
           comment: comment.trim() || undefined,
-          mode: message.mode,
+          mode: message.modeValue ?? message.modeLabel ?? undefined,
         });
         // Also forward feedback to knowledge service for online learning
         const mapped = rating === "useful" ? "good" : "bad";
@@ -70,7 +70,7 @@ const FeedbackForm = ({ conversationId, message, latestUserMessage }: FeedbackFo
         );
       }
     },
-    [assistantMessage, comment, conversationId, message.id, message.mode, rating, userMessage],
+    [assistantMessage, comment, conversationId, message.id, message.modeLabel, message.modeValue, rating, userMessage],
   );
 
   if (!assistantMessage.length) {

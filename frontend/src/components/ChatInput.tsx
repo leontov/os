@@ -1,5 +1,6 @@
 import { Paperclip, Plus, RefreshCw, SendHorizontal } from "lucide-react";
 import { useId } from "react";
+import { MODE_OPTIONS, findModeLabel } from "../core/modes";
 
 interface ChatInputProps {
   value: string;
@@ -10,8 +11,6 @@ interface ChatInputProps {
   onSubmit: () => void;
   onReset: () => void;
 }
-
-const modes = ["Быстрый ответ", "Исследование", "Творческий"];
 
 const ChatInput = ({ value, mode, isBusy, onChange, onModeChange, onSubmit, onReset }: ChatInputProps) => {
   const textAreaId = useId();
@@ -29,12 +28,15 @@ const ChatInput = ({ value, mode, isBusy, onChange, onModeChange, onSubmit, onRe
             onChange={(event) => onModeChange(event.target.value)}
             disabled={isBusy}
           >
-            {modes.map((item) => (
-              <option key={item} value={item}>
-                {item}
+            {MODE_OPTIONS.map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
               </option>
             ))}
           </select>
+          <span className="rounded-lg border border-border-strong bg-background-card/70 px-2 py-1 text-[0.7rem] uppercase tracking-wide text-text-secondary">
+            {findModeLabel(mode)}
+          </span>
         </div>
         <button
           type="button"

@@ -10,6 +10,7 @@ import type { ChatMessage } from "./types/chat";
 import kolibriBridge from "./core/kolibri-bridge";
 import { fetchKnowledgeStatus, searchKnowledge } from "./core/knowledge";
 import type { KnowledgeSnippet } from "./types/knowledge";
+import { findModeLabel, MODE_OPTIONS } from "./core/modes";
 
 const formatPromptWithContext = (question: string, context: KnowledgeSnippet[]): string => {
   if (!context.length) {
@@ -27,7 +28,7 @@ const formatPromptWithContext = (question: string, context: KnowledgeSnippet[]):
 const App = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
-  const [mode, setMode] = useState("Быстрый ответ");
+  const [mode, setMode] = useState(MODE_OPTIONS[0]?.value ?? "neutral");
   const [isProcessing, setIsProcessing] = useState(false);
   const [bridgeReady, setBridgeReady] = useState(false);
   const [conversationId, setConversationId] = useState(() => crypto.randomUUID());
@@ -159,7 +160,8 @@ const App = () => {
         role: "assistant",
         content: answer,
         timestamp: new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }),
-        mode,
+        modeValue: mode,
+        modeLabel: findModeLabel(mode),
       };
       if (knowledgeContext.length) {
         assistantMessage.context = knowledgeContext;
