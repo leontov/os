@@ -72,7 +72,23 @@ ensure_frontend_wasm() {
         return
     fi
     echo "[Kolibri] kolibri.wasm не найден, запускаю scripts/build_wasm.sh"
+    set +e
     "$root_dir/scripts/build_wasm.sh"
+    local status=$?
+    set -e
+    if [ "$status" -eq 0 ]; then
+        return
+    fi
+
+    if [ "$status" -eq 2 ]; then
+        local info_file="$build_dir/wasm/kolibri.wasm.txt"
+        if [ -f "$info_file" ] && grep -qi 'kolibri\.wasm: заглушка' "$info_file"; then
+            echo "[Kolibri] kolibri.wasm собран как заглушка (код 2). Продолжаем в деградированном режиме."
+            return
+        fi
+    fi
+
+    exit "$status"
 }
 
 build_frontend() {
