@@ -1,29 +1,30 @@
-.PHONY: all build test clean kernel iso wasm check
+SHELL := /bin/bash
 
-all: build/kolibri_node
+.PHONY: build test wasm frontend iso ci clean
 
 build:
-	cmake -S . -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-
-build/kolibri_node: build
+	cmake -S . -B build -G Ninja
 	cmake --build build
 
-clean:
-	rm -rf build
+test: build
+	ctest --test-dir build
+	pytest -q
+	ruff check .
+	pyright
+	npm run test --prefix frontend -- --runInBand
 
-# make test relies on build existing
+wasm:
+	./scripts/build_wasm.sh
 
-test: build/kolibri_node
-	cmake --build build --target kolibri_tests
-	ctest --test-dir build --output-on-failure
+frontend: wasm
+	npm install --prefix frontend
+	npm run build --prefix frontend
 
-kernel:
+iso:
 	./scripts/build_iso.sh
 
-iso: kernel
+ci: build test frontend iso
+	./scripts/policy_validate.py
 
-check: test iso wasm
-
-wasm: build
-	cmake --build build --target kolibri_wasm
-
+clean:
+	rm -rf build frontend/dist frontend/node_modules

@@ -1,0 +1,62 @@
+{
+  "title": "Kolibri Observability",
+  "schemaVersion": 38,
+  "version": 1,
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Documents",
+      "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4},
+      "targets": [
+        {
+          "expr": "kolibri_knowledge_documents",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Search Hits vs Misses",
+      "gridPos": {"x": 6, "y": 0, "w": 18, "h": 8},
+      "targets": [
+        {
+          "expr": "rate(kolibri_search_hits_success[5m])",
+          "legendFormat": "hits",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(kolibri_search_misses_total[5m])",
+          "legendFormat": "misses",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Requests per minute",
+      "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+      "targets": [
+        {
+          "expr": "rate(kolibri_requests_total[1m])",
+          "legendFormat": "requests",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Bootstrap Age (hours)",
+      "gridPos": {"x": 12, "y": 8, "w": 12, "h": 4},
+      "targets": [
+        {
+          "expr": "(time() - kolibri_bootstrap_generated_unixtime) / 3600",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "reduceOptions": {"calcs": ["last"]},
+        "orientation": "horizontal"
+      }
+    }
+  ]
+}

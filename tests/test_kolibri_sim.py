@@ -43,6 +43,42 @@ def test_t2_teach_and_ask() -> None:
     assert sim.sprosit("неизвестно") == "..."
 
 
+def test_memory_similarity_search_returns_neighbour() -> None:
+    sim = KolibriSim(zerno=0)
+    sim.obuchit_svjaz("привет мир", "глобальный привет")
+    sim.obuchit_svjaz("как дела", "отлично")
+    assert sim.sprosit("привет мир!") == "глобальный привет"
+
+
+def test_memory_similarity_fallback_to_unknown() -> None:
+    sim = KolibriSim(zerno=1)
+    sim.obuchit_svjaz("доброе утро", "солнечного дня")
+    assert sim.sprosit("совершенно иной запрос") == "..."
+
+
+def test_memory_recall_quality_batch() -> None:
+    sim = KolibriSim(zerno=2)
+    pairs = [
+        ("привет как дела", "здорово"),
+        ("расскажи про погоду", "солнечно"),
+        ("поделись рецептом борща", "свекла"),
+        ("где находится библиотека", "у площади"),
+        ("что нового в науке", "квантовые открытия"),
+    ]
+    variations = [
+        ("привет, как же дела?", "здорово"),
+        ("расскажи про погоду завтра", "солнечно"),
+        ("поделись рецептом вкусного борща", "свекла"),
+        ("где же находится эта библиотека", "у площади"),
+        ("что нового сегодня в науке", "квантовые открытия"),
+    ]
+    for stimul, otvet in pairs:
+        sim.obuchit_svjaz(stimul, otvet)
+
+    popadaniya = sum(1 for variant, expected in variations if sim.sprosit(variant) == expected)
+    assert popadaniya / len(variations) >= 0.8
+
+
 def test_t3_formula_evolution() -> None:
     sim = KolibriSim(zerno=1)
     f1 = sim.evolyuciya_formul("math")
@@ -171,6 +207,42 @@ def test_t15_soak_state_accumulates(tmp_path: Path) -> None:
     assert isinstance(metrics_second, list)
     assert isinstance(metrics_first, list)
     assert len(metrics_second) >= len(metrics_first) + 2
+
+
+def test_t16_persistent_journal(tmp_path: Path) -> None:
+    journal_path = tmp_path / "journal.jsonl"
+    sim = KolibriSim(zerno=8, journal_path=journal_path)
+    try:
+        sim.obuchit_svjaz("alpha", "beta")
+        sim.sprosit("alpha")
+        sim.evolyuciya_formul("journal")
+    finally:
+        sim.zakryt()
+
+    assert journal_path.exists()
+    lines = [json.loads(line) for line in journal_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    assert any(entry["tip"] == "TEACH" for entry in lines)
+    assert any(entry["tip"] == "ASK" for entry in lines)
+    assert all("blok" in entry for entry in lines)
+
+
+def test_t17_swarm_run_syncs_peers() -> None:
+    sim_a = KolibriSim(zerno=10)
+    sim_b = KolibriSim(zerno=11)
+    sim_a.obuchit_svjaz("alpha", "beta")
+    sim_b.obuchit_svjaz("gamma", "delta")
+    sim_a.evolyuciya_formul("ctx-a")
+    sim_b.evolyuciya_formul("ctx-b")
+
+    try:
+        result = sim_a.zapustit_roj([sim_b], cikly=2)
+        assert result["knowledge"] >= 2
+        assert result["formulas"] >= 2
+        assert sim_a.sprosit("gamma") == "delta"
+        assert sim_b.sprosit("alpha") == "beta"
+    finally:
+        sim_a.zakryt()
+        sim_b.zakryt()
 
 
 

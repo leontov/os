@@ -136,7 +136,9 @@ if [[ $kernel_only -eq 0 ]]; then
     "$GRUB_MKRESCUE" -o "$postroika_dir/kolibri.iso" "$iso_dir"
     set +x
 
-    iso_razmer=$(stat -c '%s' "$postroika_dir/kolibri.iso")
+    if ! iso_razmer=$(stat -c '%s' "$postroika_dir/kolibri.iso" 2>/dev/null); then
+        iso_razmer=$(stat -f '%z' "$postroika_dir/kolibri.iso")
+    fi
     iso_mb=$(awk -v bytes="$iso_razmer" 'BEGIN {printf "%.2f", bytes/1048576}')
     printf '[ГОТОВО] Образ готов: %s (%s МБ)\n' "$postroika_dir/kolibri.iso" "$iso_mb"
 else
