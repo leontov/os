@@ -3,14 +3,27 @@ import type { PendingAttachment, SerializedAttachment } from "../types/attachmen
 import type { ChatMessage } from "../types/chat";
 import type { KnowledgeSnippet } from "../types/knowledge";
 import { fetchKnowledgeStatus, searchKnowledge } from "./knowledge";
-import kolibriBridge from "./kolibri-bridge";
+import kolibriBridge, { type KernelControlPayload } from "./kolibri-bridge";
 import { MODE_OPTIONS, findModeLabel } from "./modes";
+
+export interface KernelControlsState {
+  b0: number;
+  d0: number;
+  temperature: number;
+  topK: number;
+  cfBeam: boolean;
+}
 
 export interface ConversationMetrics {
   userMessages: number;
   assistantMessages: number;
   knowledgeReferences: number;
   lastUpdatedIso?: string;
+  conservedRatio: number;
+  stability: number;
+  auditability: number;
+  returnToAttractor: number;
+  latencyP50: number;
 }
 
 export interface ConversationSummary {
@@ -36,6 +49,13 @@ const DEFAULT_TITLE = "Новая беседа";
 const STORAGE_KEY = "kolibri:conversations";
 const BASE64_CHUNK_SIZE = 8192;
 const DEFAULT_MODE_VALUE = MODE_OPTIONS[0]?.value ?? "neutral";
+const DEFAULT_KERNEL_CONTROLS: KernelControlsState = {
+  b0: 0.5,
+  d0: 0.5,
+  temperature: 0.85,
+  topK: 4,
+  cfBeam: true,
+};
 
 const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
   if (buffer.byteLength === 0) {
@@ -299,6 +319,8 @@ interface UseKolibriChatResult {
   latestAssistantMessage?: ChatMessage;
   metrics: ConversationMetrics;
   attachments: PendingAttachment[];
+  kernelControls: KernelControlsState;
+  updateKernelControls: (controls: Partial<KernelControlsState>) => void;
   setDraft: (value: string) => void;
   setMode: (mode: string) => void;
   renameConversation: (title: string) => void;
@@ -327,6 +349,7 @@ const useKolibriChat = (): UseKolibriChatResult => {
   const [knowledgeError, setKnowledgeError] = useState<string | undefined>();
   const [statusLoading, setStatusLoading] = useState(false);
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
+  const [kernelControls, setKernelControlsState] = useState<KernelControlsState>(DEFAULT_KERNEL_CONTROLS);
 
   const knowledgeSearchAbortRef = useRef<AbortController | null>(null);
   const conversationsRef = useRef<ConversationRecord[]>(initialConversations);
@@ -379,6 +402,13 @@ const useKolibriChat = (): UseKolibriChatResult => {
     setAttachments([]);
   }, []);
 
+  const updateKernelControls = useCallback((controls: Partial<KernelControlsState>) => {
+    setKernelControlsState((prev) => ({
+      ...prev,
+      ...controls,
+    }));
+  }, []);
+
   const refreshKnowledgeStatus = useCallback(async () => {
     setStatusLoading(true);
     try {
@@ -428,6 +458,26 @@ const useKolibriChat = (): UseKolibriChatResult => {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!bridgeReady) {
+      return;
+    }
+
+    const payload: KernelControlPayload = {
+      lambdaB: kernelControls.cfBeam ? 0.42 : 0.18,
+      lambdaD: kernelControls.cfBeam ? 0.3 : 0.12,
+      targetB: kernelControls.cfBeam ? kernelControls.b0 : null,
+      targetD: kernelControls.cfBeam ? kernelControls.d0 : null,
+      temperature: kernelControls.temperature,
+      topK: kernelControls.topK,
+      cfBeam: kernelControls.cfBeam,
+    };
+
+    void kolibriBridge.configure(payload).catch((error) => {
+      console.warn("Не удалось применить настройки ядра Kolibri", error);
+    });
+  }, [bridgeReady, kernelControls]);
 
   useEffect(() => {
     if (conversationTitle !== DEFAULT_TITLE) {
@@ -656,26 +706,92 @@ const useKolibriChat = (): UseKolibriChatResult => {
     let assistantMessages = 0;
     let knowledgeReferences = 0;
     let lastUpdatedIso: string | undefined;
+    let conservedMatches = 0;
+    let stabilityCount = 0;
+    let auditCount = 0;
+    let returnMatches = 0;
+    const latencies: number[] = [];
+    const userTokens = new Set<string>();
+    let previousAssistantTokens: string[] | null = null;
+
+    const tokenize = (text: string): string[] =>
+      text
+        .toLowerCase()
+        .split(/[^\p{L}\p{N}]+/u)
+        .map((token) => token.trim())
+        .filter((token) => token.length > 3);
 
     for (const message of messages) {
       if (message.role === "user") {
         userMessages += 1;
+        tokenize(message.content).forEach((token) => {
+          if (token) {
+            userTokens.add(token);
+          }
+        });
       } else {
         assistantMessages += 1;
         if (message.context?.length) {
           knowledgeReferences += 1;
         }
+
+        const tokens = tokenize(message.content);
+        const contentLength = message.content.trim().length;
+
+        if (contentLength >= 24 || tokens.length >= 3) {
+          stabilityCount += 1;
+        }
+
+        if ((message.context?.length ?? 0) > 0 || (message.contextError && message.contextError.trim())) {
+          auditCount += 1;
+        }
+
+        const intersectsKnowledge = (message.context?.length ?? 0) > 0;
+        const intersectsUser = tokens.some((token) => userTokens.has(token));
+        if (intersectsKnowledge || intersectsUser) {
+          conservedMatches += 1;
+        }
+
+        if (previousAssistantTokens && previousAssistantTokens.some((token) => tokens.includes(token))) {
+          returnMatches += 1;
+        }
+        if (tokens.length) {
+          previousAssistantTokens = tokens;
+        }
+
+        if (contentLength > 0) {
+          const approximatedLatency = Math.min(18, Math.max(3, Math.round(contentLength / 16)));
+          latencies.push(approximatedLatency);
+        }
       }
+
       if (message.isoTimestamp) {
         lastUpdatedIso = message.isoTimestamp;
       }
     }
+
+    const clampRatio = (value: number) => Math.min(1, Math.max(0, value));
+    const assistantBase = assistantMessages > 0 ? assistantMessages : 1;
+    const conservedRatio = assistantMessages ? conservedMatches / assistantBase : 1;
+    const stability = assistantMessages ? stabilityCount / assistantBase : 1;
+    const auditability = assistantMessages ? auditCount / assistantBase : 1;
+    const returnToAttractor = assistantMessages > 1 ? returnMatches / (assistantMessages - 1) : 1;
+    const latencyP50 = latencies.length
+      ? latencies
+          .slice()
+          .sort((a, b) => a - b)[Math.floor(latencies.length / 2)]
+      : 0;
 
     return {
       userMessages,
       assistantMessages,
       knowledgeReferences,
       lastUpdatedIso,
+      conservedRatio: clampRatio(conservedRatio),
+      stability: clampRatio(stability),
+      auditability: clampRatio(auditability),
+      returnToAttractor: clampRatio(returnToAttractor),
+      latencyP50,
     };
   }, [messages]);
 
@@ -710,12 +826,14 @@ const useKolibriChat = (): UseKolibriChatResult => {
     latestAssistantMessage,
     metrics,
     attachments,
+    kernelControls,
     setDraft,
     setMode,
     renameConversation,
     attachFiles,
     removeAttachment,
     clearAttachments,
+    updateKernelControls,
     sendMessage,
     resetConversation,
     selectConversation,

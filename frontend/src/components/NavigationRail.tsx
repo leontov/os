@@ -24,7 +24,7 @@ type ThemePreference = "system" | "dark" | "light";
 const THEME_STORAGE_KEY = "kolibri:ui-theme";
 
 const resolveSystemTheme = (): "light" | "dark" => {
-  if (typeof window === "undefined") {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
     return "dark";
   }
   return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
@@ -109,7 +109,7 @@ const NavigationRail = ({
   }, [isSettingsOpen]);
 
   useEffect(() => {
-    if (theme !== "system" || typeof window === "undefined") {
+    if (theme !== "system" || typeof window === "undefined" || typeof window.matchMedia !== "function") {
       return;
     }
     const media = window.matchMedia("(prefers-color-scheme: light)");
