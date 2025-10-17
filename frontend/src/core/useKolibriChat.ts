@@ -13,6 +13,176 @@ export interface ConversationMetrics {
 }
 
 const DEFAULT_TITLE = "Новая беседа";
+const DEFAULT_MODE_VALUE = MODE_OPTIONS[0]?.value ?? "neutral";
+const STORAGE_KEY = "kolibri:chat:conversations";
+const PREVIEW_MAX_LENGTH = 80;
+
+interface ConversationRecord {
+  id: string;
+  title: string;
+  createdAtIso: string;
+  updatedAtIso: string;
+  preview: string;
+  messages: ChatMessage[];
+}
+
+export interface ConversationSummary {
+  id: string;
+  title: string;
+  createdAtIso: string;
+  updatedAtIso: string;
+  preview: string;
+}
+
+const createConversationId = (): string => {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return Math.random().toString(36).slice(2, 12);
+};
+
+const normalisePreview = (value: string): string => value.replace(/\s+/g, " ").trim();
+
+const createPreviewFromMessages = (messages: ChatMessage[]): string => {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const candidate = normalisePreview(messages[index]?.content ?? "");
+    if (candidate) {
+      return candidate.length > PREVIEW_MAX_LENGTH
+        ? `${candidate.slice(0, PREVIEW_MAX_LENGTH - 1)}…`
+        : candidate;
+    }
+  }
+  return "";
+};
+
+const findLastIsoTimestamp = (messages: ChatMessage[]): string | undefined => {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const iso = messages[index]?.isoTimestamp;
+    if (iso) {
+      return iso;
+    }
+  }
+  return undefined;
+};
+
+const sanitiseMessage = (candidate: unknown): ChatMessage | null => {
+  if (!candidate || typeof candidate !== "object") {
+    return null;
+  }
+  const raw = candidate as Partial<ChatMessage> & Record<string, unknown>;
+  if (typeof raw.id !== "string" || typeof raw.role !== "string" || typeof raw.content !== "string") {
+    return null;
+  }
+  if (raw.role !== "assistant" && raw.role !== "user") {
+    return null;
+  }
+  if (typeof raw.timestamp !== "string") {
+    return null;
+  }
+  const message: ChatMessage = {
+    id: raw.id,
+    role: raw.role,
+    content: raw.content,
+    timestamp: raw.timestamp,
+  };
+  if (typeof raw.isoTimestamp === "string") {
+    message.isoTimestamp = raw.isoTimestamp;
+  }
+  if (typeof raw.modeLabel === "string") {
+    message.modeLabel = raw.modeLabel;
+  }
+  if (typeof raw.modeValue === "string") {
+    message.modeValue = raw.modeValue;
+  }
+  if (Array.isArray(raw.context)) {
+    message.context = raw.context as KnowledgeSnippet[];
+  }
+  if (typeof raw.contextError === "string") {
+    message.contextError = raw.contextError;
+  }
+  return message;
+};
+
+const createConversationRecord = (overrides: Partial<ConversationRecord> & { messages?: ChatMessage[] } = {}): ConversationRecord => {
+  const messages = overrides.messages ?? [];
+  const createdAtIso = overrides.createdAtIso ?? new Date().toISOString();
+  const lastIso = findLastIsoTimestamp(messages);
+  const updatedAtIso = overrides.updatedAtIso ?? lastIso ?? createdAtIso;
+  const preview = overrides.preview ?? createPreviewFromMessages(messages);
+  return {
+    id: overrides.id ?? createConversationId(),
+    title: overrides.title?.trim() ? overrides.title : DEFAULT_TITLE,
+    createdAtIso,
+    updatedAtIso,
+    preview,
+    messages,
+  };
+};
+
+const loadInitialConversationState = (): { conversations: ConversationRecord[]; active: ConversationRecord } => {
+  const fallback = createConversationRecord();
+  if (typeof window === "undefined") {
+    return { conversations: [fallback], active: fallback };
+  }
+
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) {
+      return { conversations: [fallback], active: fallback };
+    }
+
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return { conversations: [fallback], active: fallback };
+    }
+
+    const conversations: ConversationRecord[] = [];
+    for (const item of parsed) {
+      if (!item || typeof item !== "object") {
+        continue;
+      }
+      const rawConversation = item as Partial<ConversationRecord> & { messages?: unknown };
+      const messages = Array.isArray(rawConversation.messages)
+        ? (rawConversation.messages
+            .map((message) => sanitiseMessage(message))
+            .filter((value): value is ChatMessage => Boolean(value)) ?? [])
+        : [];
+      const conversation = createConversationRecord({
+        id: typeof rawConversation.id === "string" ? rawConversation.id : undefined,
+        title: typeof rawConversation.title === "string" ? rawConversation.title : undefined,
+        createdAtIso: typeof rawConversation.createdAtIso === "string" ? rawConversation.createdAtIso : undefined,
+        updatedAtIso: typeof rawConversation.updatedAtIso === "string" ? rawConversation.updatedAtIso : undefined,
+        preview: typeof rawConversation.preview === "string" ? rawConversation.preview : undefined,
+        messages,
+      });
+      conversations.push(conversation);
+    }
+
+    if (!conversations.length) {
+      return { conversations: [fallback], active: fallback };
+    }
+
+    conversations.sort((first, second) => {
+      const firstTime = Date.parse(first.updatedAtIso);
+      const secondTime = Date.parse(second.updatedAtIso);
+      if (Number.isNaN(firstTime) && Number.isNaN(secondTime)) {
+        return 0;
+      }
+      if (Number.isNaN(firstTime)) {
+        return 1;
+      }
+      if (Number.isNaN(secondTime)) {
+        return -1;
+      }
+      return secondTime - firstTime;
+    });
+
+    return { conversations, active: conversations[0] };
+  } catch (error) {
+    console.warn("Failed to load conversation history", error);
+    return { conversations: [fallback], active: fallback };
+  }
+};
 
 const formatPromptWithContext = (question: string, context: KnowledgeSnippet[]): string => {
   if (!context.length) {
@@ -58,6 +228,7 @@ interface UseKolibriChatResult {
   bridgeReady: boolean;
   conversationId: string;
   conversationTitle: string;
+  conversationSummaries: ConversationSummary[];
   knowledgeStatus: Awaited<ReturnType<typeof fetchKnowledgeStatus>> | null;
   knowledgeError?: string;
   statusLoading: boolean;
@@ -68,22 +239,54 @@ interface UseKolibriChatResult {
   renameConversation: (title: string) => void;
   sendMessage: () => Promise<void>;
   resetConversation: () => Promise<void>;
+  selectConversation: (id: string) => void;
+  createConversation: () => Promise<void>;
   refreshKnowledgeStatus: () => Promise<void>;
 }
 
 export const useKolibriChat = (): UseKolibriChatResult => {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const { conversations: initialConversations, active: initialActiveConversation } = loadInitialConversationState();
+
+  const [conversations, setConversations] = useState<ConversationRecord[]>(initialConversations);
+  const [messages, setMessages] = useState<ChatMessage[]>(initialActiveConversation.messages);
   const [draft, setDraft] = useState("");
-  const [mode, setMode] = useState(MODE_OPTIONS[0]?.value ?? "neutral");
+  const [mode, setMode] = useState(DEFAULT_MODE_VALUE);
   const [isProcessing, setIsProcessing] = useState(false);
   const [bridgeReady, setBridgeReady] = useState(false);
-  const [conversationId, setConversationId] = useState(() => crypto.randomUUID());
-  const [conversationTitle, setConversationTitle] = useState<string>(DEFAULT_TITLE);
+  const [conversationId, setConversationId] = useState<string>(initialActiveConversation.id);
+  const [conversationTitle, setConversationTitle] = useState<string>(initialActiveConversation.title);
   const [knowledgeStatus, setKnowledgeStatus] = useState<Awaited<ReturnType<typeof fetchKnowledgeStatus>> | null>(null);
   const [knowledgeError, setKnowledgeError] = useState<string | undefined>();
   const [statusLoading, setStatusLoading] = useState(false);
 
   const knowledgeSearchAbortRef = useRef<AbortController | null>(null);
+  const conversationsRef = useRef<ConversationRecord[]>(initialConversations);
+
+  useEffect(() => {
+    conversationsRef.current = conversations;
+  }, [conversations]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
+    } catch (error) {
+      console.warn("Failed to persist conversation history", error);
+    }
+  }, [conversations]);
+
+  const beginNewConversation = useCallback((): ConversationRecord => {
+    const record = createConversationRecord();
+    setConversations((prev) => [record, ...prev]);
+    setConversationId(record.id);
+    setConversationTitle(record.title);
+    setMessages(record.messages);
+    setDraft("");
+    setMode(DEFAULT_MODE_VALUE);
+    return record;
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -142,27 +345,72 @@ export const useKolibriChat = (): UseKolibriChatResult => {
     setConversationTitle(deriveTitleFromMessages(messages));
   }, [conversationTitle, messages]);
 
+  useEffect(() => {
+    const preview = createPreviewFromMessages(messages);
+    const lastIso = findLastIsoTimestamp(messages);
+    setConversations((prev) => {
+      const existingIndex = prev.findIndex((item) => item.id === conversationId);
+      if (existingIndex === -1) {
+        const fallbackIso = lastIso ?? new Date().toISOString();
+        const record = createConversationRecord({
+          id: conversationId,
+          title: conversationTitle,
+          createdAtIso: fallbackIso,
+          updatedAtIso: fallbackIso,
+          preview,
+          messages,
+        });
+        return [record, ...prev];
+      }
+
+      const existing = prev[existingIndex];
+      const nextUpdatedAtIso = lastIso ?? (messages.length ? new Date().toISOString() : existing.updatedAtIso);
+      const shouldUpdate =
+        existing.title !== conversationTitle ||
+        existing.preview !== preview ||
+        existing.messages !== messages ||
+        existing.updatedAtIso !== nextUpdatedAtIso;
+
+      if (!shouldUpdate) {
+        return prev;
+      }
+
+      const updated: ConversationRecord = {
+        ...existing,
+        title: conversationTitle,
+        preview,
+        messages,
+        updatedAtIso: nextUpdatedAtIso,
+      };
+
+      const next = [...prev];
+      const shouldReorder =
+        existing.messages !== messages || existing.preview !== preview || existing.updatedAtIso !== nextUpdatedAtIso;
+
+      if (shouldReorder) {
+        next.splice(existingIndex, 1);
+        next.unshift(updated);
+      } else {
+        next[existingIndex] = updated;
+      }
+
+      return next;
+    });
+  }, [conversationId, conversationTitle, messages]);
+
   const resetConversation = useCallback(async () => {
     knowledgeSearchAbortRef.current?.abort();
     knowledgeSearchAbortRef.current = null;
 
     if (!bridgeReady) {
-      setMessages([]);
-      setDraft("");
-      setMode(MODE_OPTIONS[0]?.value ?? "neutral");
-      setConversationId(crypto.randomUUID());
-      setConversationTitle(DEFAULT_TITLE);
+      beginNewConversation();
       setIsProcessing(false);
       return;
     }
 
     try {
       await kolibriBridge.reset();
-      setMessages([]);
-      setDraft("");
-      setMode(MODE_OPTIONS[0]?.value ?? "neutral");
-      setConversationId(crypto.randomUUID());
-      setConversationTitle(DEFAULT_TITLE);
+      beginNewConversation();
     } catch (error) {
       const moment = nowPair();
       const assistantMessage: ChatMessage = {
@@ -179,7 +427,24 @@ export const useKolibriChat = (): UseKolibriChatResult => {
     } finally {
       setIsProcessing(false);
     }
-  }, [bridgeReady]);
+  }, [beginNewConversation, bridgeReady]);
+
+  const selectConversation = useCallback(
+    (targetId: string) => {
+      const candidate = conversationsRef.current.find((item) => item.id === targetId);
+      if (!candidate) {
+        return;
+      }
+      knowledgeSearchAbortRef.current?.abort();
+      knowledgeSearchAbortRef.current = null;
+      setConversationId(candidate.id);
+      setConversationTitle(candidate.title);
+      setMessages(candidate.messages);
+      setDraft("");
+      setIsProcessing(false);
+    },
+    [setConversationId, setConversationTitle, setMessages, setDraft, setIsProcessing],
+  );
 
   const sendMessage = useCallback(async () => {
     const content = draft.trim();
@@ -310,6 +575,20 @@ export const useKolibriChat = (): UseKolibriChatResult => {
     };
   }, [messages]);
 
+  const conversationSummaries = useMemo<ConversationSummary[]>(
+    () =>
+      conversations.map((conversation) => ({
+        id: conversation.id,
+        title: conversation.title,
+        createdAtIso: conversation.createdAtIso,
+        updatedAtIso: conversation.updatedAtIso,
+        preview: conversation.preview,
+      })),
+    [conversations],
+  );
+
+  const createConversation = useCallback(() => resetConversation(), [resetConversation]);
+
   return {
     messages,
     draft,
@@ -318,6 +597,7 @@ export const useKolibriChat = (): UseKolibriChatResult => {
     bridgeReady,
     conversationId,
     conversationTitle,
+    conversationSummaries,
     knowledgeStatus,
     knowledgeError,
     statusLoading,
@@ -328,6 +608,8 @@ export const useKolibriChat = (): UseKolibriChatResult => {
     renameConversation,
     sendMessage,
     resetConversation,
+    selectConversation,
+    createConversation,
     refreshKnowledgeStatus,
   };
 };
