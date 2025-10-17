@@ -8,13 +8,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
 #include <sys/stat.h>
 
-#define KOLIBRI_SERVER_PORT 8000
+#define KOLIBRI_DEFAULT_PORT 8000
 #define KOLIBRI_SERVER_BACKLOG 16
 #define KOLIBRI_REQUEST_BUFFER 8192
 #define KOLIBRI_RESPONSE_BUFFER 32768
@@ -26,6 +27,13 @@ static size_t kolibri_requests_total = 0U;
 static size_t kolibri_search_hits = 0U;
 static size_t kolibri_search_misses = 0U;
 static time_t kolibri_bootstrap_timestamp = 0;
+static time_t kolibri_index_timestamp = 0;
+static time_t kolibri_server_started_at = 0;
+
+static int kolibri_server_port = KOLIBRI_DEFAULT_PORT;
+static char kolibri_bind_address[64] = "127.0.0.1";
+static char **kolibri_knowledge_directories = NULL;
+static size_t kolibri_knowledge_directory_count = 0U;
 
 static KolibriGenome kolibri_genome;
 static int kolibri_genome_ready = 0;
@@ -96,6 +104,178 @@ static void ensure_dir_exists(const char *path) {
     mkdir(path, 0755);
 }
 
+static void free_knowledge_directories(void) {
+    if (!kolibri_knowledge_directories) {
+        return;
+    }
+    for (size_t i = 0; i < kolibri_knowledge_directory_count; ++i) {
+        free(kolibri_knowledge_directories[i]);
+    }
+    free(kolibri_knowledge_directories);
+    kolibri_knowledge_directories = NULL;
+    kolibri_knowledge_directory_count = 0U;
+}
+
+static int add_knowledge_directory(const char *path) {
+    if (!path || *path == '\0') {
+        return 0;
+    }
+    char *copy = strdup(path);
+    if (!copy) {
+        return -1;
+    }
+    char **next = realloc(kolibri_knowledge_directories,
+                          (kolibri_knowledge_directory_count + 1U) * sizeof(char *));
+    if (!next) {
+        free(copy);
+        return -1;
+    }
+    kolibri_knowledge_directories = next;
+    kolibri_knowledge_directories[kolibri_knowledge_directory_count] = copy;
+    kolibri_knowledge_directory_count += 1U;
+    return 0;
+}
+
+static int parse_directory_list(const char *value) {
+    if (!value || *value == '\0') {
+        return 0;
+    }
+    char *copy = strdup(value);
+    if (!copy) {
+        return -1;
+    }
+    char *token = copy;
+    while (token && *token) {
+        char *sep = strpbrk(token, ":,;");
+        if (sep) {
+            *sep = '\0';
+        }
+        while (*token == ' ') {
+            ++token;
+        }
+        char *end = token + strlen(token);
+        while (end > token && (end[-1] == ' ')) {
+            --end;
+        }
+        *end = '\0';
+        if (*token) {
+            if (add_knowledge_directory(token) != 0) {
+                free(copy);
+                return -1;
+            }
+        }
+        if (!sep) {
+            break;
+        }
+        token = sep + 1;
+    }
+    free(copy);
+    return 0;
+}
+
+static int parse_port_number(const char *text, int *out) {
+    if (!text || !out || *text == '\0') {
+        return -1;
+    }
+    char *endptr = NULL;
+    long value = strtol(text, &endptr, 10);
+    if (!endptr || *endptr != '\0') {
+        return -1;
+    }
+    if (value < 1L || value > 65535L) {
+        return -1;
+    }
+    *out = (int)value;
+    return 0;
+}
+
+static void apply_environment_configuration(void) {
+    const char *port_env = getenv("KOLIBRI_KNOWLEDGE_PORT");
+    if (port_env && *port_env) {
+        int parsed_port = 0;
+        if (parse_port_number(port_env, &parsed_port) == 0) {
+            kolibri_server_port = parsed_port;
+        } else {
+            fprintf(stderr, "[kolibri-knowledge] invalid KOLIBRI_KNOWLEDGE_PORT value: %s\n", port_env);
+        }
+    }
+
+    const char *bind_env = getenv("KOLIBRI_KNOWLEDGE_BIND");
+    if (bind_env && *bind_env) {
+        strncpy(kolibri_bind_address, bind_env, sizeof(kolibri_bind_address) - 1U);
+        kolibri_bind_address[sizeof(kolibri_bind_address) - 1U] = '\0';
+    }
+
+    const char *dirs_env = getenv("KOLIBRI_KNOWLEDGE_DIRS");
+    if (dirs_env && *dirs_env) {
+        free_knowledge_directories();
+        if (parse_directory_list(dirs_env) != 0) {
+            fprintf(stderr, "[kolibri-knowledge] failed to parse KOLIBRI_KNOWLEDGE_DIRS\n");
+        }
+    }
+}
+
+static int apply_cli_arguments(int argc, char **argv) {
+    for (int i = 1; i < argc; ++i) {
+        const char *arg = argv[i];
+        if (strcmp(arg, "--port") == 0) {
+            if (i + 1 >= argc) {
+                fprintf(stderr, "[kolibri-knowledge] --port requires a value\n");
+                return -1;
+            }
+            int parsed_port = 0;
+            if (parse_port_number(argv[i + 1], &parsed_port) != 0) {
+                fprintf(stderr, "[kolibri-knowledge] invalid port: %s\n", argv[i + 1]);
+                return -1;
+            }
+            kolibri_server_port = parsed_port;
+            i += 1;
+        } else if (strcmp(arg, "--bind") == 0) {
+            if (i + 1 >= argc) {
+                fprintf(stderr, "[kolibri-knowledge] --bind requires a value\n");
+                return -1;
+            }
+            strncpy(kolibri_bind_address, argv[i + 1], sizeof(kolibri_bind_address) - 1U);
+            kolibri_bind_address[sizeof(kolibri_bind_address) - 1U] = '\0';
+            i += 1;
+        } else if (strcmp(arg, "--knowledge-dir") == 0) {
+            if (i + 1 >= argc) {
+                fprintf(stderr, "[kolibri-knowledge] --knowledge-dir requires a value\n");
+                return -1;
+            }
+            if (add_knowledge_directory(argv[i + 1]) != 0) {
+                fprintf(stderr, "[kolibri-knowledge] failed to record knowledge directory\n");
+                return -1;
+            }
+            i += 1;
+        } else if (strcmp(arg, "--help") == 0 || strcmp(arg, "-h") == 0) {
+            fprintf(stdout,
+                    "Usage: %s [--port PORT] [--bind ADDRESS] [--knowledge-dir PATH]\n"
+                    "       Environment overrides: KOLIBRI_KNOWLEDGE_PORT, KOLIBRI_KNOWLEDGE_BIND,"
+                    " KOLIBRI_KNOWLEDGE_DIRS (colon-separated)\n",
+                    argv[0]);
+            return 1;
+        } else {
+            fprintf(stderr, "[kolibri-knowledge] unknown argument: %s\n", arg);
+            return -1;
+        }
+    }
+    return 0;
+}
+
+static int ensure_default_directories(void) {
+    if (kolibri_knowledge_directory_count > 0U) {
+        return 0;
+    }
+    if (add_knowledge_directory("docs") != 0) {
+        return -1;
+    }
+    if (add_knowledge_directory("data") != 0) {
+        return -1;
+    }
+    return 0;
+}
+
 static int load_hmac_key_from_file(const char *path, unsigned char *out, size_t *out_len) {
     if (!path || !out || !out_len) {
         return -1;
@@ -120,36 +300,58 @@ static int load_hmac_key_from_file(const char *path, unsigned char *out, size_t 
     return 0;
 }
 
-static void kolibri_genome_init_or_open(void) {
-    /* Try to load key from root.key, fallback to default literal */
+static int load_hmac_key_from_environment(void) {
     kolibri_hmac_key_len = 0U;
     kolibri_hmac_key_origin[0] = '\0';
-    if (load_hmac_key_from_file("root.key", kolibri_hmac_key, &kolibri_hmac_key_len) == 0) {
-        snprintf(kolibri_hmac_key_origin, sizeof(kolibri_hmac_key_origin), "root.key (%zu байт)", kolibri_hmac_key_len);
-    } else {
-        const char *def = "kolibri-secret-key";
-        size_t len = strlen(def);
-        if (len > KOLIBRI_HMAC_KEY_SIZE) {
-            len = KOLIBRI_HMAC_KEY_SIZE;
-        }
-        memcpy(kolibri_hmac_key, def, len);
+
+    const char *env_inline = getenv("KOLIBRI_HMAC_KEY");
+    if (env_inline && *env_inline) {
+        size_t len = strnlen(env_inline, KOLIBRI_HMAC_KEY_SIZE);
+        memcpy(kolibri_hmac_key, env_inline, len);
         kolibri_hmac_key_len = len;
-        snprintf(kolibri_hmac_key_origin, sizeof(kolibri_hmac_key_origin), "встроенный (%zu байт)", kolibri_hmac_key_len);
+        snprintf(kolibri_hmac_key_origin,
+                 sizeof(kolibri_hmac_key_origin),
+                 "env(KOLIBRI_HMAC_KEY, %zu bytes)",
+                 kolibri_hmac_key_len);
+        return 0;
+    }
+
+    const char *env_file = getenv("KOLIBRI_HMAC_KEY_FILE");
+    const char *path = (env_file && *env_file) ? env_file : "root.key";
+    if (load_hmac_key_from_file(path, kolibri_hmac_key, &kolibri_hmac_key_len) == 0) {
+        snprintf(kolibri_hmac_key_origin,
+                 sizeof(kolibri_hmac_key_origin),
+                 "%s (%zu bytes)",
+                 path,
+                 kolibri_hmac_key_len);
+        return 0;
+    }
+
+    return -1;
+}
+
+static int kolibri_genome_init_or_open(void) {
+    if (load_hmac_key_from_environment() != 0) {
+        fprintf(stderr,
+                "[kolibri-knowledge] no HMAC key configured. Set KOLIBRI_HMAC_KEY or KOLIBRI_HMAC_KEY_FILE/root.key\n");
+        return -1;
     }
 
     ensure_dir_exists(".kolibri");
     if (kg_open(&kolibri_genome, KOLIBRI_KNOWLEDGE_GENOME, kolibri_hmac_key, kolibri_hmac_key_len) == 0) {
         kolibri_genome_ready = 1;
-        char payload[128];
+        char payload[KOLIBRI_PAYLOAD_SIZE];
         snprintf(payload, sizeof(payload), "knowledge_server стартовал (ключ: %s)", kolibri_hmac_key_origin);
         char encoded[KOLIBRI_PAYLOAD_SIZE];
         if (kg_encode_payload(payload, encoded, sizeof(encoded)) == 0) {
             kg_append(&kolibri_genome, "BOOT", encoded, NULL);
         }
-    } else {
-        kolibri_genome_ready = 0;
-        fprintf(stderr, "[kolibri-knowledge] genome open failed\n");
+        return 0;
     }
+
+    kolibri_genome_ready = 0;
+    fprintf(stderr, "[kolibri-knowledge] genome open failed\n");
+    return -1;
 }
 
 static void kolibri_genome_close(void) {
@@ -268,6 +470,26 @@ static void parse_query(const char *path, char *query_buffer, size_t query_size,
     }
 }
 
+static int format_iso8601_utc(time_t value, char *output, size_t out_size) {
+    if (!output || out_size == 0) {
+        return -1;
+    }
+    if (value <= 0) {
+        output[0] = '\0';
+        return -1;
+    }
+    struct tm tm_value;
+    if (!gmtime_r(&value, &tm_value)) {
+        output[0] = '\0';
+        return -1;
+    }
+    if (strftime(output, out_size, "%Y-%m-%dT%H:%M:%SZ", &tm_value) == 0) {
+        output[0] = '\0';
+        return -1;
+    }
+    return 0;
+}
+
 static void send_response(int client_fd, int status_code, const char *content_type, const char *body) {
     char header[256];
     int header_len = snprintf(header, sizeof(header),
@@ -351,6 +573,84 @@ static void json_escape(const char *input, char *output, size_t out_size) {
     output[out_index] = '\0';
 }
 
+static void build_directories_json(char *buffer, size_t buffer_size) {
+    if (!buffer || buffer_size == 0) {
+        return;
+    }
+    if (buffer_size < 3U) {
+        buffer[0] = '\0';
+        return;
+    }
+    size_t offset = 0U;
+    buffer[offset++] = '[';
+    for (size_t i = 0; i < kolibri_knowledge_directory_count; ++i) {
+        if (offset + 2U >= buffer_size) {
+            break;
+        }
+        if (i > 0U) {
+            buffer[offset++] = ',';
+            if (offset >= buffer_size) {
+                break;
+            }
+        }
+        buffer[offset++] = '"';
+        if (offset >= buffer_size) {
+            break;
+        }
+        char escaped[256];
+        json_escape(kolibri_knowledge_directories[i], escaped, sizeof(escaped));
+        size_t len = strlen(escaped);
+        if (len > buffer_size - offset - 2U) {
+            len = buffer_size - offset - 2U;
+        }
+        memcpy(buffer + offset, escaped, len);
+        offset += len;
+        if (offset < buffer_size) {
+            buffer[offset++] = '"';
+        }
+    }
+    if (offset >= buffer_size - 1U) {
+        buffer[buffer_size - 1U] = '\0';
+        return;
+    }
+    buffer[offset++] = ']';
+    if (offset < buffer_size) {
+        buffer[offset] = '\0';
+    } else {
+        buffer[buffer_size - 1U] = '\0';
+    }
+}
+
+static void prometheus_escape_label(const char *input, char *output, size_t out_size) {
+    if (!output || out_size == 0) {
+        return;
+    }
+    if (!input) {
+        output[0] = '\0';
+        return;
+    }
+    size_t out_index = 0U;
+    for (size_t i = 0; input[i] != '\0' && out_index + 1U < out_size; ++i) {
+        char ch = input[i];
+        if (ch == '\\' || ch == '"') {
+            if (out_index + 2U >= out_size) {
+                break;
+            }
+            output[out_index++] = '\\';
+            output[out_index++] = ch;
+        } else if (ch == '\n') {
+            if (out_index + 2U >= out_size) {
+                break;
+            }
+            output[out_index++] = '\\';
+            output[out_index++] = 'n';
+        } else {
+            output[out_index++] = ch;
+        }
+    }
+    output[out_index] = '\0';
+}
+
 static void handle_client(int client_fd, const KolibriKnowledgeIndex *index) {
     char buffer[KOLIBRI_REQUEST_BUFFER];
     kolibri_requests_total += 1U;
@@ -373,15 +673,76 @@ static void handle_client(int client_fd, const KolibriKnowledgeIndex *index) {
 
     if (strcmp(path_start, "/healthz") == 0 ||
         starts_with(path_start, "/api/knowledge/healthz")) {
-        char body[128];
-        snprintf(body, sizeof(body), "{\"status\":\"ok\",\"documents\":%zu}", index->count);
+        char generated_iso[64];
+        char bootstrap_iso[64];
+        char generated_field[72];
+        char bootstrap_field[72];
+        if (format_iso8601_utc(kolibri_index_timestamp, generated_iso, sizeof(generated_iso)) == 0) {
+            snprintf(generated_field, sizeof(generated_field), "\"%s\"", generated_iso);
+        } else {
+            strcpy(generated_field, "null");
+        }
+        if (format_iso8601_utc(kolibri_bootstrap_timestamp, bootstrap_iso, sizeof(bootstrap_iso)) == 0) {
+            snprintf(bootstrap_field, sizeof(bootstrap_field), "\"%s\"", bootstrap_iso);
+        } else {
+            strcpy(bootstrap_field, "null");
+        }
+        double uptime = 0.0;
+        if (kolibri_server_started_at > 0) {
+            uptime = difftime(time(NULL), kolibri_server_started_at);
+            if (uptime < 0.0) {
+                uptime = 0.0;
+            }
+        }
+        char directories_json[512];
+        build_directories_json(directories_json, sizeof(directories_json));
+        if (directories_json[0] == '\0') {
+            strncpy(directories_json, "[]", sizeof(directories_json) - 1U);
+            directories_json[sizeof(directories_json) - 1U] = '\0';
+        }
+        char key_origin_field[256];
+        if (kolibri_hmac_key_origin[0] != '\0') {
+            char escaped_origin[192];
+            json_escape(kolibri_hmac_key_origin, escaped_origin, sizeof(escaped_origin));
+            snprintf(key_origin_field, sizeof(key_origin_field), "\"%s\"", escaped_origin);
+        } else {
+            strcpy(key_origin_field, "null");
+        }
+        char body[1024];
+        int len = snprintf(body,
+                           sizeof(body),
+                           "{\"status\":\"ok\",\"documents\":%zu,\"generatedAt\":%s,"
+                           "\"bootstrapGeneratedAt\":%s,\"requests\":%zu,\"hits\":%zu,\"misses\":%zu,"
+                           "\"uptimeSeconds\":%.0f,\"keyOrigin\":%s,\"indexRoots\":%s}",
+                           index->count,
+                           generated_field,
+                           bootstrap_field,
+                           kolibri_requests_total,
+                           kolibri_search_hits,
+                           kolibri_search_misses,
+                           uptime,
+                           key_origin_field,
+                           directories_json);
+        if (len < 0 || (size_t)len >= sizeof(body)) {
+            send_response(client_fd, 500, "application/json", "{\"error\":\"internal\"}");
+            return;
+        }
         send_response(client_fd, 200, "application/json", body);
         return;
     }
 
     if (strcmp(path_start, "/metrics") == 0 ||
         starts_with(path_start, "/api/knowledge/metrics")) {
-        char body[512];
+        double bootstrap_generated = kolibri_bootstrap_timestamp > 0 ? (double)kolibri_bootstrap_timestamp : 0.0;
+        double index_generated = kolibri_index_timestamp > 0 ? (double)kolibri_index_timestamp : 0.0;
+        double uptime = 0.0;
+        if (kolibri_server_started_at > 0) {
+            uptime = difftime(time(NULL), kolibri_server_started_at);
+            if (uptime < 0.0) {
+                uptime = 0.0;
+            }
+        }
+        char body[2048];
         int len = snprintf(body,
                            sizeof(body),
                            "# HELP kolibri_knowledge_documents Number of documents in knowledge index\n"
@@ -398,15 +759,58 @@ static void handle_client(int client_fd, const KolibriKnowledgeIndex *index) {
                            "kolibri_search_misses_total %zu\n"
                            "# HELP kolibri_bootstrap_generated_unixtime Timestamp of last bootstrap script generation\n"
                            "# TYPE kolibri_bootstrap_generated_unixtime gauge\n"
-                           "kolibri_bootstrap_generated_unixtime %.0f\n",
+                           "kolibri_bootstrap_generated_unixtime %.0f\n"
+                           "# HELP kolibri_knowledge_generated_unixtime Timestamp of last knowledge index build\n"
+                           "# TYPE kolibri_knowledge_generated_unixtime gauge\n"
+                           "kolibri_knowledge_generated_unixtime %.0f\n"
+                           "# HELP kolibri_knowledge_uptime_seconds Knowledge server uptime\n"
+                           "# TYPE kolibri_knowledge_uptime_seconds gauge\n"
+                           "kolibri_knowledge_uptime_seconds %.0f\n"
+                           "# HELP kolibri_knowledge_key_length_bytes Length of configured HMAC key\n"
+                           "# TYPE kolibri_knowledge_key_length_bytes gauge\n"
+                           "kolibri_knowledge_key_length_bytes %zu\n"
+                           "# HELP kolibri_knowledge_directories_total Number of knowledge directories\n"
+                           "# TYPE kolibri_knowledge_directories_total gauge\n"
+                           "kolibri_knowledge_directories_total %zu\n",
                            index->count,
                            kolibri_requests_total,
                            kolibri_search_hits,
                            kolibri_search_misses,
-                           kolibri_bootstrap_timestamp > 0 ? (double)kolibri_bootstrap_timestamp : 0.0);
+                           bootstrap_generated,
+                           index_generated,
+                           uptime,
+                           kolibri_hmac_key_len,
+                           kolibri_knowledge_directory_count);
         if (len < 0) {
             send_response(client_fd, 500, "text/plain", "error");
             return;
+        }
+        size_t offset = (size_t)len;
+        for (size_t i = 0; i < kolibri_knowledge_directory_count; ++i) {
+            char label[256];
+            prometheus_escape_label(kolibri_knowledge_directories[i], label, sizeof(label));
+            int written = snprintf(body + offset,
+                                   sizeof(body) - offset,
+                                   "kolibri_knowledge_directory_info{path=\"%s\"} 1\n",
+                                   label);
+            if (written < 0 || (size_t)written >= sizeof(body) - offset) {
+                send_response(client_fd, 500, "text/plain", "error");
+                return;
+            }
+            offset += (size_t)written;
+        }
+        if (kolibri_hmac_key_origin[0] != '\0') {
+            char origin_label[256];
+            prometheus_escape_label(kolibri_hmac_key_origin, origin_label, sizeof(origin_label));
+            int written = snprintf(body + offset,
+                                   sizeof(body) - offset,
+                                   "kolibri_knowledge_hmac_key_info{origin=\"%s\"} 1\n",
+                                   origin_label);
+            if (written < 0 || (size_t)written >= sizeof(body) - offset) {
+                send_response(client_fd, 500, "text/plain", "error");
+                return;
+            }
+            offset += (size_t)written;
         }
         send_response(client_fd, 200, "text/plain; version=0.0.4", body);
         return;
@@ -447,10 +851,27 @@ static void handle_client(int client_fd, const KolibriKnowledgeIndex *index) {
             decoded_a[0] = '\0';
         }
         url_decode(decoded_q);
+        const char *rating_value = rating ? rating : "unknown";
         char payload[512];
-        snprintf(payload, sizeof(payload), "rating=%s q=%s a=%s",
-                 rating ? rating : "unknown",
+        int remaining = (int)sizeof(payload) - 1 - 13; /* rating= + q= + a= */
+        if (remaining < 0) {
+            remaining = 0;
+        }
+        int rating_limit = remaining > 64 ? 64 : remaining;
+        remaining -= rating_limit;
+        if (remaining < 0) {
+            remaining = 0;
+        }
+        int q_limit = remaining > 0 ? remaining / 2 : 0;
+        int a_limit = remaining - q_limit;
+        snprintf(payload,
+                 sizeof(payload),
+                 "rating=%.*s q=%.*s a=%.*s",
+                 rating_limit,
+                 rating_value,
+                 q_limit,
                  decoded_q,
+                 a_limit,
                  decoded_a);
         knowledge_record_event("USER_FEEDBACK", payload);
         send_response(client_fd, 200, "application/json", "{\"status\":\"ok\"}");
@@ -480,7 +901,19 @@ static void handle_client(int client_fd, const KolibriKnowledgeIndex *index) {
         url_decode(abuf);
         if (qbuf[0] != '\0' && abuf[0] != '\0') {
             char payload[512];
-            snprintf(payload, sizeof(payload), "q=%s a=%s", qbuf, abuf);
+            int remaining = (int)sizeof(payload) - 1 - 5; /* q= + a= */
+            if (remaining < 0) {
+                remaining = 0;
+            }
+            int q_limit = remaining > 0 ? remaining / 2 : 0;
+            int a_limit = remaining - q_limit;
+            snprintf(payload,
+                     sizeof(payload),
+                     "q=%.*s a=%.*s",
+                     q_limit,
+                     qbuf,
+                     a_limit,
+                     abuf);
             knowledge_record_event("TEACH", payload);
             send_response(client_fd, 200, "application/json", "{\"status\":\"ok\"}");
         } else {
@@ -550,34 +983,80 @@ static void handle_client(int client_fd, const KolibriKnowledgeIndex *index) {
     /* online learning: record query and proposed answers */
     if (kolibri_genome_ready) {
         char ask_payload[512];
-        snprintf(ask_payload, sizeof(ask_payload), "q=%s", query);
+        int query_limit = (int)sizeof(ask_payload) - 3;
+        if (query_limit < 0) {
+            query_limit = 0;
+        }
+        snprintf(ask_payload, sizeof(ask_payload), "q=%.*s", query_limit, query);
         knowledge_record_event("ASK", ask_payload);
         for (size_t i = 0; i < found && i < 3U; ++i) {
             const KolibriKnowledgeDocument *doc = results[i];
             const char *answer_src = doc->content ? doc->content : "";
             char *preview = snippet_preview(answer_src, 200U);
             char teach_payload[512];
-            snprintf(teach_payload, sizeof(teach_payload), "q=%s a=%s", query, preview ? preview : "");
+            int remaining = (int)sizeof(teach_payload) - 1 - 5;
+            if (remaining < 0) {
+                remaining = 0;
+            }
+            int teach_q_limit = remaining > 0 ? remaining / 2 : 0;
+            int teach_a_limit = remaining - teach_q_limit;
+            snprintf(teach_payload,
+                     sizeof(teach_payload),
+                     "q=%.*s a=%.*s",
+                     teach_q_limit,
+                     query,
+                     teach_a_limit,
+                     preview ? preview : "");
             knowledge_record_event("TEACH", teach_payload);
             free(preview);
         }
     }
 }
 
-int main(void) {
+int main(int argc, char **argv) {
+    kolibri_server_started_at = time(NULL);
+
+    apply_environment_configuration();
+    int cli_status = apply_cli_arguments(argc, argv);
+    if (cli_status > 0) {
+        free_knowledge_directories();
+        return 0;
+    }
+    if (cli_status < 0) {
+        free_knowledge_directories();
+        return 1;
+    }
+
+    if (ensure_default_directories() != 0) {
+        fprintf(stderr, "[kolibri-knowledge] failed to prepare knowledge directories\n");
+        free_knowledge_directories();
+        return 1;
+    }
+
     KolibriKnowledgeIndex index;
     if (kolibri_knowledge_index_init(&index) != 0) {
         fprintf(stderr, "[kolibri-knowledge] failed to init index\n");
+        free_knowledge_directories();
         return 1;
     }
-    kolibri_knowledge_index_load_directory(&index, "docs");
-    kolibri_knowledge_index_load_directory(&index, "data");
+
+    for (size_t i = 0; i < kolibri_knowledge_directory_count; ++i) {
+        const char *dir = kolibri_knowledge_directories[i];
+        if (kolibri_knowledge_index_load_directory(&index, dir) != 0) {
+            fprintf(stderr, "[kolibri-knowledge] failed to load directory: %s\n", dir);
+        }
+    }
+    kolibri_index_timestamp = time(NULL);
     fprintf(stdout, "[kolibri-knowledge] loaded %zu documents\n", index.count);
     if (index.count > 0) {
         write_bootstrap_script(&index, KOLIBRI_BOOTSTRAP_SCRIPT);
     }
 
-    kolibri_genome_init_or_open();
+    if (kolibri_genome_init_or_open() != 0) {
+        kolibri_knowledge_index_free(&index);
+        free_knowledge_directories();
+        return 1;
+    }
 
     signal(SIGINT, handle_signal);
     signal(SIGTERM, handle_signal);
@@ -586,6 +1065,7 @@ int main(void) {
     if (server_fd < 0) {
         perror("socket");
         kolibri_knowledge_index_free(&index);
+        free_knowledge_directories();
         return 1;
     }
     int reuse = 1;
@@ -594,22 +1074,33 @@ int main(void) {
     struct sockaddr_in addr;
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-    addr.sin_port = htons(KOLIBRI_SERVER_PORT);
+    if (inet_pton(AF_INET, kolibri_bind_address, &addr.sin_addr) != 1) {
+        fprintf(stderr, "[kolibri-knowledge] invalid bind address: %s\n", kolibri_bind_address);
+        close(server_fd);
+        kolibri_knowledge_index_free(&index);
+        free_knowledge_directories();
+        return 1;
+    }
+    addr.sin_port = htons((uint16_t)kolibri_server_port);
     if (bind(server_fd, (struct sockaddr *)&addr, sizeof(addr)) != 0) {
         perror("bind");
         close(server_fd);
         kolibri_knowledge_index_free(&index);
+        free_knowledge_directories();
         return 1;
     }
     if (listen(server_fd, KOLIBRI_SERVER_BACKLOG) != 0) {
         perror("listen");
         close(server_fd);
         kolibri_knowledge_index_free(&index);
+        free_knowledge_directories();
         return 1;
     }
 
-    fprintf(stdout, "[kolibri-knowledge] listening on http://127.0.0.1:%d\n", KOLIBRI_SERVER_PORT);
+    fprintf(stdout,
+            "[kolibri-knowledge] listening on http://%s:%d\n",
+            kolibri_bind_address,
+            kolibri_server_port);
     while (kolibri_server_running) {
         struct sockaddr_in client_addr;
         socklen_t client_len = sizeof(client_addr);
@@ -628,6 +1119,7 @@ int main(void) {
     close(server_fd);
     kolibri_genome_close();
     kolibri_knowledge_index_free(&index);
+    free_knowledge_directories();
     fprintf(stdout, "[kolibri-knowledge] shutdown\n");
     return 0;
 }
