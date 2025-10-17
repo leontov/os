@@ -19,6 +19,10 @@
    ```bash
    KOLIBRI_LICENSE_KEY=...
    KOLIBRI_HMAC_KEY=$(openssl rand -hex 32)
+   # директории с индексом знаний (через двоеточие)
+   KOLIBRI_KNOWLEDGE_DIRS="docs:data"
+   # необязательно: переопределить порт службы знаний
+   # KOLIBRI_KNOWLEDGE_PORT=8080
    ```
 3. Запустите:
    ```bash
@@ -58,8 +62,8 @@
 | Endpoint | Компонент | Описание |
 |----------|-----------|----------|
 | `kolibri_node --health` | KolibriNode | CLI-проверка генома, семени и HMAC (возвращает JSON) |
-| `/healthz` | Knowledge API | HTTP 200 с количеством документов |
-| `/metrics` | Knowledge API | Prometheus-метрика `kolibri_knowledge_documents` |
+| `/healthz` | Knowledge API | HTTP 200 с `status`, `documents`, `generatedAt`, `indexRoots`, `requests` |
+| `/metrics` | Knowledge API | Prometheus-метрики по документам, ключу, директориям и времени генерации |
 | `/healthz` | Frontend | проверка wasm и API-доступности |
 
 Пример использования health-check для узла:
@@ -75,6 +79,8 @@ docker exec kolibri-node kolibri_node --health
 curl http://kolibri-backend:8000/healthz
 curl http://kolibri-backend:8000/metrics
 ```
+
+Ответ `/healthz` содержит временные метки (`generatedAt`, `bootstrapGeneratedAt`), список корней индекса и источник HMAC-ключа (`keyOrigin`) — UI использует эти поля для отображения актуальности знаний.
 
 ## 7. Обновления
 1. Скачать релизный пакет (`kolibri-release-bundle`).
