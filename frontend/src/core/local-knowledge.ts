@@ -186,7 +186,7 @@ export async function searchLocalKnowledge(
           }
           return score > 0 ? { ...doc, score } : null;
         })
-        .filter((entry): entry is KnowledgeSnippet => Boolean(entry))
+        .filter((entry): entry is LocalKnowledgeDocument & { score: number } => entry !== null)
         .sort((a, b) => b.score - a.score)
         .slice(0, limit)
         .map((snippet) => ({
@@ -215,7 +215,7 @@ export async function searchLocalKnowledge(
       }
       return score > 0 ? { ...doc, score } : null;
     })
-    .filter((entry): entry is KnowledgeSnippet => Boolean(entry))
+    .filter((entry): entry is LocalKnowledgeDocument & { score: number } => entry !== null)
     .sort((a, b) => b.score - a.score)
     .slice(0, limit)
     .map((snippet) => ({

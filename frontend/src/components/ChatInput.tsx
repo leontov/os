@@ -10,8 +10,8 @@ interface ChatInputProps {
   attachments: PendingAttachment[];
   onChange: (value: string) => void;
   onModeChange: (mode: string) => void;
-  onSubmit: () => void;
-  onReset: () => void;
+  onSubmit: () => void | Promise<void>;
+  onReset: () => void | Promise<void>;
   onAttach: (files: File[]) => void;
   onRemoveAttachment?: (id: string) => void;
   onClearAttachments: () => void;
@@ -25,14 +25,15 @@ const formatFileSize = (bytes: number): string => {
   }
   const units = ["КБ", "МБ", "ГБ", "ТБ"];
   let size = bytes;
-  let unitIndex = -1;
+  let unitIndex = 0;
+
   while (size >= 1024 && unitIndex < units.length - 1) {
     size /= 1024;
     unitIndex += 1;
   }
-  const unit = units[unitIndex] ?? "КБ";
+
   const precision = size >= 10 || unitIndex === 0 ? 0 : 1;
-  return `${size.toFixed(precision)} ${unit}`;
+  return `${size.toFixed(precision)} ${units[unitIndex] ?? "КБ"}`;
 };
 
 const ChatInput = ({
@@ -49,9 +50,10 @@ const ChatInput = ({
   onClearAttachments,
 }: ChatInputProps) => {
   const textAreaId = useId();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
   const trimmedLength = useMemo(() => value.trim().length, [value]);
   const remaining = Math.max(0, MAX_LENGTH - value.length);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (attachments.length === 0 && fileInputRef.current) {
@@ -86,26 +88,16 @@ const ChatInput = ({
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       if (!isBusy && (value.trim() || attachments.length)) {
-        onSubmit();
+        void onSubmit();
       }
     }
   };
 
-  const handleAttachmentClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (files?.length) {
-      onAttach(files);
-      event.target.value = "";
+  const handleSubmitClick = () => {
+    if (isBusy || (!value.trim() && attachments.length === 0)) {
+      return;
     }
-  };
-
-  const handleClear = () => {
-    onChange("");
-    onClear();
+    void onSubmit();
   };
 
   return (
@@ -139,7 +131,11 @@ const ChatInput = ({
           </span>
           <button
             type="button"
-            onClick={onReset}
+            onClick={() => {
+              if (!isBusy) {
+                void onReset();
+              }
+            }}
             className="flex items-center gap-2 rounded-xl border border-border-strong bg-background-card/80 px-3 py-2 text-xs font-semibold transition-colors hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-60"
             disabled={isBusy}
           >
@@ -201,7 +197,6 @@ const ChatInput = ({
             onClick={handleAttachClick}
             className="flex items-center gap-2 rounded-xl border border-border-strong bg-background-card/80 px-3 py-2 transition-colors hover:text-text-primary"
             disabled={isBusy}
-            onClick={handleAttachmentClick}
           >
             <Paperclip className="h-4 w-4" />
             Вложить
@@ -226,7 +221,7 @@ const ChatInput = ({
           </span>
           <button
             type="button"
-            onClick={onSubmit}
+            onClick={handleSubmitClick}
             className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
             disabled={isBusy || (!value.trim() && attachments.length === 0)}
           >

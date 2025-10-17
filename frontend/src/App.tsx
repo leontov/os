@@ -1,20 +1,18 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import AppShell from "./components/AppShell";
 import AnalyticsView from "./components/AnalyticsView";
 import ChatInput from "./components/ChatInput";
 import ChatView from "./components/ChatView";
 import InspectorPanel from "./components/InspectorPanel";
 import KnowledgeView from "./components/KnowledgeView";
-import NavigationRail from "./components/NavigationRail";
+import NavigationRail, { type NavigationSection } from "./components/NavigationRail";
 import Sidebar from "./components/Sidebar";
-import TopBar from "./components/TopBar";
 import SwarmView from "./components/SwarmView";
+import TopBar from "./components/TopBar";
 import WelcomeScreen from "./components/WelcomeScreen";
 import useKolibriChat from "./core/useKolibriChat";
-import type { SectionKey } from "./components/NavigationRail";
 
 const App = () => {
-  const [activeSection, setActiveSection] = useState<NavigationSection>("dialog");
   const {
     messages,
     draft,
@@ -37,16 +35,13 @@ const App = () => {
     removeAttachment,
     clearAttachments,
     sendMessage,
+    resetConversation,
     selectConversation,
     createConversation,
     refreshKnowledgeStatus,
-    selectConversation,
-    attachFiles,
-    removeAttachment,
-    clearAttachments,
   } = useKolibriChat();
 
-  const [activeSection, setActiveSection] = useState<SectionKey>("dialog");
+  const [activeSection, setActiveSection] = useState<NavigationSection>("dialog");
 
   const chatContent = useMemo(() => {
     if (!messages.length) {
@@ -67,6 +62,61 @@ const App = () => {
     [selectConversation],
   );
 
+  const renderSection = () => {
+    switch (activeSection) {
+      case "dialog":
+        return (
+          <div className="flex flex-1 flex-col gap-6 lg:flex-row">
+            <div className="w-full flex-none lg:max-w-xs xl:max-w-sm">
+              <Sidebar
+                conversations={conversationSummaries}
+                activeConversationId={conversationId}
+                onConversationSelect={handleSelectConversation}
+                onCreateConversation={handleCreateConversation}
+              />
+            </div>
+            <div className="flex flex-1 flex-col gap-6">
+              <div className="flex-1">{chatContent}</div>
+              <ChatInput
+                value={draft}
+                mode={mode}
+                isBusy={isProcessing || !bridgeReady}
+                attachments={attachments}
+                onChange={setDraft}
+                onModeChange={setMode}
+                onSubmit={() => {
+                  void sendMessage();
+                }}
+                onReset={() => {
+                  void resetConversation();
+                }}
+                onAttach={attachFiles}
+                onRemoveAttachment={removeAttachment}
+                onClearAttachments={clearAttachments}
+              />
+            </div>
+          </div>
+        );
+      case "knowledge":
+        return (
+          <KnowledgeView
+            status={knowledgeStatus}
+            error={knowledgeError}
+            isLoading={statusLoading}
+            onRefresh={() => {
+              void refreshKnowledgeStatus();
+            }}
+          />
+        );
+      case "swarm":
+        return <SwarmView />;
+      case "analytics":
+        return <AnalyticsView />;
+      default:
+        return null;
+    }
+  };
+
   return (
     <AppShell
       navigation={
@@ -86,7 +136,9 @@ const App = () => {
           bridgeReady={bridgeReady}
           knowledgeStatus={knowledgeStatus}
           metrics={metrics}
-          onRefreshKnowledge={refreshKnowledgeStatus}
+          onRefreshKnowledge={() => {
+            void refreshKnowledgeStatus();
+          }}
           isKnowledgeLoading={statusLoading}
         />
       }
@@ -98,50 +150,14 @@ const App = () => {
             isLoading={statusLoading}
             metrics={metrics}
             latestAssistantMessage={latestAssistantMessage}
-            onRefresh={refreshKnowledgeStatus}
+            onRefresh={() => {
+              void refreshKnowledgeStatus();
+            }}
           />
         ) : undefined
       }
     >
-      {activeSection === "dialog" && (
-        <div className="flex h-full flex-1 flex-col gap-6">
-          <div className="flex-1">{chatContent}</div>
-          <ChatInput
-            value={draft}
-            mode={mode}
-            isBusy={isProcessing || !bridgeReady}
-            onChange={setDraft}
-            onModeChange={setMode}
-            onSubmit={sendMessage}
-            onReset={resetConversation}
-          />
-        </div>
-      )}
-      {activeSection === "knowledge" && (
-        <KnowledgeView
-          status={knowledgeStatus}
-          error={knowledgeError}
-          isLoading={statusLoading}
-          onRefresh={refreshKnowledgeStatus}
-        />
-      }
-    >
-      <div className="flex h-full flex-1 flex-col gap-6">
-        <div className="flex-1">{mainContent}</div>
-        <ChatInput
-          value={draft}
-          mode={mode}
-          isBusy={isProcessing || !bridgeReady}
-          attachments={attachments}
-          onChange={setDraft}
-          onModeChange={setMode}
-          onSubmit={sendMessage}
-          onReset={resetConversation}
-          onAttach={attachFiles}
-          onRemoveAttachment={removeAttachment}
-          onClearAttachments={clearAttachments}
-        />
-      </div>
+      {renderSection()}
     </AppShell>
   );
 };

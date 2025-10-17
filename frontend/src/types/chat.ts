@@ -1,14 +1,7 @@
-export type ChatRole = "user" | "assistant";
-
 import type { SerializedAttachment } from "./attachments";
 import type { KnowledgeSnippet } from "./knowledge";
 
-export interface ChatAttachment {
-  id: string;
-  name: string;
-  size: number;
-  type: string;
-}
+export type ChatRole = "user" | "assistant";
 
 export interface ChatMessage {
   id: string;
@@ -18,10 +11,7 @@ export interface ChatMessage {
   isoTimestamp?: string;
   modeLabel?: string;
   modeValue?: string;
-
-  attachments?: ChatAttachment[];
-
+  attachments?: SerializedAttachment[];
   context?: KnowledgeSnippet[];
   contextError?: string;
-  attachments?: SerializedAttachment[];
 }
