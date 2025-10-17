@@ -29,6 +29,7 @@ add_library(kolibri_core_objects OBJECT
     backend/src/knowledge_queue.c
     backend/src/sim.c
     backend/src/sigma.c
+    backend/src/swarm.c
 )
 
 target_include_directories(kolibri_core_objects
