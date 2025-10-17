@@ -4,6 +4,7 @@ import type { ChatMessage } from "../types/chat";
 import type { KnowledgeSnippet } from "../types/knowledge";
 import { fetchKnowledgeStatus, searchKnowledge } from "./knowledge";
 import kolibriBridge, { type KernelCapabilities, type KernelControlPayload } from "./kolibri-bridge";
+import kolibriBridge, { type KernelControlPayload } from "./kolibri-bridge";
 import { MODE_OPTIONS, findModeLabel } from "./modes";
 
 export interface KernelControlsState {

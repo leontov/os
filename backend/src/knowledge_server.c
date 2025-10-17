@@ -1,10 +1,12 @@
 #include "kolibri/knowledge_index.h"
 #include "kolibri/genome.h"
+#include "kolibri/swarm.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
 #include <netinet/in.h>
 #include <strings.h>
+#include <ctype.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -50,6 +52,10 @@ static int kolibri_genome_ready = 0;
 static unsigned char kolibri_hmac_key[KOLIBRI_HMAC_KEY_SIZE];
 static size_t kolibri_hmac_key_len = 0U;
 static char kolibri_hmac_key_origin[128];
+static KolibriSwarm kolibri_swarm;
+static int kolibri_swarm_ready = 0;
+static char kolibri_swarm_nodes_config[1024];
+static char kolibri_swarm_node_id[KOLIBRI_SWARM_ID_MAX];
 
 typedef struct {
     time_t window_start;
@@ -134,6 +140,75 @@ static void free_knowledge_directories(void) {
     free(kolibri_knowledge_directories);
     kolibri_knowledge_directories = NULL;
     kolibri_knowledge_directory_count = 0U;
+}
+
+static void trim_whitespace(char *text) {
+    if (!text) {
+        return;
+    }
+    char *start = text;
+    while (*start && isspace((unsigned char)*start)) {
+        start++;
+    }
+    if (start != text) {
+        memmove(text, start, strlen(start) + 1U);
+    }
+    size_t len = strlen(text);
+    while (len > 0U && isspace((unsigned char)text[len - 1U])) {
+        text[len - 1U] = '\0';
+        len--;
+    }
+}
+
+static void configure_swarm_from_config(void) {
+    if (!kolibri_swarm_ready || kolibri_swarm_nodes_config[0] == '\0') {
+        return;
+    }
+    char copy[sizeof(kolibri_swarm_nodes_config)];
+    strncpy(copy, kolibri_swarm_nodes_config, sizeof(copy) - 1U);
+    copy[sizeof(copy) - 1U] = '\0';
+    char *saveptr = NULL;
+    char *token = strtok_r(copy, ",", &saveptr);
+    size_t generated = 0U;
+    while (token) {
+        trim_whitespace(token);
+        if (*token) {
+            char node_id[KOLIBRI_SWARM_ID_MAX];
+            char endpoint[KOLIBRI_SWARM_ENDPOINT_MAX];
+            node_id[0] = '\0';
+            endpoint[0] = '\0';
+            char *at = strchr(token, '@');
+            if (at) {
+                *at = '\0';
+                strncpy(node_id, token, sizeof(node_id) - 1U);
+                node_id[sizeof(node_id) - 1U] = '\0';
+                strncpy(endpoint, at + 1, sizeof(endpoint) - 1U);
+                endpoint[sizeof(endpoint) - 1U] = '\0';
+            } else {
+                snprintf(node_id, sizeof(node_id), "peer-%zu", kolibri_swarm.node_count + generated + 1U);
+                strncpy(endpoint, token, sizeof(endpoint) - 1U);
+                endpoint[sizeof(endpoint) - 1U] = '\0';
+            }
+            trim_whitespace(node_id);
+            trim_whitespace(endpoint);
+            if (endpoint[0] != '\0') {
+                if (node_id[0] == '\0') {
+                    snprintf(node_id, sizeof(node_id), "peer-%zu", kolibri_swarm.node_count + generated + 1U);
+                }
+                if (kolibri_swarm_add_node(&kolibri_swarm, node_id, endpoint) != 0) {
+                    fprintf(stderr,
+                            "[kolibri-knowledge] failed to add swarm peer %s@%s\n",
+                            node_id,
+                            endpoint);
+                }
+            }
+        }
+        token = strtok_r(NULL, ",", &saveptr);
+        generated += 1U;
+    }
+    fprintf(stdout,
+            "[kolibri-knowledge] swarm configured with %zu peers\n",
+            kolibri_swarm.node_count);
 }
 
 static int add_knowledge_directory(const char *path) {
@@ -304,6 +379,20 @@ static void apply_environment_configuration(void) {
                         admin_file_env);
             }
         }
+    }
+
+    const char *swarm_nodes_env = getenv("KOLIBRI_SWARM_NODES");
+    if (swarm_nodes_env && *swarm_nodes_env) {
+        strncpy(kolibri_swarm_nodes_config, swarm_nodes_env, sizeof(kolibri_swarm_nodes_config) - 1U);
+        kolibri_swarm_nodes_config[sizeof(kolibri_swarm_nodes_config) - 1U] = '\0';
+    } else {
+        kolibri_swarm_nodes_config[0] = '\0';
+    }
+
+    const char *swarm_id_env = getenv("KOLIBRI_SWARM_ID");
+    if (swarm_id_env && *swarm_id_env) {
+        strncpy(kolibri_swarm_node_id, swarm_id_env, sizeof(kolibri_swarm_node_id) - 1U);
+        kolibri_swarm_node_id[sizeof(kolibri_swarm_node_id) - 1U] = '\0';
     }
 }
 
@@ -1548,6 +1637,13 @@ static void handle_client(int client_fd, const KolibriKnowledgeIndex *index) {
 
     send_response(client_fd, 200, "application/json", response);
 
+    if (kolibri_swarm_ready) {
+        double normalized = result_count > 0U
+                                 ? 0.6 + fmin((double)result_count, (double)limit) / ((double)limit + 1.0) * 0.4
+                                 : -0.35;
+        kolibri_swarm_record_local_activity(&kolibri_swarm, query, normalized);
+    }
+
     if (kolibri_genome_ready) {
         char ask_payload[512];
         int query_limit = (int)sizeof(ask_payload) - 3;
@@ -1989,6 +2085,427 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+static void handle_client(int client_fd, const KolibriKnowledgeIndex *index) {
+    char buffer[KOLIBRI_REQUEST_BUFFER];
+    kolibri_requests_total += 1U;
+
+    struct timeval timeout;
+    timeout.tv_sec = 5;
+    timeout.tv_usec = 0;
+    setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+    setsockopt(client_fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
+
+    size_t header_len = 0U;
+    size_t content_len = 0U;
+    ssize_t total = receive_http_request(client_fd, buffer, sizeof(buffer), &header_len, &content_len);
+    if (total < 0) {
+        if (total == -2) {
+            send_response(client_fd, 408, "application/json", "{\"error\":\"timeout\"}");
+        } else if (total == -3 || total == -5) {
+            send_response(client_fd, 413, "application/json", "{\"error\":\"payload too large\"}");
+        } else {
+            send_response(client_fd, 400, "application/json", "{\"error\":\"bad request\"}");
+        }
+        return;
+    }
+
+    char *line_end = strstr(buffer, "\r\n");
+    if (!line_end) {
+        send_response(client_fd, 400, "application/json", "{\"error\":\"bad request\"}");
+        return;
+    }
+    *line_end = '\0';
+
+    char method[8];
+    char *method_end = strchr(buffer, ' ');
+    if (!method_end) {
+        send_response(client_fd, 400, "application/json", "{\"error\":\"bad request\"}");
+        return;
+    }
+    size_t method_len = (size_t)(method_end - buffer);
+    if (method_len >= sizeof(method)) {
+        method_len = sizeof(method) - 1U;
+    }
+    memcpy(method, buffer, method_len);
+    method[method_len] = '\0';
+
+    char *path_start = method_end + 1;
+    char *version_start = strchr(path_start, ' ');
+    if (!version_start) {
+        send_response(client_fd, 400, "application/json", "{\"error\":\"bad request\"}");
+        return;
+    }
+    *version_start = '\0';
+
+    const char *header_start = line_end + 2;
+    size_t header_bytes = header_len > (size_t)(header_start - buffer) ? header_len - (size_t)(header_start - buffer) : 0U;
+    const char *body = buffer + header_len;
+
+    size_t document_count = index ? kolibri_knowledge_index_document_count(index) : 0U;
+
+    if (strcmp(method, "GET") == 0 &&
+        (strcmp(path_start, "/api/swarm/status") == 0 || strcmp(path_start, "/swarm/status") == 0)) {
+        if (!kolibri_swarm_ready) {
+            send_response(client_fd, 503, "application/json", "{\"error\":\"swarm unavailable\"}");
+            return;
+        }
+        char status_body[4096];
+        if (kolibri_swarm_format_status(&kolibri_swarm, status_body, sizeof(status_body)) != 0) {
+            send_response(client_fd, 500, "application/json", "{\"error\":\"swarm status error\"}");
+            return;
+        }
+        send_response(client_fd, 200, "application/json", status_body);
+        return;
+    }
+
+    if (strcmp(method, "GET") == 0 &&
+        (strcmp(path_start, "/healthz") == 0 || starts_with(path_start, "/api/knowledge/healthz"))) {
+        char generated_iso[64];
+        char bootstrap_iso[64];
+        char generated_field[72];
+        char bootstrap_field[72];
+        if (format_iso8601_utc(kolibri_index_timestamp, generated_iso, sizeof(generated_iso)) == 0) {
+            snprintf(generated_field, sizeof(generated_field), "\"%s\"", generated_iso);
+        } else {
+            strcpy(generated_field, "null");
+        }
+        if (format_iso8601_utc(kolibri_bootstrap_timestamp, bootstrap_iso, sizeof(bootstrap_iso)) == 0) {
+            snprintf(bootstrap_field, sizeof(bootstrap_field), "\"%s\"", bootstrap_iso);
+        } else {
+            strcpy(bootstrap_field, "null");
+        }
+        double uptime = 0.0;
+        if (kolibri_server_started_at > 0) {
+            uptime = difftime(time(NULL), kolibri_server_started_at);
+            if (uptime < 0.0) {
+                uptime = 0.0;
+            }
+        }
+        char directories_json[512];
+        build_directories_json(directories_json, sizeof(directories_json));
+        if (directories_json[0] == '\0') {
+            strncpy(directories_json, "[]", sizeof(directories_json) - 1U);
+            directories_json[sizeof(directories_json) - 1U] = '\0';
+        }
+        char key_origin_field[256];
+        if (kolibri_hmac_key_origin[0] != '\0') {
+            char escaped_origin[192];
+            json_escape(kolibri_hmac_key_origin, escaped_origin, sizeof(escaped_origin));
+            snprintf(key_origin_field, sizeof(key_origin_field), "\"%s\"", escaped_origin);
+        } else {
+            strcpy(key_origin_field, "null");
+        }
+        char escaped_source[128];
+        json_escape(kolibri_index_source, escaped_source, sizeof(escaped_source));
+        char escaped_cache[256];
+        json_escape(kolibri_index_cache_dir, escaped_cache, sizeof(escaped_cache));
+        char body_json[1280];
+        int len = snprintf(body_json,
+                           sizeof(body_json),
+                           "{\"status\":\"ok\",\"documents\":%zu,\"generatedAt\":%s,\"bootstrapGeneratedAt\":%s,"
+                           "\"requests\":%zu,\"hits\":%zu,\"misses\":%zu,\"uptimeSeconds\":%.0f,\"keyOrigin\":%s,\"indexRoots\":%s,\"indexSource\":\"%s\",\"indexCache\":\"%s\"}",
+                           document_count,
+                           generated_field,
+                           bootstrap_field,
+                           kolibri_requests_total,
+                           kolibri_search_hits,
+                           kolibri_search_misses,
+                           uptime,
+                           key_origin_field,
+                           directories_json,
+                           escaped_source,
+                           escaped_cache);
+        if (len < 0 || (size_t)len >= sizeof(body_json)) {
+            send_response(client_fd, 500, "application/json", "{\"error\":\"internal\"}");
+            return;
+        }
+        send_response(client_fd, 200, "application/json", body_json);
+        return;
+    }
+
+    if (strcmp(method, "GET") == 0 &&
+        (strcmp(path_start, "/metrics") == 0 || starts_with(path_start, "/api/knowledge/metrics"))) {
+        double bootstrap_generated = kolibri_bootstrap_timestamp > 0 ? (double)kolibri_bootstrap_timestamp : 0.0;
+        double index_generated = kolibri_index_timestamp > 0 ? (double)kolibri_index_timestamp : 0.0;
+        double uptime = 0.0;
+        if (kolibri_server_started_at > 0) {
+            uptime = difftime(time(NULL), kolibri_server_started_at);
+            if (uptime < 0.0) {
+                uptime = 0.0;
+            }
+        }
+        char body_metrics[4096];
+        int len = snprintf(body_metrics,
+                           sizeof(body_metrics),
+                           "# HELP kolibri_knowledge_documents Number of documents in knowledge index\n"
+                           "# TYPE kolibri_knowledge_documents gauge\n"
+                           "kolibri_knowledge_documents %zu\n"
+                           "# HELP kolibri_requests_total Total HTTP requests handled\n"
+                           "# TYPE kolibri_requests_total counter\n"
+                           "kolibri_requests_total %zu\n"
+                           "# HELP kolibri_search_hits_success Total search queries with results\n"
+                           "# TYPE kolibri_search_hits_success counter\n"
+                           "kolibri_search_hits_success %zu\n"
+                           "# HELP kolibri_search_misses_total Total search queries without results\n"
+                           "# TYPE kolibri_search_misses_total counter\n"
+                           "kolibri_search_misses_total %zu\n"
+                           "# HELP kolibri_bootstrap_generated_unixtime Timestamp of last bootstrap script generation\n"
+                           "# TYPE kolibri_bootstrap_generated_unixtime gauge\n"
+                           "kolibri_bootstrap_generated_unixtime %.0f\n"
+                           "# HELP kolibri_knowledge_generated_unixtime Timestamp of last knowledge index build\n"
+                           "# TYPE kolibri_knowledge_generated_unixtime gauge\n"
+                           "kolibri_knowledge_generated_unixtime %.0f\n"
+                           "# HELP kolibri_knowledge_uptime_seconds Knowledge server uptime\n"
+                           "# TYPE kolibri_knowledge_uptime_seconds gauge\n"
+                           "kolibri_knowledge_uptime_seconds %.0f\n"
+                           "# HELP kolibri_knowledge_key_length_bytes Length of configured HMAC key\n"
+                           "# TYPE kolibri_knowledge_key_length_bytes gauge\n"
+                           "kolibri_knowledge_key_length_bytes %zu\n"
+                           "# HELP kolibri_knowledge_directories_total Number of knowledge directories\n"
+                           "# TYPE kolibri_knowledge_directories_total gauge\n"
+                           "kolibri_knowledge_directories_total %zu\n",
+                           document_count,
+                           kolibri_requests_total,
+                           kolibri_search_hits,
+                           kolibri_search_misses,
+                           bootstrap_generated,
+                           index_generated,
+                           uptime,
+                           kolibri_hmac_key_len,
+                           kolibri_knowledge_directory_count);
+        if (len < 0) {
+            send_response(client_fd, 500, "text/plain", "error");
+            return;
+        }
+        size_t offset = (size_t)len;
+        for (size_t i = 0; i < kolibri_knowledge_directory_count && offset < sizeof(body_metrics); ++i) {
+            char label[256];
+            prometheus_escape_label(kolibri_knowledge_directories[i], label, sizeof(label));
+            int written = snprintf(body_metrics + offset,
+                                   sizeof(body_metrics) - offset,
+                                   "kolibri_knowledge_directory_info{path=\"%s\"} 1\n",
+                                   label);
+            if (written < 0 || (size_t)written >= sizeof(body_metrics) - offset) {
+                send_response(client_fd, 500, "text/plain", "error");
+                return;
+            }
+            offset += (size_t)written;
+        }
+        if (kolibri_hmac_key_origin[0] != '\0') {
+            char origin_label[256];
+            prometheus_escape_label(kolibri_hmac_key_origin, origin_label, sizeof(origin_label));
+            int written = snprintf(body_metrics + offset,
+                                   sizeof(body_metrics) - offset,
+                                   "kolibri_knowledge_hmac_key_info{origin=\"%s\"} 1\n",
+                                   origin_label);
+            if (written < 0 || (size_t)written >= sizeof(body_metrics) - offset) {
+                send_response(client_fd, 500, "text/plain", "error");
+                return;
+            }
+            offset += (size_t)written;
+        }
+        send_response(client_fd, 200, "text/plain; version=0.0.4", body_metrics);
+        return;
+    }
+
+    if (strcmp(method, "POST") == 0 && strcmp(path_start, "/api/knowledge/feedback") == 0) {
+        int auth_status = require_admin_token(header_start, header_bytes);
+        if (auth_status != 0) {
+            if (auth_status == 503) {
+                send_response(client_fd, 503, "application/json", "{\"error\":\"admin token not configured\"}");
+            } else if (auth_status == 401) {
+                send_response(client_fd, 401, "application/json", "{\"error\":\"unauthorized\"}");
+            } else {
+                send_response(client_fd, 403, "application/json", "{\"error\":\"forbidden\"}");
+            }
+            return;
+        }
+        time_t now = time(NULL);
+        if (!rate_limiter_allow(&kolibri_feedback_rate, now, KOLIBRI_RATE_LIMIT_BURST)) {
+            send_response(client_fd, 429, "application/json", "{\"error\":\"rate limited\"}");
+            return;
+        }
+        char rating[64];
+        char question[512];
+        char answer[512];
+        parse_form_field(body, "rating", rating, sizeof(rating));
+        parse_form_field(body, "q", question, sizeof(question));
+        parse_form_field(body, "a", answer, sizeof(answer));
+        char decoded_q[512];
+        char decoded_a[512];
+        strncpy(decoded_q, question, sizeof(decoded_q) - 1U);
+        decoded_q[sizeof(decoded_q) - 1U] = '\0';
+        strncpy(decoded_a, answer, sizeof(decoded_a) - 1U);
+        decoded_a[sizeof(decoded_a) - 1U] = '\0';
+        url_decode(decoded_q);
+        url_decode(decoded_a);
+        const char *rating_value = rating[0] ? rating : "unknown";
+        char payload[512];
+        snprintf(payload,
+                 sizeof(payload),
+                 "rating=%.*s q=%.*s a=%.*s",
+                 64,
+                 rating_value,
+                 192,
+                 decoded_q,
+                 192,
+                 decoded_a);
+        knowledge_record_event("USER_FEEDBACK", payload);
+        send_response(client_fd, 200, "application/json", "{\"status\":\"ok\"}");
+        return;
+    }
+
+    if (strcmp(method, "POST") == 0 && strcmp(path_start, "/api/knowledge/teach") == 0) {
+        int auth_status = require_admin_token(header_start, header_bytes);
+        if (auth_status != 0) {
+            if (auth_status == 503) {
+                send_response(client_fd, 503, "application/json", "{\"error\":\"admin token not configured\"}");
+            } else if (auth_status == 401) {
+                send_response(client_fd, 401, "application/json", "{\"error\":\"unauthorized\"}");
+            } else {
+                send_response(client_fd, 403, "application/json", "{\"error\":\"forbidden\"}");
+            }
+            return;
+        }
+        time_t now = time(NULL);
+        if (!rate_limiter_allow(&kolibri_teach_rate, now, KOLIBRI_RATE_LIMIT_BURST)) {
+            send_response(client_fd, 429, "application/json", "{\"error\":\"rate limited\"}");
+            return;
+        }
+        char question[512];
+        char answer[512];
+        parse_form_field(body, "q", question, sizeof(question));
+        parse_form_field(body, "a", answer, sizeof(answer));
+        if (question[0] == '\0' || answer[0] == '\0') {
+            send_response(client_fd, 400, "application/json", "{\"error\":\"missing q or a\"}");
+            return;
+        }
+        char payload[512];
+        snprintf(payload, sizeof(payload), "q=%.*s a=%.*s", 200, question, 200, answer);
+        knowledge_record_event("TEACH", payload);
+        send_response(client_fd, 200, "application/json", "{\"status\":\"ok\"}");
+        return;
+    }
+
+    if (!(strcmp(method, "GET") == 0 && starts_with(path_start, "/api/knowledge/search"))) {
+        send_response(client_fd, 404, "application/json", "{\"error\":\"not found\"}");
+        return;
+    }
+
+    char query[512];
+    size_t limit = 3U;
+    parse_query(path_start, query, sizeof(query), &limit);
+    if (!*query || !index) {
+        kolibri_search_misses += 1U;
+        send_response(client_fd, 200, "application/json", "{\"snippets\":[]}");
+        return;
+    }
+    if (limit > 16U) {
+        limit = 16U;
+    }
+
+    size_t indices[16];
+    float scores[16];
+    size_t result_count = 0U;
+    int search_err = kolibri_knowledge_index_search(index, query, limit, indices, scores, &result_count);
+    if (search_err != 0) {
+        send_response(client_fd, 500, "application/json", "{\"error\":\"search failed\"}");
+        return;
+    }
+
+    char response[KOLIBRI_RESPONSE_BUFFER];
+    size_t offset = 0U;
+    offset += (size_t)snprintf(response + offset, sizeof(response) - offset, "{\"snippets\":[");
+    for (size_t i = 0; i < result_count && offset < sizeof(response); ++i) {
+        const KolibriKnowledgeDoc *doc = kolibri_knowledge_index_document(index, indices[i]);
+        if (!doc) {
+            continue;
+        }
+        const char *separator = (i + 1U < result_count) ? "," : "";
+        char id_buf[256];
+        char title_buf[512];
+        char content_buf[1024];
+        char source_buf[512];
+        json_escape(doc->id ? doc->id : "", id_buf, sizeof(id_buf));
+        json_escape(doc->title ? doc->title : "", title_buf, sizeof(title_buf));
+        json_escape(doc->content ? doc->content : "", content_buf, sizeof(content_buf));
+        json_escape(doc->source ? doc->source : "", source_buf, sizeof(source_buf));
+        offset += (size_t)snprintf(response + offset,
+                                   sizeof(response) - offset,
+                                   "{\"id\":\"%s\",\"title\":\"%s\",\"content\":\"%s\",\"source\":\"%s\",\"score\":%.3f}%s",
+                                   id_buf,
+                                   title_buf,
+                                   content_buf,
+                                   source_buf,
+                                   scores[i],
+                                   separator);
+    }
+    if (result_count == 0U) {
+        kolibri_search_misses += 1U;
+    } else {
+        kolibri_search_hits += 1U;
+    }
+
+    if (offset >= sizeof(response) - 2U) {
+        offset = sizeof(response) - 3U;
+    }
+    offset += (size_t)snprintf(response + offset, sizeof(response) - offset, "]}");
+    response[sizeof(response) - 1U] = '\0';
+
+    send_response(client_fd, 200, "application/json", response);
+
+    if (kolibri_genome_ready) {
+        char ask_payload[512];
+        int query_limit = (int)sizeof(ask_payload) - 3;
+        if (query_limit < 0) {
+            query_limit = 0;
+        }
+        snprintf(ask_payload, sizeof(ask_payload), "q=%.*s", query_limit, query);
+        knowledge_record_event("ASK", ask_payload);
+        size_t replay = result_count < 3U ? result_count : 3U;
+        for (size_t i = 0; i < replay; ++i) {
+            const KolibriKnowledgeDoc *doc = kolibri_knowledge_index_document(index, indices[i]);
+            if (!doc) {
+                continue;
+            }
+            const char *answer_src = doc->content ? doc->content : "";
+            char *preview = snippet_preview(answer_src, 200U);
+            char teach_payload[512];
+            int remaining = (int)sizeof(teach_payload) - 1 - 5;
+            if (remaining < 0) {
+                remaining = 0;
+            }
+            int teach_q_limit = remaining > 0 ? remaining / 2 : 0;
+            int teach_a_limit = remaining - teach_q_limit;
+            snprintf(teach_payload,
+                     sizeof(teach_payload),
+                     "q=%.*s a=%.*s",
+                     teach_q_limit,
+                     query,
+                     teach_a_limit,
+                     preview ? preview : "");
+            knowledge_record_event("TEACH", teach_payload);
+            free(preview);
+        }
+    }
+}
+
+#if 0
+int main(int argc, char **argv) {
+    kolibri_server_started_at = time(NULL);
+
+    apply_environment_configuration();
+    int swarm_initialized = 0;
+    int cli_status = apply_cli_arguments(argc, argv);
+    if (cli_status > 0) {
+        free_knowledge_directories();
+        return 0;
+    }
+    if (cli_status < 0) {
+        free_knowledge_directories();
+        return 1;
+    }
+
     if (ensure_default_directories() != 0) {
         fprintf(stderr, "[kolibri-knowledge] failed to prepare knowledge directories\n");
         free_knowledge_directories();
@@ -2119,6 +2636,7 @@ int main(int argc, char **argv) {
     kolibri_server_started_at = time(NULL);
 
     apply_environment_configuration();
+    int swarm_initialized = 0;
     int cli_status = apply_cli_arguments(argc, argv);
     if (cli_status > 0) {
         free_knowledge_directories();
@@ -2155,6 +2673,33 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+    if (kolibri_swarm_node_id[0] == '\0') {
+        char hostname_buf[KOLIBRI_SWARM_ID_MAX];
+        if (gethostname(hostname_buf, sizeof(hostname_buf)) == 0) {
+            hostname_buf[sizeof(hostname_buf) - 1U] = '\0';
+            trim_whitespace(hostname_buf);
+            strncpy(kolibri_swarm_node_id, hostname_buf, sizeof(kolibri_swarm_node_id) - 1U);
+            kolibri_swarm_node_id[sizeof(kolibri_swarm_node_id) - 1U] = '\0';
+        } else {
+            strncpy(kolibri_swarm_node_id, "kolibri-local", sizeof(kolibri_swarm_node_id) - 1U);
+            kolibri_swarm_node_id[sizeof(kolibri_swarm_node_id) - 1U] = '\0';
+        }
+    } else {
+        trim_whitespace(kolibri_swarm_node_id);
+    }
+
+    if (kolibri_swarm_init(&kolibri_swarm, kolibri_swarm_node_id, 8U) == 0) {
+        kolibri_swarm_ready = 1;
+        swarm_initialized = 1;
+        configure_swarm_from_config();
+        fprintf(stdout,
+                "[kolibri-knowledge] swarm online as %s (%zu peers)\n",
+                kolibri_swarm.self_id,
+                kolibri_swarm.node_count);
+    } else {
+        fprintf(stderr, "[kolibri-knowledge] failed to initialize swarm fabric\n");
+    }
+
     struct sigaction sa;
     memset(&sa, 0, sizeof(sa));
     sa.sa_handler = handle_signal;
@@ -2163,6 +2708,10 @@ int main(int argc, char **argv) {
         perror("sigaction");
         kolibri_genome_close();
         kolibri_knowledge_index_destroy(index);
+        if (swarm_initialized) {
+            kolibri_swarm_free(&kolibri_swarm);
+            kolibri_swarm_ready = 0;
+        }
         free_knowledge_directories();
         return 1;
     }
@@ -2172,6 +2721,10 @@ int main(int argc, char **argv) {
         perror("socket");
         kolibri_genome_close();
         kolibri_knowledge_index_destroy(index);
+        if (swarm_initialized) {
+            kolibri_swarm_free(&kolibri_swarm);
+            kolibri_swarm_ready = 0;
+        }
         free_knowledge_directories();
         return 1;
     }
@@ -2186,6 +2739,10 @@ int main(int argc, char **argv) {
         close(server_fd);
         kolibri_genome_close();
         kolibri_knowledge_index_destroy(index);
+        if (swarm_initialized) {
+            kolibri_swarm_free(&kolibri_swarm);
+            kolibri_swarm_ready = 0;
+        }
         free_knowledge_directories();
         return 1;
     }
@@ -2195,6 +2752,10 @@ int main(int argc, char **argv) {
         close(server_fd);
         kolibri_genome_close();
         kolibri_knowledge_index_destroy(index);
+        if (swarm_initialized) {
+            kolibri_swarm_free(&kolibri_swarm);
+            kolibri_swarm_ready = 0;
+        }
         free_knowledge_directories();
         return 1;
     }
@@ -2203,6 +2764,10 @@ int main(int argc, char **argv) {
         close(server_fd);
         kolibri_genome_close();
         kolibri_knowledge_index_destroy(index);
+        if (swarm_initialized) {
+            kolibri_swarm_free(&kolibri_swarm);
+            kolibri_swarm_ready = 0;
+        }
         free_knowledge_directories();
         return 1;
     }
@@ -2228,6 +2793,10 @@ int main(int argc, char **argv) {
     }
 
     close(server_fd);
+    if (swarm_initialized) {
+        kolibri_swarm_free(&kolibri_swarm);
+        kolibri_swarm_ready = 0;
+    }
     kolibri_genome_close();
     kolibri_knowledge_index_destroy(index);
     free_knowledge_directories();
