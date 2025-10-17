@@ -4,6 +4,7 @@ import AnalyticsView from "./components/AnalyticsView";
 import ChatInput from "./components/ChatInput";
 import ChatView from "./components/ChatView";
 import InspectorPanel from "./components/InspectorPanel";
+import KernelControlsPanel from "./components/KernelControlsPanel";
 import KnowledgeView from "./components/KnowledgeView";
 import NavigationRail, { type NavigationSection } from "./components/NavigationRail";
 import Sidebar from "./components/Sidebar";
@@ -30,6 +31,8 @@ const App = () => {
     attachments,
     setDraft,
     setMode,
+    kernelControls,
+    updateKernelControls,
     renameConversation,
     attachFiles,
     removeAttachment,
@@ -144,16 +147,19 @@ const App = () => {
       }
       inspector={
         activeSection === "dialog" ? (
-          <InspectorPanel
-            status={knowledgeStatus}
-            error={knowledgeError}
-            isLoading={statusLoading}
-            metrics={metrics}
-            latestAssistantMessage={latestAssistantMessage}
-            onRefresh={() => {
-              void refreshKnowledgeStatus();
-            }}
-          />
+          <div className="flex h-full flex-col gap-4">
+            <KernelControlsPanel controls={kernelControls} onChange={updateKernelControls} />
+            <InspectorPanel
+              status={knowledgeStatus}
+              error={knowledgeError}
+              isLoading={statusLoading}
+              metrics={metrics}
+              latestAssistantMessage={latestAssistantMessage}
+              onRefresh={() => {
+                void refreshKnowledgeStatus();
+              }}
+            />
+          </div>
         ) : undefined
       }
     >

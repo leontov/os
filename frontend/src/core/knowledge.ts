@@ -19,8 +19,7 @@ interface KnowledgeConfiguration {
 }
 
 const resolveEnvValue = (key: string): string | undefined => {
-  const importMetaEnv = typeof import.meta !== "undefined" ? (import.meta as any).env ?? {} : {};
-  const metaValue = typeof importMetaEnv[key] === "string" ? (importMetaEnv[key] as string) : undefined;
+  const metaValue = typeof import.meta !== "undefined" ? import.meta.env?.[key] : undefined;
   if (metaValue && metaValue.trim()) {
     return metaValue;
   }

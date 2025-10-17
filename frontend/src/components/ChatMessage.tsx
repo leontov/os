@@ -25,11 +25,10 @@ const formatAttachmentSize = (bytes: number): string => {
 
 interface ChatMessageProps {
   message: ChatMessageModel;
-  conversationId: string;
   latestUserMessage?: ChatMessageModel;
 }
 
-const ChatMessage = ({ message, conversationId, latestUserMessage }: ChatMessageProps) => {
+const ChatMessage = ({ message, latestUserMessage }: ChatMessageProps) => {
   const isUser = message.role === "user";
   const [isContextExpanded, setIsContextExpanded] = useState(false);
   const [isCopied, setIsCopied] = useState(false);

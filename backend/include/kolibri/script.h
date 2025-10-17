@@ -24,12 +24,23 @@ struct KolibriScriptAssociation;
 struct KolibriScriptFormulaBinding;
 
 typedef struct {
+    double lambda_b;
+    double lambda_d;
+    double target_b;
+    double target_d;
+    double temperature;
+    double top_k;
+    int cf_beam;
+} KolibriScriptControls;
+
+typedef struct {
     KolibriFormulaPool *pool;
     KolibriGenome *genome;
     FILE *vyvod;
     char *source_text;
     KolibriSymbolTable symbol_table;
     char mode[32];
+    KolibriScriptControls controls;
 
     /* Runtime state */
     struct KolibriScriptVariable *variables;
@@ -63,6 +74,8 @@ int ks_load_file(KolibriScript *skript, const char *path);
 
 /* Выполняет сценарий, возвращает 0 при успехе. */
 int ks_execute(KolibriScript *skript);
+
+int ks_set_controls(KolibriScript *skript, const KolibriScriptControls *controls);
 
 #ifdef __cplusplus
 }
