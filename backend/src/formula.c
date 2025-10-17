@@ -329,22 +329,122 @@ static double complexity_penalty(const KolibriGene *gene) {
     return penalty;
 }
 
-static double evaluate_formula_numeric(const KolibriFormula *formula, const KolibriFormulaPool *pool) {
-    if (!formula || !pool || pool->examples == 0) {
+typedef struct {
+    double base_score;
+    double drift_b;
+    double drift_d;
+    double phase;
+} KolibriEvaluation;
+
+static double compute_gene_diversity(const KolibriGene *gene) {
+    if (!gene || gene->length == 0) {
         return 0.0;
     }
+    int seen[10] = {0};
+    size_t unique = 0U;
+    for (size_t i = 0; i < gene->length; ++i) {
+        uint8_t digit = gene->digits[i] % 10U;
+        if (!seen[digit]) {
+            seen[digit] = 1;
+            unique += 1U;
+        }
+    }
+    return (double)unique / 10.0;
+}
+
+static double compute_gene_phase(const KolibriGene *gene) {
+    if (!gene) {
+        return 0.0;
+    }
+    uint32_t hash = 2166136261u;
+    for (size_t i = 0; i < gene->length; ++i) {
+        hash ^= (uint32_t)(gene->digits[i] + 1U);
+        hash *= 16777619u;
+    }
+    double angle_deg = (double)(hash % 360U);
+    return angle_deg * 0.017453292519943295; /* pi / 180 */
+}
+
+static double topo_coherence(const KolibriGene *lhs, const KolibriGene *rhs) {
+    if (!lhs || !rhs || lhs->length == 0 || rhs->length == 0) {
+        return 0.0;
+    }
+    size_t limit = lhs->length < rhs->length ? lhs->length : rhs->length;
+    if (limit == 0) {
+        return 0.0;
+    }
+    size_t matches = 0U;
+    for (size_t i = 0; i < limit; ++i) {
+        if (lhs->digits[i] == rhs->digits[i]) {
+            matches += 1U;
+        }
+    }
+    return (double)matches / (double)limit;
+}
+
+static double clamp_score(double value) {
+    if (value < 0.0) {
+        return 0.0;
+    }
+    if (value > 1.0) {
+        return 1.0;
+    }
+    return value;
+}
+
+static KolibriEvaluation evaluate_formula_metrics(const KolibriFormula *formula,
+                                                  const KolibriFormulaPool *pool) {
+    KolibriEvaluation eval = {0.0, 0.0, 0.0, 0.0};
+    if (!formula || !pool) {
+        return eval;
+    }
+
+    eval.phase = compute_gene_phase(&formula->gene);
+
+    if (pool->examples == 0) {
+        return eval;
+    }
+
     double total_error = 0.0;
+    double sum_predictions = 0.0;
+    double sum_targets = 0.0;
     for (size_t i = 0; i < pool->examples; ++i) {
         int prediction = 0;
         if (formula_predict_numeric(formula, pool->inputs[i], &prediction) != 0) {
-            return 0.0;
+            eval.base_score = 0.0;
+            return eval;
         }
         int diff = pool->targets[i] - prediction;
         total_error += fabs((double)diff);
+        sum_predictions += (double)prediction;
+        sum_targets += (double)pool->targets[i];
     }
+
     double penalty = complexity_penalty(&formula->gene);
-    double fitness = 1.0 / (1.0 + total_error + penalty);
-    return fitness;
+    eval.base_score = 1.0 / (1.0 + total_error + penalty);
+
+    double mean_prediction = sum_predictions / (double)pool->examples;
+    double mean_target = sum_targets / (double)pool->examples;
+    double baseline_b = pool->use_custom_target_b ? pool->target_b : mean_target;
+    double baseline_d = pool->use_custom_target_d ? pool->target_d : 0.5;
+
+    if (!isfinite(baseline_b)) {
+        baseline_b = mean_target;
+    }
+    if (!isfinite(baseline_d)) {
+        baseline_d = 0.5;
+    }
+    if (baseline_d < 0.0) {
+        baseline_d = 0.0;
+    }
+    if (baseline_d > 1.0) {
+        baseline_d = 1.0;
+    }
+
+    double diversity = compute_gene_diversity(&formula->gene);
+    eval.drift_b = fabs(mean_prediction - baseline_b);
+    eval.drift_d = fabs(diversity - baseline_d);
+    return eval;
 }
 
 static void apply_feedback_bonus(KolibriFormula *formula, double *fitness) {
@@ -352,13 +452,54 @@ static void apply_feedback_bonus(KolibriFormula *formula, double *fitness) {
         return;
     }
     double adjusted = *fitness + formula->feedback;
-    if (adjusted < 0.0) {
-        adjusted = 0.0;
+    *fitness = clamp_score(adjusted);
+}
+
+typedef struct {
+    KolibriFormula *formula;
+    KolibriEvaluation evaluation;
+    double score;
+} KolibriBeamLane;
+
+static void evaluate_beam_group(KolibriFormulaPool *pool, KolibriBeamLane *lanes, size_t lane_count) {
+    if (!pool || !lanes || lane_count == 0U) {
+        return;
     }
-    if (adjusted > 1.0) {
-        adjusted = 1.0;
+
+    for (size_t i = 0; i < lane_count; ++i) {
+        lanes[i].evaluation = evaluate_formula_metrics(lanes[i].formula, pool);
+        double penalty = pool->lambda_b * fmax(0.0, lanes[i].evaluation.drift_b) +
+                         pool->lambda_d * fmax(0.0, lanes[i].evaluation.drift_d);
+        double score = lanes[i].evaluation.base_score - penalty;
+        if (score < 0.0) {
+            score = 0.0;
+        }
+        apply_feedback_bonus(lanes[i].formula, &score);
+        lanes[i].score = score;
     }
-    *fitness = adjusted;
+
+    if (pool->coherence_gain != 0.0) {
+        for (size_t i = 0; i < lane_count; ++i) {
+            double adjustment = 0.0;
+            for (size_t j = 0; j < lane_count; ++j) {
+                if (i == j) {
+                    continue;
+                }
+                double phase_diff = lanes[j].evaluation.phase - lanes[i].evaluation.phase;
+                double coherence = topo_coherence(&lanes[i].formula->gene, &lanes[j].formula->gene);
+                adjustment += pool->coherence_gain * cos(phase_diff) * coherence;
+            }
+            lanes[i].score += adjustment;
+        }
+    }
+
+    for (size_t i = 0; i < lane_count; ++i) {
+        lanes[i].score = clamp_score(lanes[i].score);
+        lanes[i].formula->fitness = lanes[i].score;
+        lanes[i].formula->invariant_drift_b = lanes[i].evaluation.drift_b;
+        lanes[i].formula->invariant_drift_d = lanes[i].evaluation.drift_d;
+        lanes[i].formula->phase = lanes[i].evaluation.phase;
+    }
 }
 
 static void mutate_gene(KolibriFormulaPool *pool, KolibriGene *gene) {
@@ -413,6 +554,9 @@ static void reproduce(KolibriFormulaPool *pool) {
         gene_copy(&child, &pool->formulas[i].gene);
         pool->formulas[i].fitness = 0.0;
         pool->formulas[i].feedback = 0.0;
+        pool->formulas[i].invariant_drift_b = 0.0;
+        pool->formulas[i].invariant_drift_d = 0.0;
+        pool->formulas[i].phase = 0.0;
         pool->formulas[i].association_count = 0;
     }
 }
@@ -429,6 +573,8 @@ static void copy_dataset_into_formula(const KolibriFormulaPool *pool, KolibriFor
     for (size_t i = 0; i < limit; ++i) {
         formula->associations[i] = pool->associations[i];
     }
+    formula->invariant_drift_b = 0.0;
+    formula->invariant_drift_d = 0.0;
 }
 
 static double evaluate_association_fitness(const KolibriFormulaPool *pool) {
@@ -447,11 +593,24 @@ void kf_pool_init(KolibriFormulaPool *pool, uint64_t seed) {
     pool->count = KOLIBRI_FORMULA_CAPACITY;
     pool->examples = 0;
     pool->association_count = 0;
+    pool->lambda_b = 0.0;
+    pool->lambda_d = 0.0;
+    pool->target_b = 0.0;
+    pool->target_d = 0.5;
+    pool->use_custom_target_b = 0;
+    pool->use_custom_target_d = 0;
+    pool->coherence_gain = 0.0;
+    pool->profile.generation_steps = 0ULL;
+    pool->profile.evaluation_calls = 0ULL;
+    pool->profile.last_generation_ms = 0.0;
     k_rng_seed(&pool->rng, seed);
     for (size_t i = 0; i < pool->count; ++i) {
         gene_randomize(pool, &pool->formulas[i].gene);
         pool->formulas[i].fitness = 0.0;
         pool->formulas[i].feedback = 0.0;
+        pool->formulas[i].invariant_drift_b = 0.0;
+        pool->formulas[i].invariant_drift_d = 0.0;
+        pool->formulas[i].phase = 0.0;
         pool->formulas[i].association_count = 0;
     }
     for (size_t i = 0; i < KOLIBRI_POOL_MAX_ASSOCIATIONS; ++i) {
@@ -465,6 +624,9 @@ void kf_pool_clear_examples(KolibriFormulaPool *pool) {
     }
     pool->examples = 0;
     pool->association_count = 0;
+    pool->profile.generation_steps = 0ULL;
+    pool->profile.evaluation_calls = 0ULL;
+    pool->profile.last_generation_ms = 0.0;
     for (size_t i = 0; i < KOLIBRI_POOL_MAX_ASSOCIATIONS; ++i) {
         association_reset(&pool->associations[i]);
     }
@@ -525,26 +687,64 @@ void kf_pool_tick(KolibriFormulaPool *pool, size_t generations) {
         generations = 1;
     }
 
+    clock_t start_clock = clock();
+    uint64_t evaluations = 0ULL;
+
     for (size_t g = 0; g < generations; ++g) {
-        for (size_t i = 0; i < pool->count; ++i) {
-            double fitness = evaluate_formula_numeric(&pool->formulas[i], pool);
-            apply_feedback_bonus(&pool->formulas[i], &fitness);
-            pool->formulas[i].fitness = fitness;
+        size_t index = 0;
+        while (index < pool->count) {
+            KolibriBeamLane lanes[4];
+            size_t lane_count = 0U;
+            while (lane_count < 4U && index < pool->count) {
+                lanes[lane_count].formula = &pool->formulas[index];
+                lanes[lane_count].score = 0.0;
+                lanes[lane_count].evaluation.base_score = 0.0;
+                ++lane_count;
+                ++index;
+            }
+            evaluate_beam_group(pool, lanes, lane_count);
         }
+        evaluations += (uint64_t)pool->count;
         qsort(pool->formulas, pool->count, sizeof(KolibriFormula), compare_formulas);
         reproduce(pool);
     }
 
-    /* Лучшие формулы получают ассоциации */
+    size_t index = 0;
+    while (index < pool->count) {
+        KolibriBeamLane lanes[4];
+        size_t lane_count = 0U;
+        while (lane_count < 4U && index < pool->count) {
+            lanes[lane_count].formula = &pool->formulas[index];
+            lanes[lane_count].score = 0.0;
+            lanes[lane_count].evaluation.base_score = 0.0;
+            ++lane_count;
+            ++index;
+        }
+        evaluate_beam_group(pool, lanes, lane_count);
+    }
+    evaluations += (uint64_t)pool->count;
+
+    qsort(pool->formulas, pool->count, sizeof(KolibriFormula), compare_formulas);
+
     if (pool->association_count > 0) {
         double assoc_fitness = evaluate_association_fitness(pool);
         size_t limit = pool->count < 3 ? pool->count : 3;
         for (size_t i = 0; i < limit; ++i) {
             copy_dataset_into_formula(pool, &pool->formulas[i]);
             pool->formulas[i].fitness = assoc_fitness;
+            pool->formulas[i].invariant_drift_b = 0.0;
+            pool->formulas[i].invariant_drift_d = 0.0;
         }
         qsort(pool->formulas, pool->count, sizeof(KolibriFormula), compare_formulas);
     }
+
+    clock_t end_clock = clock();
+    if (start_clock != (clock_t)-1 && end_clock != (clock_t)-1 && end_clock >= start_clock) {
+        double elapsed = ((double)(end_clock - start_clock) * 1000.0) / (double)CLOCKS_PER_SEC;
+        pool->profile.last_generation_ms = elapsed;
+    }
+    pool->profile.generation_steps += generations;
+    pool->profile.evaluation_calls += evaluations;
 }
 
 const KolibriFormula *kf_pool_best(const KolibriFormulaPool *pool) {
@@ -704,6 +904,9 @@ static void adjust_feedback(KolibriFormula *formula, double delta) {
     if (formula->fitness < 0.0) {
         formula->fitness = 0.0;
     }
+    if (formula->fitness > 1.0) {
+        formula->fitness = 1.0;
+    }
 }
 
 int kf_pool_feedback(KolibriFormulaPool *pool, const KolibriGene *gene, double delta) {
@@ -738,4 +941,54 @@ int kf_pool_feedback(KolibriFormulaPool *pool, const KolibriGene *gene, double d
         return 0;
     }
     return -1;
+}
+
+void kf_pool_set_penalties(KolibriFormulaPool *pool, double lambda_b, double lambda_d) {
+    if (!pool) {
+        return;
+    }
+    if (!isfinite(lambda_b) || lambda_b < 0.0) {
+        lambda_b = 0.0;
+    }
+    if (!isfinite(lambda_d) || lambda_d < 0.0) {
+        lambda_d = 0.0;
+    }
+    pool->lambda_b = lambda_b;
+    pool->lambda_d = lambda_d;
+}
+
+void kf_pool_set_targets(KolibriFormulaPool *pool, double target_b, double target_d) {
+    if (!pool) {
+        return;
+    }
+    if (isfinite(target_b)) {
+        pool->target_b = target_b;
+        pool->use_custom_target_b = 1;
+    } else {
+        pool->use_custom_target_b = 0;
+    }
+    if (isfinite(target_d)) {
+        pool->target_d = target_d;
+        pool->use_custom_target_d = 1;
+    } else {
+        pool->use_custom_target_d = 0;
+    }
+}
+
+void kf_pool_set_coherence_gain(KolibriFormulaPool *pool, double gain) {
+    if (!pool) {
+        return;
+    }
+    if (!isfinite(gain) || gain < 0.0) {
+        pool->coherence_gain = 0.0;
+    } else {
+        pool->coherence_gain = gain;
+    }
+}
+
+const KolibriPoolProfile *kf_pool_profile(const KolibriFormulaPool *pool) {
+    if (!pool) {
+        return NULL;
+    }
+    return &pool->profile;
 }
