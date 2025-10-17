@@ -65,7 +65,7 @@ class FormulaZapis(TypedDict):
 
 
 
-class MetricRecord(TypedDict):
+class MetricEntry(TypedDict):
     """Метрика одного шага soak-прогона."""
 
     minute: int
@@ -78,7 +78,6 @@ class MetricRecord(MetricEntry):
     """Синоним для обратной совместимости с устаревшим названием."""
 
     pass
-MetricEntry = MetricRecord
 
 
 class SoakResult(TypedDict):
@@ -86,7 +85,6 @@ class SoakResult(TypedDict):
 
     events: int
     metrics: List[MetricEntry]
-    metrics: List[MetricRecord]
 
 
 class SoakState(TypedDict, total=False):

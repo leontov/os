@@ -10,11 +10,19 @@ import logging
 import sys
 from fnmatch import fnmatch
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple, TypedDict
-from typing import Literal
-from scripts.policy_validate import zagruzit_blok
+from typing import (
+    Callable,
+    Dict,
+    Iterable,
+    List,
+    Literal,
+    Optional,
+    Sequence,
+    Tuple,
+    TypedDict,
+    cast,
+)
 from types import ModuleType
-from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple, cast
 
 KONFLIKT_START = "<<<<<<<"
 KONFLIKT_DELIM = "======="
