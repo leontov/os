@@ -20,7 +20,6 @@ RUN npm run build
 FROM nginx:1.27-alpine
 
 COPY --from=build /app/frontend/dist /usr/share/nginx/html
-COPY --from=build /app/build/wasm/kolibri.wasm /usr/share/nginx/html/kolibri.wasm
 
 EXPOSE 80
 
