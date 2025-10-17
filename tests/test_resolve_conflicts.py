@@ -15,6 +15,7 @@ from scripts.resolve_conflicts import (  # noqa: E402
     KONFLIKT_DELIM,
     KONFLIKT_END,
     KONFLIKT_START,
+    ResolveReport,
     postroit_otchet,
 )
 
@@ -75,7 +76,7 @@ def test_prefers_ours_strategy(
     zapisat_conflict(conflict, ["ours-line"], ["theirs-line"])
 
     caplog.set_level(logging.INFO, logger="resolve_conflicts")
-    report = postroit_otchet(tmp_path)
+    report: ResolveReport = postroit_otchet(tmp_path)
 
     assert conflict.read_text(encoding="utf-8") == "prelude\nours-line\nepilogue\n"
     entry = next(item for item in report["files"] if item["file"] == str(conflict))
