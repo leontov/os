@@ -1,5 +1,7 @@
 import { Activity, ArrowDownWideNarrow, Clock3, MessageSquare, Sparkles } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Activity, Clock3, MessageSquare, Sparkles } from "lucide-react";
+import { useEffect, useMemo, useRef } from "react";
 import type { ConversationMetrics } from "../core/useKolibriChat";
 import type { ChatMessage } from "../types/chat";
 import ChatMessageView from "./ChatMessage";
@@ -108,6 +110,34 @@ const ChatView = ({
     return Array.from(suggestions).slice(0, 4);
   }, [lastAssistantMessage, modeLabel]);
 
+  const lastAssistantMessage = useMemo(() => {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const candidate = messages[index];
+      if (candidate.role === "assistant" && candidate.content.trim()) {
+        return candidate;
+      }
+    }
+    return undefined;
+  }, [messages]);
+
+  const quickSuggestions = useMemo(() => {
+    const suggestions = new Set<string>();
+
+    if (lastAssistantMessage?.content) {
+      const [firstSentence] = lastAssistantMessage.content.split(/[.!?\n]/u);
+      const trimmed = firstSentence?.trim();
+      if (trimmed) {
+        const excerpt = trimmed.length > 96 ? `${trimmed.slice(0, 96)}…` : trimmed;
+        suggestions.add(`Раскрой подробнее: ${excerpt}`);
+      }
+    }
+
+    suggestions.add(`Применим режим ${modeLabel} к новому примеру`);
+    DEFAULT_SUGGESTIONS.forEach((item) => suggestions.add(item));
+
+    return Array.from(suggestions).slice(0, 4);
+  }, [lastAssistantMessage, modeLabel]);
+
   const renderedMessages = useMemo(() => {
     const items: Array<JSX.Element> = [];
     let lastUserMessage: ChatMessage | undefined;
@@ -177,6 +207,7 @@ const ChatView = ({
   return (
     <section className="flex h-full flex-col gap-6">
       <header className="rounded-3xl border border-primary/40 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent p-6 shadow-[0_20px_60px_-40px_rgba(79,70,229,0.65)] md:p-8">
+      <header className="rounded-3xl border border-primary/40 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent p-8 shadow-[0_20px_60px_-40px_rgba(79,70,229,0.65)]">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="space-y-2">
             <p className="text-xs uppercase tracking-[0.35em] text-primary/80">Kolibri Σ</p>
@@ -229,6 +260,38 @@ const ChatView = ({
               </div>
             )}
           </div>
+          </div>
+          <span className="rounded-full border border-primary/30 bg-primary/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-primary">
+            #{conversationShortId}
+          </span>
+        </div>
+        <dl className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {stats.map(({ icon: Icon, label, value }) => (
+            <div
+              key={label}
+              className="flex items-center gap-3 rounded-2xl border border-border-strong/60 bg-background-card/70 px-4 py-3 text-sm text-text-secondary"
+            >
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15 text-primary">
+                <Icon className="h-4 w-4" />
+              </span>
+              <div>
+                <dt className="text-[0.7rem] uppercase tracking-[0.3em] text-text-secondary/80">{label}</dt>
+                <dd className="text-sm font-semibold text-text-primary">{value}</dd>
+              </div>
+            </div>
+          ))}
+        </dl>
+      </header>
+
+      <div className="flex min-h-0 flex-1 flex-col rounded-3xl border border-border-strong/80 bg-background-card/80 p-6 backdrop-blur">
+        <div className="flex-1 space-y-6 overflow-y-auto pr-3" ref={containerRef}>
+          {renderedMessages}
+          {isLoading && (
+            <div className="flex items-center gap-3 rounded-2xl border border-dashed border-primary/40 bg-primary/10 px-4 py-3 text-sm text-primary">
+              <span className="flex h-2 w-2 animate-pulse rounded-full bg-primary" />
+              Колибри формирует ответ...
+            </div>
+          )}
         </div>
 
         {quickSuggestions.length > 0 && (
