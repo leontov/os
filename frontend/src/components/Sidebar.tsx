@@ -50,7 +50,7 @@ const Sidebar = ({
   onConversationSelect,
   onCreateConversation,
 }: SidebarProps) => (
-  <div className="flex h-full flex-col rounded-3xl border border-border-strong bg-background-panel/80 p-6 backdrop-blur">
+  <div className="flex h-full w-full flex-col rounded-3xl border border-border-strong bg-background-panel/80 p-6 backdrop-blur">
     <div className="flex items-start justify-between gap-4">
       <div>
         <p className="text-xs uppercase tracking-widest text-text-secondary">Беседы</p>

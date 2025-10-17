@@ -1,4 +1,4 @@
-import { Keyboard, Paperclip, Plus, RefreshCw, SendHorizontal, X } from "lucide-react";
+import { Keyboard, Paperclip, Plus, RefreshCw, SendHorizontal, SlidersHorizontal, X } from "lucide-react";
 import { useEffect, useId, useMemo, useRef } from "react";
 import { MODE_OPTIONS, findModeLabel } from "../core/modes";
 import type { PendingAttachment } from "../types/attachments";
@@ -15,6 +15,7 @@ interface ChatInputProps {
   onAttach: (files: File[]) => void;
   onRemoveAttachment?: (id: string) => void;
   onClearAttachments: () => void;
+  onOpenControls?: () => void;
 }
 
 const MAX_LENGTH = 4000;
@@ -48,9 +49,11 @@ const ChatInput = ({
   onAttach,
   onRemoveAttachment,
   onClearAttachments,
+  onOpenControls,
 }: ChatInputProps) => {
   const textAreaId = useId();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const textAreaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const trimmedLength = useMemo(() => value.trim().length, [value]);
   const remaining = Math.max(0, MAX_LENGTH - value.length);
@@ -60,6 +63,16 @@ const ChatInput = ({
       fileInputRef.current.value = "";
     }
   }, [attachments]);
+
+  useEffect(() => {
+    const textArea = textAreaRef.current;
+    if (!textArea) {
+      return;
+    }
+    textArea.style.height = "auto";
+    const next = Math.min(textArea.scrollHeight, 320);
+    textArea.style.height = `${next}px`;
+  }, [value]);
 
   const handleFileInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files ? Array.from(event.target.files) : [];
@@ -101,8 +114,8 @@ const ChatInput = ({
   };
 
   return (
-    <div className="flex flex-col gap-4 rounded-3xl border border-border-strong bg-background-input/95 p-6 backdrop-blur">
-      <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-text-secondary">
+    <div className="flex flex-col gap-5 rounded-3xl border border-border-strong bg-background-input/95 p-4 backdrop-blur md:p-6">
+      <div className="flex flex-col gap-3 text-sm text-text-secondary md:flex-row md:items-center md:justify-between">
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15 text-primary">К</div>
           <label htmlFor={textAreaId} className="text-xs uppercase tracking-[0.3em]">
@@ -124,8 +137,18 @@ const ChatInput = ({
           <span className="rounded-lg border border-border-strong bg-background-card/70 px-2 py-1 text-[0.7rem] uppercase tracking-wide text-text-secondary">
             {findModeLabel(mode)}
           </span>
+          {onOpenControls ? (
+            <button
+              type="button"
+              onClick={onOpenControls}
+              className="flex items-center gap-2 rounded-xl border border-border-strong bg-background-card/80 px-3 py-2 text-xs font-semibold transition-colors hover:border-primary hover:text-primary"
+            >
+              <SlidersHorizontal className="h-4 w-4" />
+              Настроить ядро
+            </button>
+          ) : null}
         </div>
-        <div className="flex items-center gap-3 text-xs text-text-secondary">
+        <div className="flex flex-wrap items-center gap-3 text-xs text-text-secondary">
           <span>
             Символов: {trimmedLength} / {MAX_LENGTH}
           </span>
@@ -145,6 +168,7 @@ const ChatInput = ({
         </div>
       </div>
       <textarea
+        ref={textAreaRef}
         id={`${textAreaId}-textarea`}
         value={value}
         onChange={(event) => {
@@ -154,10 +178,10 @@ const ChatInput = ({
         }}
         onKeyDown={handleKeyDown}
         placeholder="Сообщение для Колибри"
-        className="min-h-[160px] w-full resize-none rounded-2xl border border-border-strong bg-background-card/85 px-4 py-3 text-sm text-text-primary placeholder:text-text-secondary focus:border-primary focus:outline-none"
+        className="max-h-[320px] w-full resize-none rounded-2xl border border-border-strong bg-background-card/85 px-4 py-3 text-[0.95rem] text-text-primary placeholder:text-text-secondary focus:border-primary focus:outline-none"
       />
       {attachments.length > 0 && (
-        <div className="rounded-2xl border border-dashed border-border-strong bg-background-card/70 p-4 text-sm text-text-secondary">
+        <div className="rounded-2xl border border-dashed border-border-strong bg-background-card/75 p-4 text-sm text-text-secondary">
           <p className="mb-2 font-semibold text-text-primary">Прикреплённые файлы</p>
           <ul className="flex flex-col gap-3">
             {attachments.map((attachment) => (
