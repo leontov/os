@@ -5,11 +5,55 @@
 @tailwind utilities;
 
 :root {
-  color: #e2e8f0;
-  background-color: #0b1120;
+  color-scheme: dark;
+  --color-primary: 99 102 241;
+  --color-accent: 56 189 248;
+  --color-background-main: 11 17 32;
+  --color-background-accent: 15 27 51;
+  --color-background-panel: 15 23 42;
+  --color-background-card: 30 41 59;
+  --color-background-input: 15 23 42;
+  --color-border-strong: 148 163 184;
+  --color-text-primary: 226 232 240;
+  --color-text-secondary: 148 163 184;
+  color: rgb(var(--color-text-primary));
+  background-color: rgb(var(--color-background-main));
   font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --color-primary: 79 70 229;
+  --color-accent: 14 165 233;
+  --color-background-main: 245 246 250;
+  --color-background-accent: 231 236 246;
+  --color-background-panel: 255 255 255;
+  --color-background-card: 255 255 255;
+  --color-background-input: 248 250 252;
+  --color-border-strong: 203 213 225;
+  --color-text-primary: 15 23 42;
+  --color-text-secondary: 71 85 105;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+    --color-primary: 79 70 229;
+    --color-accent: 14 165 233;
+    --color-background-main: 245 246 250;
+    --color-background-accent: 231 236 246;
+    --color-background-panel: 255 255 255;
+    --color-background-card: 255 255 255;
+    --color-background-input: 248 250 252;
+    --color-border-strong: 203 213 225;
+    --color-text-primary: 15 23 42;
+    --color-text-secondary: 71 85 105;
+  }
 }
 
 body {
   min-height: 100vh;
+  color: rgb(var(--color-text-primary));
+  background-color: rgb(var(--color-background-main));
+  transition: color 150ms ease, background-color 150ms ease;
 }
