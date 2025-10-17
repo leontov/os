@@ -8,6 +8,48 @@ import { createHash } from "node:crypto";
 import { basename, extname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+const protocolPattern = /^[a-z][a-z0-9+.-]*:\/\//i;
+
+const normaliseBase = (value: string | null | undefined): string => {
+  if (!value) {
+    return "/";
+  }
+
+  if (value === "./" || value === "././") {
+    return "./";
+  }
+
+  if (protocolPattern.test(value)) {
+    return value.endsWith("/") ? value : `${value}/`;
+  }
+
+  return value.endsWith("/") ? value : `${value}/`;
+};
+
+const resolvePublicPath = (base: string, target: string): string => {
+  if (!target) {
+    return normaliseBase(base);
+  }
+
+  if (protocolPattern.test(target) || target.startsWith("/") || target.startsWith("./") || target.startsWith("../")) {
+    return target;
+  }
+
+  const normalisedBase = normaliseBase(base);
+
+  if (normalisedBase === "./") {
+    return `./${target}`.replace(/\/{2,}/g, "/");
+  }
+
+  if (protocolPattern.test(normalisedBase)) {
+    return new URL(target, normalisedBase).toString();
+  }
+
+  return `${normalisedBase}${target}`.replace(/\/{2,}/g, "/");
+};
+
+const configuredBase = normaliseBase(process.env.KOLIBRI_PUBLIC_BASE_URL ?? "/");
+
 type WasiPluginContext = "serve" | "build";
 
 interface KnowledgeDocument {
@@ -33,10 +75,11 @@ function copyKolibriWasm(): Plugin {
 
   let wasmBuffer: Buffer | null = null;
   let wasmInfoBuffer: Buffer | null = null;
+  let publicBase = configuredBase;
   let wasmBundleFileName = "assets/kolibri.wasm";
   let wasmInfoBundleFileName = "assets/kolibri.wasm.txt";
-  let wasmPublicPath = "/kolibri.wasm";
-  let wasmInfoPublicPath = "/kolibri.wasm.txt";
+  let wasmPublicPath = resolvePublicPath(publicBase, wasmBundleFileName);
+  let wasmInfoPublicPath = resolvePublicPath(publicBase, wasmInfoBundleFileName);
   let wasmHash = "";
   let wasmAvailable = false;
   let stubDetected = false;
@@ -216,8 +259,8 @@ function copyKolibriWasm(): Plugin {
       wasmHash = createHash("sha256").update(wasmBuffer).digest("hex").slice(0, 16);
       wasmBundleFileName = `assets/kolibri-${wasmHash}.wasm`;
       wasmInfoBundleFileName = `assets/kolibri-${wasmHash}.wasm.txt`;
-      wasmPublicPath = `/${wasmBundleFileName}`;
-      wasmInfoPublicPath = `/${wasmInfoBundleFileName}`;
+      wasmPublicPath = resolvePublicPath(publicBase, wasmBundleFileName);
+      wasmInfoPublicPath = resolvePublicPath(publicBase, wasmInfoBundleFileName);
       wasmAvailable = true;
       ensureError = null;
     })()
@@ -257,6 +300,9 @@ function copyKolibriWasm(): Plugin {
     name: "copy-kolibri-wasm",
     configResolved(resolvedConfig) {
       command = resolvedConfig.command === "build" ? "build" : "serve";
+      publicBase = normaliseBase(resolvedConfig.base ?? publicBase);
+      wasmPublicPath = resolvePublicPath(publicBase, wasmBundleFileName);
+      wasmInfoPublicPath = resolvePublicPath(publicBase, wasmInfoBundleFileName);
     },
     async buildStart() {
       if (command === "build") {
@@ -356,8 +402,10 @@ function embedKolibriKnowledge(): Plugin {
 
   let knowledgeBuffer: Buffer | null = null;
   let knowledgeHash = "";
+  let publicBase = configuredBase;
   let knowledgeBundleFileName = "assets/kolibri-knowledge.json";
-  let knowledgePublicPath = "/kolibri-knowledge.json";
+  let knowledgePublicFile = "kolibri-knowledge.json";
+  let knowledgePublicPath = resolvePublicPath(publicBase, knowledgePublicFile);
   let knowledgeAvailable = false;
   let knowledgeError: Error | null = null;
   let ensureInFlight: Promise<void> | null = null;
@@ -494,7 +542,8 @@ function embedKolibriKnowledge(): Plugin {
         knowledgeBuffer = Buffer.from(json, "utf-8");
         knowledgeHash = createHash("sha256").update(knowledgeBuffer).digest("hex").slice(0, 16);
         knowledgeBundleFileName = `assets/kolibri-knowledge-${knowledgeHash}.json`;
-        knowledgePublicPath = `/${knowledgeBundleFileName}`;
+        knowledgePublicFile = knowledgeBundleFileName;
+        knowledgePublicPath = resolvePublicPath(publicBase, knowledgePublicFile);
         knowledgeAvailable = documents.length > 0;
         knowledgeError = null;
       } catch (error) {
@@ -504,7 +553,8 @@ function embedKolibriKnowledge(): Plugin {
         );
         knowledgeHash = "";
         knowledgeBundleFileName = "assets/kolibri-knowledge.json";
-        knowledgePublicPath = "/kolibri-knowledge.json";
+        knowledgePublicFile = "kolibri-knowledge.json";
+        knowledgePublicPath = resolvePublicPath(publicBase, knowledgePublicFile);
         knowledgeAvailable = false;
         knowledgeError = error instanceof Error ? error : new Error(String(error));
       } finally {
@@ -518,14 +568,16 @@ function embedKolibriKnowledge(): Plugin {
   return {
     name: "embed-kolibri-knowledge",
     async configResolved(resolved) {
+      publicBase = normaliseBase(resolved.base ?? publicBase);
       if (resolved.command === "serve") {
         knowledgeBuffer = null;
         knowledgeHash = "";
         knowledgeBundleFileName = "assets/kolibri-knowledge.json";
-        knowledgePublicPath = "/kolibri-knowledge.json";
+        knowledgePublicFile = "kolibri-knowledge.json";
         knowledgeAvailable = false;
         knowledgeError = null;
       }
+      knowledgePublicPath = resolvePublicPath(publicBase, knowledgePublicFile);
     },
     async buildStart() {
       await ensureKnowledge();
@@ -620,6 +672,7 @@ export const knowledgeError = ${errorLiteral};
 const knowledgeProxyTarget = process.env.KNOWLEDGE_API || "http://localhost:8000";
 
 export default defineConfig({
+  base: configuredBase,
   plugins: [react(), copyKolibriWasm(), embedKolibriKnowledge()],
   server: {
     port: 5173,
