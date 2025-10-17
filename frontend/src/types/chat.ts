@@ -7,7 +7,6 @@ export interface ChatMessage {
   role: ChatRole;
   content: string;
   timestamp: string;
-  isoTimestamp?: string;
   modeLabel?: string;
   modeValue?: string;
 
