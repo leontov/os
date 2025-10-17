@@ -4,19 +4,58 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import logging
 import sys
 from fnmatch import fnmatch
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple
-from scripts.policy_validate import zagruzit_blok
+from types import ModuleType
+from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple, cast
 
 KONFLIKT_START = "<<<<<<<"
 KONFLIKT_DELIM = "======="
 KONFLIKT_END = ">>>>>>>"
-
 LOGGER = logging.getLogger("resolve_conflicts")
+SCRIPT_DIR = Path(__file__).resolve().parent
+_POLICY_MODULE: ModuleType | None = None
+_ZAGRUZIT_BLOK: Callable[[Path], str] | None = None
+
+
+def _poluchit_module_policy() -> ModuleType:
+    """Лениво загружает policy_validate.py без требования пакетной структуры."""
+
+    global _POLICY_MODULE
+    if _POLICY_MODULE is not None:
+        return _POLICY_MODULE
+
+    spec = importlib.util.spec_from_file_location(
+        "kolibri_policy_validate",
+        SCRIPT_DIR / "policy_validate.py",
+    )
+    if spec is None or spec.loader is None:
+        raise ImportError("Невозможно загрузить policy_validate.py")
+
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    _POLICY_MODULE = module
+    return module
+
+
+def _poluchit_zagruzit_blok() -> Callable[[Path], str]:
+    """Возвращает функцию zagruzit_blok из policy_validate с кешированием."""
+
+    global _ZAGRUZIT_BLOK
+    if _ZAGRUZIT_BLOK is not None:
+        return _ZAGRUZIT_BLOK
+
+    module = _poluchit_module_policy()
+    funkciya = getattr(module, "zagruzit_blok", None)
+    if not callable(funkciya):
+        raise AttributeError("В policy_validate.py отсутствует функция zagruzit_blok")
+    zagruzit = cast(Callable[[Path], str], funkciya)
+    _ZAGRUZIT_BLOK = zagruzit
+    return zagruzit
 
 
 def postroit_pravila(root: Path) -> List[Tuple[str, str]]:
@@ -27,7 +66,8 @@ def postroit_pravila(root: Path) -> List[Tuple[str, str]]:
         return []
 
     try:
-        blok = zagruzit_blok(agent)
+        zagruzit = _poluchit_zagruzit_blok()
+        blok = zagruzit(agent)
     except SystemExit:
         return []
 

@@ -7,6 +7,12 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 option(KOLIBRI_ENABLE_TESTS "Enable Kolibri tests" ON)
 option(KOLIBRI_ENABLE_FUZZ "Enable Kolibri fuzz targets" OFF)
+option(KOLIBRI_ENABLE_WASM_TARGET "Enable kolibri.wasm custom target" ON)
+option(KOLIBRI_WASM_INCLUDE_GENOME "Include persistent genome into kolibri.wasm" OFF)
+option(KOLIBRI_WASM_GENERATE_MAP "Emit symbol map for kolibri.wasm" OFF)
+
+set(KOLIBRI_WASM_EMCC "" CACHE STRING "Override emcc executable for kolibri.wasm builds")
+set(KOLIBRI_WASM_OUTPUT_DIR "${CMAKE_SOURCE_DIR}/build/wasm" CACHE PATH "Output directory for kolibri.wasm artifact")
 
 add_library(kolibri_core_objects OBJECT
     backend/src/decimal.c
@@ -108,6 +114,54 @@ target_include_directories(kolibri_wasm
 )
 
 target_link_libraries(kolibri_wasm PUBLIC kolibri_core)
+
+if(KOLIBRI_ENABLE_WASM_TARGET)
+    set(KOLIBRI_WASM_SOURCES
+        ${CMAKE_CURRENT_SOURCE_DIR}/backend/src/decimal.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/backend/src/digits.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/backend/src/formula.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/backend/src/genome.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/backend/src/random.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/backend/src/symbol_table.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/backend/src/script.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/backend/src/sim.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/backend/src/wasm_bridge.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/backend/src/wasm_genome_stub.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/wasm/kolibri_sim_wasm.c
+    )
+
+    set(_kolibri_wasm_env
+        "KOLIBRI_WASM_BUILD_FROM_CMAKE=1"
+        "KOLIBRI_WASM_OUTPUT_DIR=${KOLIBRI_WASM_OUTPUT_DIR}"
+    )
+
+    if(KOLIBRI_WASM_EMCC)
+        list(APPEND _kolibri_wasm_env "EMCC=${KOLIBRI_WASM_EMCC}")
+    endif()
+    if(KOLIBRI_WASM_INCLUDE_GENOME)
+        list(APPEND _kolibri_wasm_env "KOLIBRI_WASM_INCLUDE_GENOME=1")
+    endif()
+    if(KOLIBRI_WASM_GENERATE_MAP)
+        list(APPEND _kolibri_wasm_env "KOLIBRI_WASM_GENERATE_MAP=1")
+    endif()
+
+    set(KOLIBRI_WASM_MODULE "${KOLIBRI_WASM_OUTPUT_DIR}/kolibri.wasm")
+    set(KOLIBRI_WASM_INFO "${KOLIBRI_WASM_OUTPUT_DIR}/kolibri.wasm.txt")
+
+    add_custom_command(
+        OUTPUT ${KOLIBRI_WASM_MODULE} ${KOLIBRI_WASM_INFO}
+        COMMAND ${CMAKE_COMMAND} -E env ${_kolibri_wasm_env} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/build_wasm.sh
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        DEPENDS ${KOLIBRI_WASM_SOURCES} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/build_wasm.sh
+        BYPRODUCTS
+            ${KOLIBRI_WASM_OUTPUT_DIR}/kolibri.wasm.sha256
+            ${KOLIBRI_WASM_OUTPUT_DIR}/kolibri.wasm.report.json
+        COMMENT "Сборка WebAssembly ядра Kolibri (kolibri.wasm)"
+        VERBATIM
+    )
+
+    add_custom_target(kolibri_wasm_artifact DEPENDS ${KOLIBRI_WASM_MODULE} ${KOLIBRI_WASM_INFO})
+endif()
 
 add_executable(kolibri_node apps/kolibri_node.c)
 add_executable(ks_compiler apps/ks_compiler.c)
