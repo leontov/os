@@ -1,5 +1,6 @@
 export type ChatRole = "user" | "assistant";
 
+import type { SerializedAttachment } from "./attachments";
 import type { KnowledgeSnippet } from "./knowledge";
 
 export interface ChatMessage {
@@ -13,5 +14,5 @@ export interface ChatMessage {
 
   context?: KnowledgeSnippet[];
   contextError?: string;
-
+  attachments?: SerializedAttachment[];
 }

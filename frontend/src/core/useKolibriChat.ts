@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { PendingAttachment, SerializedAttachment } from "../types/attachments";
 import type { ChatMessage } from "../types/chat";
 import type { KnowledgeSnippet } from "../types/knowledge";
 import { fetchKnowledgeStatus, searchKnowledge } from "./knowledge";
@@ -13,6 +14,49 @@ export interface ConversationMetrics {
 }
 
 const DEFAULT_TITLE = "Новая беседа";
+const BASE64_CHUNK_SIZE = 8192;
+
+const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
+  if (buffer.byteLength === 0) {
+    return "";
+  }
+
+  let binary = "";
+  const bytes = new Uint8Array(buffer);
+  for (let index = 0; index < bytes.length; index += BASE64_CHUNK_SIZE) {
+    const slice = bytes.subarray(index, index + BASE64_CHUNK_SIZE);
+    binary += String.fromCharCode(...slice);
+  }
+  return btoa(binary);
+};
+
+const serializeAttachments = async (attachments: PendingAttachment[]): Promise<SerializedAttachment[]> => {
+  if (!attachments.length) {
+    return [];
+  }
+
+  const serialized = await Promise.all(
+    attachments.map(async ({ id, file }) => {
+      let dataBase64: string | undefined;
+      try {
+        const buffer = await file.arrayBuffer();
+        dataBase64 = arrayBufferToBase64(buffer);
+      } catch (error) {
+        console.error("Не удалось прочитать вложение", error);
+      }
+
+      return {
+        id,
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        dataBase64,
+      } satisfies SerializedAttachment;
+    }),
+  );
+
+  return serialized;
+};
 
 const formatPromptWithContext = (question: string, context: KnowledgeSnippet[]): string => {
   if (!context.length) {
@@ -63,9 +107,13 @@ interface UseKolibriChatResult {
   statusLoading: boolean;
   latestAssistantMessage?: ChatMessage;
   metrics: ConversationMetrics;
+  attachments: PendingAttachment[];
   setDraft: (value: string) => void;
   setMode: (mode: string) => void;
   renameConversation: (title: string) => void;
+  attachFiles: (files: File[]) => void;
+  removeAttachment: (id: string) => void;
+  clearAttachments: () => void;
   sendMessage: () => Promise<void>;
   resetConversation: () => Promise<void>;
   refreshKnowledgeStatus: () => Promise<void>;
@@ -82,8 +130,30 @@ export const useKolibriChat = (): UseKolibriChatResult => {
   const [knowledgeStatus, setKnowledgeStatus] = useState<Awaited<ReturnType<typeof fetchKnowledgeStatus>> | null>(null);
   const [knowledgeError, setKnowledgeError] = useState<string | undefined>();
   const [statusLoading, setStatusLoading] = useState(false);
+  const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
 
   const knowledgeSearchAbortRef = useRef<AbortController | null>(null);
+
+  const attachFiles = useCallback((files: File[]) => {
+    if (!files.length) {
+      return;
+    }
+    setAttachments((prev) => [
+      ...prev,
+      ...files.map((file) => ({
+        id: crypto.randomUUID(),
+        file,
+      })),
+    ]);
+  }, []);
+
+  const removeAttachment = useCallback((id: string) => {
+    setAttachments((prev) => prev.filter((item) => item.id !== id));
+  }, []);
+
+  const clearAttachments = useCallback(() => {
+    setAttachments([]);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -153,6 +223,7 @@ export const useKolibriChat = (): UseKolibriChatResult => {
       setConversationId(crypto.randomUUID());
       setConversationTitle(DEFAULT_TITLE);
       setIsProcessing(false);
+      clearAttachments();
       return;
     }
 
@@ -163,6 +234,7 @@ export const useKolibriChat = (): UseKolibriChatResult => {
       setMode(MODE_OPTIONS[0]?.value ?? "neutral");
       setConversationId(crypto.randomUUID());
       setConversationTitle(DEFAULT_TITLE);
+      clearAttachments();
     } catch (error) {
       const moment = nowPair();
       const assistantMessage: ChatMessage = {
@@ -179,12 +251,20 @@ export const useKolibriChat = (): UseKolibriChatResult => {
     } finally {
       setIsProcessing(false);
     }
-  }, [bridgeReady]);
+  }, [bridgeReady, clearAttachments]);
 
   const sendMessage = useCallback(async () => {
     const content = draft.trim();
     if (!content || isProcessing || !bridgeReady) {
       return;
+    }
+
+    const pendingAttachments = attachments;
+    let serializedAttachments: SerializedAttachment[] = [];
+    try {
+      serializedAttachments = await serializeAttachments(pendingAttachments);
+    } catch (error) {
+      console.error("Не удалось сериализовать вложения", error);
     }
 
     const timestamp = nowPair();
@@ -195,9 +275,13 @@ export const useKolibriChat = (): UseKolibriChatResult => {
       timestamp: timestamp.display,
       isoTimestamp: timestamp.iso,
     };
+    if (serializedAttachments.length) {
+      userMessage.attachments = serializedAttachments;
+    }
 
     setMessages((prev) => [...prev, userMessage]);
     setDraft("");
+    clearAttachments();
     setIsProcessing(true);
 
     knowledgeSearchAbortRef.current?.abort();
@@ -230,7 +314,7 @@ export const useKolibriChat = (): UseKolibriChatResult => {
     const prompt = knowledgeContext.length ? formatPromptWithContext(content, knowledgeContext) : content;
 
     try {
-      const answer = await kolibriBridge.ask(prompt, mode, knowledgeContext);
+      const answer = await kolibriBridge.ask(prompt, mode, knowledgeContext, serializedAttachments);
       const moment = nowPair();
       const assistantMessage: ChatMessage = {
         id: crypto.randomUUID(),
@@ -265,7 +349,7 @@ export const useKolibriChat = (): UseKolibriChatResult => {
       setIsProcessing(false);
       void refreshKnowledgeStatus();
     }
-  }, [bridgeReady, draft, isProcessing, mode, refreshKnowledgeStatus]);
+  }, [attachments, bridgeReady, clearAttachments, draft, isProcessing, mode, refreshKnowledgeStatus]);
 
   const renameConversation = useCallback((nextTitle: string) => {
     const trimmed = nextTitle.trim();
@@ -323,9 +407,13 @@ export const useKolibriChat = (): UseKolibriChatResult => {
     statusLoading,
     latestAssistantMessage,
     metrics,
+    attachments,
     setDraft,
     setMode,
     renameConversation,
+    attachFiles,
+    removeAttachment,
+    clearAttachments,
     sendMessage,
     resetConversation,
     refreshKnowledgeStatus,

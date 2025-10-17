@@ -8,6 +8,7 @@
  * чтобы обеспечить прозрачность и детерминированность поведения фронтенда.
  */
 
+import type { SerializedAttachment } from "../types/attachments";
 import type { KnowledgeSnippet } from "../types/knowledge";
 import { sendKnowledgeFeedback, teachKnowledge } from "./knowledge";
 import { findModeLabel } from "./modes";
@@ -21,7 +22,12 @@ import {
 
 export interface KolibriBridge {
   readonly ready: Promise<void>;
-  ask(prompt: string, mode?: string, context?: KnowledgeSnippet[]): Promise<string>;
+  ask(
+    prompt: string,
+    mode?: string,
+    context?: KnowledgeSnippet[],
+    attachments?: SerializedAttachment[],
+  ): Promise<string>;
   reset(): Promise<void>;
 }
 
@@ -401,7 +407,17 @@ class KolibriScriptBridge implements KolibriBridge {
 
   constructor(private readonly runtime: KolibriWasmRuntime) {}
 
-  async ask(prompt: string, mode: string = DEFAULT_MODE_LABEL, context: KnowledgeSnippet[] = []): Promise<string> {
+  async ask(
+    prompt: string,
+    mode: string = DEFAULT_MODE_LABEL,
+    context: KnowledgeSnippet[] = [],
+    attachments: SerializedAttachment[] = [],
+  ): Promise<string> {
+    if (attachments.length) {
+      console.info(
+        `[kolibri-bridge] KolibriScript пока игнорирует ${attachments.length} вложения(ий).`,
+      );
+    }
     return this.runtime.execute(prompt, mode, context);
   }
 
@@ -415,7 +431,17 @@ class KolibriFallbackBridge implements KolibriBridge {
 
   constructor(private readonly reason: string) {}
 
-  async ask(): Promise<string> {
+  async ask(
+    _prompt: string,
+    _mode?: string,
+    _context?: KnowledgeSnippet[],
+    attachments: SerializedAttachment[] = [],
+  ): Promise<string> {
+    if (attachments.length) {
+      console.info(
+        `[kolibri-bridge] Получено ${attachments.length} вложения(ий), но KolibriScript недоступен.`,
+      );
+    }
     const details = this.reason.trim();
     const reasonText = details ? `Причина: ${details}` : "Причина: неизвестна.";
     return [
@@ -435,8 +461,15 @@ class KolibriLLMBridge implements KolibriBridge {
 
   constructor(private readonly endpoint: string, private readonly fallback: KolibriBridge) {}
 
-  async ask(prompt: string, mode: string = DEFAULT_MODE_LABEL, context: KnowledgeSnippet[] = []): Promise<string> {
-    const payload = { prompt, mode, context };
+  async ask(
+    prompt: string,
+    mode: string = DEFAULT_MODE_LABEL,
+    context: KnowledgeSnippet[] = [],
+    attachments: SerializedAttachment[] = [],
+  ): Promise<string> {
+    const payload = attachments.length
+      ? { prompt, mode, context, attachments }
+      : { prompt, mode, context };
     try {
       const response = await fetch(this.endpoint, {
         method: "POST",
@@ -503,9 +536,14 @@ const bridgePromise: Promise<KolibriBridge> = createBridge();
 
 const kolibriBridge: KolibriBridge = {
   ready: bridgePromise.then(() => undefined),
-  async ask(prompt: string, mode?: string, context: KnowledgeSnippet[] = []): Promise<string> {
+  async ask(
+    prompt: string,
+    mode?: string,
+    context: KnowledgeSnippet[] = [],
+    attachments: SerializedAttachment[] = [],
+  ): Promise<string> {
     const bridge = await bridgePromise;
-    return bridge.ask(prompt, mode, context);
+    return bridge.ask(prompt, mode, context, attachments);
   },
   async reset(): Promise<void> {
     const bridge = await bridgePromise;

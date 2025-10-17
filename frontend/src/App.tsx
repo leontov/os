@@ -22,9 +22,13 @@ const App = () => {
     statusLoading,
     latestAssistantMessage,
     metrics,
+    attachments,
     setDraft,
     setMode,
     renameConversation,
+    attachFiles,
+    removeAttachment,
+    clearAttachments,
     sendMessage,
     resetConversation,
     refreshKnowledgeStatus,
@@ -76,10 +80,14 @@ const App = () => {
           value={draft}
           mode={mode}
           isBusy={isProcessing || !bridgeReady}
+          attachments={attachments}
           onChange={setDraft}
           onModeChange={setMode}
           onSubmit={sendMessage}
           onReset={resetConversation}
+          onAttach={attachFiles}
+          onRemoveAttachment={removeAttachment}
+          onClearAttachments={clearAttachments}
         />
       </div>
     </AppShell>

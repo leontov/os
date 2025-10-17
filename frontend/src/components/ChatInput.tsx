@@ -1,23 +1,86 @@
-import { Keyboard, Paperclip, Plus, RefreshCw, SendHorizontal } from "lucide-react";
-import { useId, useMemo } from "react";
+import { Keyboard, Paperclip, Plus, RefreshCw, SendHorizontal, X } from "lucide-react";
+import { useEffect, useId, useMemo, useRef } from "react";
 import { MODE_OPTIONS, findModeLabel } from "../core/modes";
+import type { PendingAttachment } from "../types/attachments";
 
 interface ChatInputProps {
   value: string;
   mode: string;
   isBusy: boolean;
+  attachments: PendingAttachment[];
   onChange: (value: string) => void;
   onModeChange: (mode: string) => void;
   onSubmit: () => void;
   onReset: () => void;
+  onAttach: (files: File[]) => void;
+  onRemoveAttachment?: (id: string) => void;
+  onClearAttachments: () => void;
 }
 
 const MAX_LENGTH = 4000;
 
-const ChatInput = ({ value, mode, isBusy, onChange, onModeChange, onSubmit, onReset }: ChatInputProps) => {
+const formatFileSize = (bytes: number): string => {
+  if (bytes < 1024) {
+    return `${bytes} Б`;
+  }
+  const units = ["КБ", "МБ", "ГБ", "ТБ"];
+  let size = bytes;
+  let unitIndex = -1;
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex += 1;
+  }
+  const unit = units[unitIndex] ?? "КБ";
+  const precision = size >= 10 || unitIndex === 0 ? 0 : 1;
+  return `${size.toFixed(precision)} ${unit}`;
+};
+
+const ChatInput = ({
+  value,
+  mode,
+  isBusy,
+  attachments,
+  onChange,
+  onModeChange,
+  onSubmit,
+  onReset,
+  onAttach,
+  onRemoveAttachment,
+  onClearAttachments,
+}: ChatInputProps) => {
   const textAreaId = useId();
   const trimmedLength = useMemo(() => value.trim().length, [value]);
   const remaining = Math.max(0, MAX_LENGTH - value.length);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (attachments.length === 0 && fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }, [attachments]);
+
+  const handleFileInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files ? Array.from(event.target.files) : [];
+    if (files.length) {
+      onAttach(files);
+    }
+    event.target.value = "";
+  };
+
+  const handleAttachClick = () => {
+    if (isBusy) {
+      return;
+    }
+    fileInputRef.current?.click();
+  };
+
+  const handleClearDraft = () => {
+    onChange("");
+    onClearAttachments();
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === "Enter" && !event.shiftKey) {
@@ -80,10 +143,45 @@ const ChatInput = ({ value, mode, isBusy, onChange, onModeChange, onSubmit, onRe
         placeholder="Сообщение для Колибри"
         className="min-h-[160px] w-full resize-none rounded-2xl border border-border-strong bg-background-card/85 px-4 py-3 text-sm text-text-primary placeholder:text-text-secondary focus:border-primary focus:outline-none"
       />
+      {attachments.length > 0 && (
+        <div className="rounded-2xl border border-dashed border-border-strong bg-background-card/70 p-4 text-sm text-text-secondary">
+          <p className="mb-2 font-semibold text-text-primary">Прикреплённые файлы</p>
+          <ul className="flex flex-col gap-3">
+            {attachments.map((attachment) => (
+              <li key={attachment.id} className="flex items-center justify-between gap-3">
+                <div className="truncate">
+                  <p className="truncate text-text-primary">{attachment.file.name}</p>
+                  <p className="text-xs">{formatFileSize(attachment.file.size)}</p>
+                </div>
+                {onRemoveAttachment && (
+                  <button
+                    type="button"
+                    onClick={() => onRemoveAttachment(attachment.id)}
+                    className="flex h-7 w-7 items-center justify-center rounded-full border border-border-strong text-text-secondary transition-colors hover:text-text-primary"
+                    disabled={isBusy}
+                  >
+                    <X className="h-4 w-4" />
+                    <span className="sr-only">Удалить вложение</span>
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-text-secondary">
         <div className="flex flex-wrap items-center gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            multiple
+            onChange={handleFileInputChange}
+            tabIndex={-1}
+          />
           <button
             type="button"
+            onClick={handleAttachClick}
             className="flex items-center gap-2 rounded-xl border border-border-strong bg-background-card/80 px-3 py-2 transition-colors hover:text-text-primary"
             disabled={isBusy}
           >
@@ -92,7 +190,7 @@ const ChatInput = ({ value, mode, isBusy, onChange, onModeChange, onSubmit, onRe
           </button>
           <button
             type="button"
-            onClick={onReset}
+            onClick={handleClearDraft}
             className="flex items-center gap-2 rounded-xl border border-border-strong bg-background-card/80 px-3 py-2 transition-colors hover:text-text-primary"
             disabled={isBusy}
           >
