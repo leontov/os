@@ -555,6 +555,8 @@ self.addEventListener("message", (event) => {
   if (data.type === "SET_KNOWLEDGE_MODE") {
     if (typeof data.mode === "string" && data.mode) {
       knowledgeMode = data.mode;
+      knowledgeUrl = data.url;
+      event.waitUntil(precacheResource(knowledgeUrl));
     }
   }
 });
