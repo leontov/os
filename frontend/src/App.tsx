@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 import AppShell from "./components/AppShell";
 import AnalyticsView from "./components/AnalyticsView";
 import ChatInput from "./components/ChatInput";
@@ -6,7 +6,6 @@ import ChatView from "./components/ChatView";
 import InspectorPanel from "./components/InspectorPanel";
 import KnowledgeView from "./components/KnowledgeView";
 import NavigationRail from "./components/NavigationRail";
-import type { NavigationSection } from "./components/NavigationRail";
 import Sidebar from "./components/Sidebar";
 import TopBar from "./components/TopBar";
 import SwarmView from "./components/SwarmView";
@@ -24,6 +23,7 @@ const App = () => {
     bridgeReady,
     conversationId,
     conversationTitle,
+    conversationSummaries,
     knowledgeStatus,
     knowledgeError,
     statusLoading,
@@ -35,7 +35,8 @@ const App = () => {
     setMode,
     renameConversation,
     sendMessage,
-    resetConversation,
+    selectConversation,
+    createConversation,
     refreshKnowledgeStatus,
     selectConversation,
     attachFiles,
@@ -53,74 +54,22 @@ const App = () => {
     return <ChatView messages={messages} isLoading={isProcessing} conversationId={conversationId} />;
   }, [conversationId, isProcessing, messages, setDraft]);
 
-  const renderSection = () => {
-    if (activeSection === "dialog") {
-      return (
-        <div className="flex flex-1 flex-col gap-6 lg:flex-row">
-          <div className="order-1 w-full flex-none lg:max-w-xs xl:max-w-sm">
-            <Sidebar
-              conversations={conversations}
-              activeConversationId={conversationId}
-              onSelectConversation={selectConversation}
-              onCreateConversation={resetConversation}
-              isBusy={isProcessing}
-            />
-          </div>
-          <div className="order-2 flex flex-1 flex-col gap-6">
-            <div className="flex-1">{mainContent}</div>
-            <ChatInput
-              value={draft}
-              mode={mode}
-              isBusy={isProcessing || !bridgeReady}
-              onChange={setDraft}
-              onModeChange={setMode}
-              onSubmit={sendMessage}
-              onReset={resetConversation}
-              onAttach={attachFiles}
-              onRemoveAttachment={removeAttachment}
-              onClear={clearAttachments}
-              attachments={attachments}
-            />
-          </div>
-        </div>
-      );
-    }
+  const handleCreateConversation = useCallback(() => {
+    void createConversation();
+  }, [createConversation]);
 
-    const sectionCopy: Record<Exclude<NavigationSection, "dialog">, { title: string; description: string }> = {
-      knowledge: {
-        title: "Раздел знаний",
-        description:
-          "Здесь появится управление корпоративной памятью и инструменты поиска по загруженным документам.",
-      },
-      swarm: {
-        title: "Модуль роя",
-        description:
-          "Планировщик параллельных агентов находится в разработке. Следите за обновлениями Колибри.",
-      },
-      analytics: {
-        title: "Аналитика",
-        description:
-          "В этом разделе будут собраны метрики продуктивности, история обращений и визуализации качества ответов.",
-      },
-    };
-
-    const placeholder = sectionCopy[activeSection as Exclude<NavigationSection, "dialog">];
-
-    return (
-      <div className="flex flex-1 items-center justify-center">
-        <div className="w-full max-w-2xl rounded-3xl border border-border-strong bg-background-card/80 p-10 text-center shadow-xl">
-          <h2 className="text-2xl font-semibold text-text-primary">{placeholder.title}</h2>
-          <p className="mt-4 text-sm leading-relaxed text-text-secondary">{placeholder.description}</p>
-        </div>
-      </div>
-    );
-  };
+  const handleSelectConversation = useCallback(
+    (id: string) => {
+      selectConversation(id);
+    },
+    [selectConversation],
+  );
 
   return (
     <AppShell
       navigation={
         <NavigationRail
-          onCreateConversation={resetConversation}
+          onCreateConversation={handleCreateConversation}
           isBusy={isProcessing}
           metrics={metrics}
           activeSection={activeSection}
@@ -175,10 +124,28 @@ const App = () => {
         />
       }
     >
-      {renderSection()}
-      )}
-      {activeSection === "swarm" && <SwarmView />}
-      {activeSection === "analytics" && <AnalyticsView />}
+      <div className="flex h-full flex-1 flex-col gap-6 lg:flex-row">
+        <div className="hidden w-full max-w-xs shrink-0 lg:flex xl:max-w-sm">
+          <Sidebar
+            conversations={conversationSummaries}
+            activeConversationId={conversationId}
+            onConversationSelect={handleSelectConversation}
+            onCreateConversation={handleCreateConversation}
+          />
+        </div>
+        <div className="flex h-full flex-1 flex-col gap-6">
+          <div className="flex-1">{mainContent}</div>
+          <ChatInput
+            value={draft}
+            mode={mode}
+            isBusy={isProcessing || !bridgeReady}
+            onChange={setDraft}
+            onModeChange={setMode}
+            onSubmit={sendMessage}
+            onReset={handleCreateConversation}
+          />
+        </div>
+      </div>
     </AppShell>
   );
 };

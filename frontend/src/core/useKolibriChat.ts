@@ -21,87 +21,174 @@ export interface ConversationSummary {
 }
 
 const DEFAULT_TITLE = "Новая беседа";
-const DEFAULT_MODE = MODE_OPTIONS[0]?.value ?? "neutral";
-const STORAGE_KEY = "kolibri.conversations";
+const DEFAULT_MODE_VALUE = MODE_OPTIONS[0]?.value ?? "neutral";
+const STORAGE_KEY = "kolibri:chat:conversations";
+const PREVIEW_MAX_LENGTH = 80;
 
-interface StoredConversation {
+interface ConversationRecord {
   id: string;
   title: string;
-  messages: ChatMessage[];
-  draft: string;
-  mode: string;
   createdAtIso: string;
   updatedAtIso: string;
+  preview: string;
+  messages: ChatMessage[];
 }
 
-interface PendingAttachment extends ChatAttachment {
-  file?: File;
+export interface ConversationSummary {
+  id: string;
+  title: string;
+  createdAtIso: string;
+  updatedAtIso: string;
+  preview: string;
 }
 
-const createStoredConversation = (): StoredConversation => {
-  const nowIso = new Date().toISOString();
+const createConversationId = (): string => {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return Math.random().toString(36).slice(2, 12);
+};
+
+const normalisePreview = (value: string): string => value.replace(/\s+/g, " ").trim();
+
+const createPreviewFromMessages = (messages: ChatMessage[]): string => {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const candidate = normalisePreview(messages[index]?.content ?? "");
+    if (candidate) {
+      return candidate.length > PREVIEW_MAX_LENGTH
+        ? `${candidate.slice(0, PREVIEW_MAX_LENGTH - 1)}…`
+        : candidate;
+    }
+  }
+  return "";
+};
+
+const findLastIsoTimestamp = (messages: ChatMessage[]): string | undefined => {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const iso = messages[index]?.isoTimestamp;
+    if (iso) {
+      return iso;
+    }
+  }
+  return undefined;
+};
+
+const sanitiseMessage = (candidate: unknown): ChatMessage | null => {
+  if (!candidate || typeof candidate !== "object") {
+    return null;
+  }
+  const raw = candidate as Partial<ChatMessage> & Record<string, unknown>;
+  if (typeof raw.id !== "string" || typeof raw.role !== "string" || typeof raw.content !== "string") {
+    return null;
+  }
+  if (raw.role !== "assistant" && raw.role !== "user") {
+    return null;
+  }
+  if (typeof raw.timestamp !== "string") {
+    return null;
+  }
+  const message: ChatMessage = {
+    id: raw.id,
+    role: raw.role,
+    content: raw.content,
+    timestamp: raw.timestamp,
+  };
+  if (typeof raw.isoTimestamp === "string") {
+    message.isoTimestamp = raw.isoTimestamp;
+  }
+  if (typeof raw.modeLabel === "string") {
+    message.modeLabel = raw.modeLabel;
+  }
+  if (typeof raw.modeValue === "string") {
+    message.modeValue = raw.modeValue;
+  }
+  if (Array.isArray(raw.context)) {
+    message.context = raw.context as KnowledgeSnippet[];
+  }
+  if (typeof raw.contextError === "string") {
+    message.contextError = raw.contextError;
+  }
+  return message;
+};
+
+const createConversationRecord = (overrides: Partial<ConversationRecord> & { messages?: ChatMessage[] } = {}): ConversationRecord => {
+  const messages = overrides.messages ?? [];
+  const createdAtIso = overrides.createdAtIso ?? new Date().toISOString();
+  const lastIso = findLastIsoTimestamp(messages);
+  const updatedAtIso = overrides.updatedAtIso ?? lastIso ?? createdAtIso;
+  const preview = overrides.preview ?? createPreviewFromMessages(messages);
   return {
-    id: crypto.randomUUID(),
-    title: DEFAULT_TITLE,
-    messages: [],
-    draft: "",
-    mode: DEFAULT_MODE,
-    createdAtIso: nowIso,
-    updatedAtIso: nowIso,
+    id: overrides.id ?? createConversationId(),
+    title: overrides.title?.trim() ? overrides.title : DEFAULT_TITLE,
+    createdAtIso,
+    updatedAtIso,
+    preview,
+    messages,
   };
 };
 
-const normalizeConversation = (value: unknown): StoredConversation | null => {
-  if (!value || typeof value !== "object") {
-    return null;
-  }
-
-  const candidate = value as Partial<StoredConversation>;
-  if (typeof candidate.id !== "string") {
-    return null;
-  }
-
-  return {
-    id: candidate.id,
-    title: typeof candidate.title === "string" && candidate.title.trim() ? candidate.title : DEFAULT_TITLE,
-    messages: Array.isArray(candidate.messages) ? (candidate.messages as ChatMessage[]) : [],
-    draft: typeof candidate.draft === "string" ? candidate.draft : "",
-    mode: typeof candidate.mode === "string" ? candidate.mode : DEFAULT_MODE,
-    createdAtIso: typeof candidate.createdAtIso === "string" ? candidate.createdAtIso : new Date().toISOString(),
-    updatedAtIso:
-      typeof candidate.updatedAtIso === "string"
-        ? candidate.updatedAtIso
-        : typeof candidate.createdAtIso === "string"
-          ? candidate.createdAtIso
-          : new Date().toISOString(),
-  };
-};
-
-const loadStoredConversations = (): StoredConversation[] => {
+const loadInitialConversationState = (): { conversations: ConversationRecord[]; active: ConversationRecord } => {
+  const fallback = createConversationRecord();
   if (typeof window === "undefined") {
-    return [createStoredConversation()];
+    return { conversations: [fallback], active: fallback };
   }
 
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) {
-      return [createStoredConversation()];
+      return { conversations: [fallback], active: fallback };
     }
+
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) {
-      return [createStoredConversation()];
-    }
-    const normalized = parsed
-      .map((item) => normalizeConversation(item))
-      .filter((item): item is StoredConversation => item !== null);
-
-    if (!normalized.length) {
-      return [createStoredConversation()];
+      return { conversations: [fallback], active: fallback };
     }
 
-    return normalized.sort((a, b) => new Date(b.updatedAtIso).getTime() - new Date(a.updatedAtIso).getTime());
-  } catch {
-    return [createStoredConversation()];
+    const conversations: ConversationRecord[] = [];
+    for (const item of parsed) {
+      if (!item || typeof item !== "object") {
+        continue;
+      }
+      const rawConversation = item as Partial<ConversationRecord> & { messages?: unknown };
+      const messages = Array.isArray(rawConversation.messages)
+        ? (rawConversation.messages
+            .map((message) => sanitiseMessage(message))
+            .filter((value): value is ChatMessage => Boolean(value)) ?? [])
+        : [];
+      const conversation = createConversationRecord({
+        id: typeof rawConversation.id === "string" ? rawConversation.id : undefined,
+        title: typeof rawConversation.title === "string" ? rawConversation.title : undefined,
+        createdAtIso: typeof rawConversation.createdAtIso === "string" ? rawConversation.createdAtIso : undefined,
+        updatedAtIso: typeof rawConversation.updatedAtIso === "string" ? rawConversation.updatedAtIso : undefined,
+        preview: typeof rawConversation.preview === "string" ? rawConversation.preview : undefined,
+        messages,
+      });
+      conversations.push(conversation);
+    }
+
+    if (!conversations.length) {
+      return { conversations: [fallback], active: fallback };
+    }
+
+    conversations.sort((first, second) => {
+      const firstTime = Date.parse(first.updatedAtIso);
+      const secondTime = Date.parse(second.updatedAtIso);
+      if (Number.isNaN(firstTime) && Number.isNaN(secondTime)) {
+        return 0;
+      }
+      if (Number.isNaN(firstTime)) {
+        return 1;
+      }
+      if (Number.isNaN(secondTime)) {
+        return -1;
+      }
+      return secondTime - firstTime;
+    });
+
+    return { conversations, active: conversations[0] };
+  } catch (error) {
+    console.warn("Failed to load conversation history", error);
+    return { conversations: [fallback], active: fallback };
   }
 };
 
@@ -149,6 +236,7 @@ interface UseKolibriChatResult {
   bridgeReady: boolean;
   conversationId: string;
   conversationTitle: string;
+  conversationSummaries: ConversationSummary[];
   knowledgeStatus: Awaited<ReturnType<typeof fetchKnowledgeStatus>> | null;
   knowledgeError?: string;
   statusLoading: boolean;
@@ -161,6 +249,8 @@ interface UseKolibriChatResult {
   renameConversation: (title: string) => void;
   sendMessage: () => Promise<void>;
   resetConversation: () => Promise<void>;
+  selectConversation: (id: string) => void;
+  createConversation: () => Promise<void>;
   refreshKnowledgeStatus: () => Promise<void>;
   selectConversation: (id: string) => Promise<void>;
   attachFiles: (files: FileList | File[]) => void;
@@ -169,27 +259,49 @@ interface UseKolibriChatResult {
 }
 
 export const useKolibriChat = (): UseKolibriChatResult => {
-  const storedConversationsRef = useRef<StoredConversation[] | null>(null);
-  if (storedConversationsRef.current === null) {
-    storedConversationsRef.current = loadStoredConversations();
-  }
-  const initialConversations = storedConversationsRef.current;
-  const initialConversation = initialConversations[0] ?? createStoredConversation();
+  const { conversations: initialConversations, active: initialActiveConversation } = loadInitialConversationState();
 
-  const [conversations, setConversations] = useState<StoredConversation[]>(initialConversations);
-  const [messages, setMessages] = useState<ChatMessage[]>(initialConversation.messages);
-  const [draft, setDraft] = useState(initialConversation.draft);
-  const [mode, setMode] = useState(initialConversation.mode);
+  const [conversations, setConversations] = useState<ConversationRecord[]>(initialConversations);
+  const [messages, setMessages] = useState<ChatMessage[]>(initialActiveConversation.messages);
+  const [draft, setDraft] = useState("");
+  const [mode, setMode] = useState(DEFAULT_MODE_VALUE);
   const [isProcessing, setIsProcessing] = useState(false);
   const [bridgeReady, setBridgeReady] = useState(false);
-  const [conversationId, setConversationId] = useState(initialConversation.id);
-  const [conversationTitle, setConversationTitle] = useState<string>(initialConversation.title);
+  const [conversationId, setConversationId] = useState<string>(initialActiveConversation.id);
+  const [conversationTitle, setConversationTitle] = useState<string>(initialActiveConversation.title);
   const [knowledgeStatus, setKnowledgeStatus] = useState<Awaited<ReturnType<typeof fetchKnowledgeStatus>> | null>(null);
   const [knowledgeError, setKnowledgeError] = useState<string | undefined>();
   const [statusLoading, setStatusLoading] = useState(false);
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
 
   const knowledgeSearchAbortRef = useRef<AbortController | null>(null);
+  const conversationsRef = useRef<ConversationRecord[]>(initialConversations);
+
+  useEffect(() => {
+    conversationsRef.current = conversations;
+  }, [conversations]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
+    } catch (error) {
+      console.warn("Failed to persist conversation history", error);
+    }
+  }, [conversations]);
+
+  const beginNewConversation = useCallback((): ConversationRecord => {
+    const record = createConversationRecord();
+    setConversations((prev) => [record, ...prev]);
+    setConversationId(record.id);
+    setConversationTitle(record.title);
+    setMessages(record.messages);
+    setDraft("");
+    setMode(DEFAULT_MODE_VALUE);
+    return record;
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -248,70 +360,105 @@ export const useKolibriChat = (): UseKolibriChatResult => {
     setConversationTitle(deriveTitleFromMessages(messages));
   }, [conversationTitle, messages]);
 
-  const persistConversations = useCallback((next: StoredConversation[]) => {
-    setConversations(next);
-    if (typeof window === "undefined") {
+  useEffect(() => {
+    const preview = createPreviewFromMessages(messages);
+    const lastIso = findLastIsoTimestamp(messages);
+    setConversations((prev) => {
+      const existingIndex = prev.findIndex((item) => item.id === conversationId);
+      if (existingIndex === -1) {
+        const fallbackIso = lastIso ?? new Date().toISOString();
+        const record = createConversationRecord({
+          id: conversationId,
+          title: conversationTitle,
+          createdAtIso: fallbackIso,
+          updatedAtIso: fallbackIso,
+          preview,
+          messages,
+        });
+        return [record, ...prev];
+      }
+
+      const existing = prev[existingIndex];
+      const nextUpdatedAtIso = lastIso ?? (messages.length ? new Date().toISOString() : existing.updatedAtIso);
+      const shouldUpdate =
+        existing.title !== conversationTitle ||
+        existing.preview !== preview ||
+        existing.messages !== messages ||
+        existing.updatedAtIso !== nextUpdatedAtIso;
+
+      if (!shouldUpdate) {
+        return prev;
+      }
+
+      const updated: ConversationRecord = {
+        ...existing,
+        title: conversationTitle,
+        preview,
+        messages,
+        updatedAtIso: nextUpdatedAtIso,
+      };
+
+      const next = [...prev];
+      const shouldReorder =
+        existing.messages !== messages || existing.preview !== preview || existing.updatedAtIso !== nextUpdatedAtIso;
+
+      if (shouldReorder) {
+        next.splice(existingIndex, 1);
+        next.unshift(updated);
+      } else {
+        next[existingIndex] = updated;
+      }
+
+      return next;
+    });
+  }, [conversationId, conversationTitle, messages]);
+
+  const resetConversation = useCallback(async () => {
+    knowledgeSearchAbortRef.current?.abort();
+    knowledgeSearchAbortRef.current = null;
+
+    if (!bridgeReady) {
+      beginNewConversation();
+      setIsProcessing(false);
       return;
     }
     try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    } catch {
-      // ignore storage errors
-    }
-  }, []);
-
-  const updateConversation = useCallback(
-    (id: string, reducer: (conversation: StoredConversation) => StoredConversation | null) => {
-      setConversations((prev) => {
-        const index = prev.findIndex((item) => item.id === id);
-        if (index === -1) {
-          return prev;
-        }
-        const existing = prev[index];
-        const nextConversation = reducer(existing);
-        if (!nextConversation || nextConversation === existing) {
-          return prev;
-        }
-        const nextList = [...prev];
-        nextList.splice(index, 1);
-        nextList.unshift(nextConversation);
-        if (typeof window !== "undefined") {
-          try {
-            window.localStorage.setItem(STORAGE_KEY, JSON.stringify(nextList));
-          } catch {
-            // ignore storage errors
-          }
-        }
-        return nextList;
-      });
-    },
-    [],
-  );
-
-  const attachFiles = useCallback((files: FileList | File[]) => {
-    const collection = Array.from(files ?? []);
-    if (!collection.length) {
-      return;
-    }
-    setAttachments((prev) => [
-      ...prev,
-      ...collection.map((file) => ({
+      await kolibriBridge.reset();
+      beginNewConversation();
+    } catch (error) {
+      const moment = nowPair();
+      const assistantMessage: ChatMessage = {
         id: crypto.randomUUID(),
-        name: file.name,
-        size: file.size,
-        type: file.type || "application/octet-stream",
-        file,
-      })),
-    ]);
-  }, []);
+        role: "assistant",
+        content:
+          error instanceof Error
+            ? `Не удалось сбросить KolibriScript: ${error.message}`
+            : "Не удалось сбросить KolibriScript.",
+        timestamp: moment.display,
+        isoTimestamp: moment.iso,
+      };
+      setMessages((prev) => [...prev, assistantMessage]);
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [beginNewConversation, bridgeReady]);
 
-  const removeAttachment = useCallback((id: string) => {
-    setAttachments((prev) => prev.filter((item) => item.id !== id));
-  }, []);
-
-  const clearAttachments = useCallback(() => {
-    setAttachments([]);
-  }, []);
+  const selectConversation = useCallback(
+    (targetId: string) => {
+      const candidate = conversationsRef.current.find((item) => item.id === targetId);
+      if (!candidate) {
+        return;
+      }
+      knowledgeSearchAbortRef.current?.abort();
+      knowledgeSearchAbortRef.current = null;
+      setConversationId(candidate.id);
+      setConversationTitle(candidate.title);
+      setMessages(candidate.messages);
+      setDraft("");
+      setIsProcessing(false);
+    },
+    [setConversationId, setConversationTitle, setMessages, setDraft, setIsProcessing],
+  );
 
   const sendMessage = useCallback(async () => {
     const content = draft.trim();
@@ -547,35 +694,19 @@ export const useKolibriChat = (): UseKolibriChatResult => {
     };
   }, [messages]);
 
-  const conversationSummaries = useMemo<ConversationSummary[]>(() => {
-    return conversations.map((conversation) => {
-      const lastMessage = conversation.messages[conversation.messages.length - 1];
-      let previewSource = lastMessage?.content?.trim() ?? "";
-      if (!previewSource && lastMessage?.attachments?.length) {
-        previewSource = `Вложения: ${lastMessage.attachments.map((item) => item.name).join(", ")}`;
-      }
-      if (!previewSource && conversation.draft.trim()) {
-        previewSource = conversation.draft.trim();
-      }
-      const preview = previewSource
-        ? previewSource.length > 80
-          ? `${previewSource.slice(0, 77)}…`
-          : previewSource
-        : "Черновик пуст";
-
-      return {
+  const conversationSummaries = useMemo<ConversationSummary[]>(
+    () =>
+      conversations.map((conversation) => ({
         id: conversation.id,
         title: conversation.title,
-        preview,
-        updatedAtIso: lastMessage?.isoTimestamp ?? conversation.updatedAtIso,
         createdAtIso: conversation.createdAtIso,
-      };
-    });
-  }, [conversations]);
+        updatedAtIso: conversation.updatedAtIso,
+        preview: conversation.preview,
+      })),
+    [conversations],
+  );
 
-  const publicAttachments = useMemo<ChatAttachment[]>(() => {
-    return attachments.map(({ id, name, size, type }) => ({ id, name, size, type }));
-  }, [attachments]);
+  const createConversation = useCallback(() => resetConversation(), [resetConversation]);
 
   return {
     messages,
@@ -585,6 +716,7 @@ export const useKolibriChat = (): UseKolibriChatResult => {
     bridgeReady,
     conversationId,
     conversationTitle,
+    conversationSummaries,
     knowledgeStatus,
     knowledgeError,
     statusLoading,
@@ -597,6 +729,8 @@ export const useKolibriChat = (): UseKolibriChatResult => {
     renameConversation,
     sendMessage,
     resetConversation,
+    selectConversation,
+    createConversation,
     refreshKnowledgeStatus,
     selectConversation,
     attachFiles,
