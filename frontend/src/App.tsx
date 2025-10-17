@@ -12,6 +12,7 @@ import SwarmView from "./components/SwarmView";
 import TopBar from "./components/TopBar";
 import WelcomeScreen from "./components/WelcomeScreen";
 import useKolibriChat from "./core/useKolibriChat";
+import { findModeLabel } from "./core/modes";
 
 const App = () => {
   const {
@@ -46,13 +47,35 @@ const App = () => {
 
   const [activeSection, setActiveSection] = useState<NavigationSection>("dialog");
 
+  const modeLabel = useMemo(() => findModeLabel(mode), [mode]);
+
+  const handleSuggestionSelect = useCallback(
+    (suggestion: string) => {
+      const trimmedDraft = draft.trimEnd();
+      const prefix = trimmedDraft.length > 0 ? `${trimmedDraft}\n\n` : "";
+      setDraft(`${prefix}${suggestion}`);
+    },
+    [draft, setDraft],
+  );
+
   const chatContent = useMemo(() => {
     if (!messages.length) {
       return <WelcomeScreen onSuggestionSelect={setDraft} />;
     }
 
-    return <ChatView messages={messages} isLoading={isProcessing} conversationId={conversationId} />;
-  }, [conversationId, isProcessing, messages, setDraft]);
+    return (
+      <ChatView
+        messages={messages}
+        isLoading={isProcessing}
+        isBusy={isProcessing}
+        conversationId={conversationId}
+        conversationTitle={conversationTitle}
+        metrics={metrics}
+        modeLabel={modeLabel}
+        onSuggestionSelect={handleSuggestionSelect}
+      />
+    );
+  }, [conversationId, conversationTitle, handleSuggestionSelect, isProcessing, messages, metrics, modeLabel, setDraft]);
 
   const handleCreateConversation = useCallback(() => {
     void createConversation();

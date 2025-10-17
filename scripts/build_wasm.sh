@@ -263,22 +263,6 @@ def build_stub():
     section_type = encode_section(1, encode_vec(functypes))
 
     func_types = [0, 0, 1, 2, 0, 3, 4, 5, 2, 4, 6]
-    func_types = [
-        0,  # k_state_new
-        1,  # k_state_free
-        4,  # k_state_save
-        4,  # k_state_load
-        4,  # k_observe
-        6,  # k_decode
-        5,  # k_digit_add_syll
-        5,  # k_profile
-        0,  # kolibri_bridge_init
-        0,  # kolibri_bridge_reset
-        5,  # kolibri_bridge_execute
-        2,  # malloc
-        3,  # free
-    ]
-
     section_func = encode_section(3, u32(len(func_types)) + b"".join(u32(t) for t in func_types))
 
     mem_type = bytes([0x00]) + u32(1)
