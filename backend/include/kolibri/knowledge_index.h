@@ -50,15 +50,18 @@ size_t kolibri_knowledge_index_token_count(const KolibriKnowledgeIndex *index);
 const KolibriKnowledgeToken *kolibri_knowledge_index_token(const KolibriKnowledgeIndex *index,
                                                            size_t idx);
 
-int kolibri_knowledge_search(const KolibriKnowledgeIndex *index,
-                              const char *query,
-                              size_t limit,
-                              size_t *out_indices,
-                              float *out_scores,
-                              size_t *out_result_count);
+int kolibri_knowledge_index_search(const KolibriKnowledgeIndex *index,
+                                   const char *query,
+                                   size_t limit,
+                                   size_t *out_indices,
+                                   float *out_scores,
+                                   size_t *out_result_count);
 
 int kolibri_knowledge_index_write_json(const KolibriKnowledgeIndex *index,
                                        const char *output_dir);
+
+int kolibri_knowledge_index_load_json(const char *input_dir,
+                                      KolibriKnowledgeIndex **out_index);
 
 #ifdef __cplusplus
 }

@@ -11,6 +11,7 @@ void test_knowledge_index(void);
 void test_knowledge_queue(void);
 void test_sim(void);
 void test_public_api(void);
+void test_knowledge_server_integration(void);
 
 int main(void) {
   test_decimal();
@@ -24,6 +25,7 @@ int main(void) {
   test_knowledge_queue();
   test_sim();
   test_public_api();
+  test_knowledge_server_integration();
   printf("all tests passed\n");
   return 0;
 }

@@ -30,7 +30,7 @@ Kolibri runtime built for their platform.
 | Header | Stable Symbols | ABI Notes |
 |--------|----------------|----------|
 | `script.h` | `KolibriScript`, `ks_init`, `ks_free`, `ks_set_output`, `ks_load_text`, `ks_load_file`, `ks_execute` | `KolibriScript` is opaque: consumers may inspect but MUST NOT alter internal arrays directly. Struct size/layout may grow; new fields appended to the end. |
-| `knowledge.h` | `KolibriKnowledgeIndex`, `KolibriKnowledgeDocument`, `kolibri_knowledge_index_init/free/load_directory`, `kolibri_knowledge_search` | Pointers returned remain valid until `kolibri_knowledge_index_free`. Fields marked “reserved” may change; avoid direct modification. |
+| `knowledge_index.h` | `KolibriKnowledgeIndex`, `KolibriKnowledgeDoc`, `KolibriKnowledgeToken`, `kolibri_knowledge_index_create/destroy/document_count/document/token/search/write_json/load_json` | Pointers returned remain valid until `kolibri_knowledge_index_destroy`. Fields marked “reserved” may change; avoid direct modification. |
 | `net.h` | `KolibriNetListener`, `KolibriNetEndpoint`, helper routines | Wire protocol is backwards-compatible within a major version. Structs may gain trailing fields with default zero-initialisation. |
 | `genome.h` | `KolibriGenome`, `ReasonBlock`, `kg_open`, `kg_close`, `kg_append`, `kg_verify_file`, `kg_encode_payload` | Blocks are stored big-endian; HMAC is SHA-256. `KolibriGenome` contains FILE* members that are internal; callers interact only via API functions. |
 | `formula.h` | `KolibriGene`, `KolibriAssociation`, `KolibriFormula`, `KolibriFormulaPool`, `kf_*` helpers | Pool capacity constants define ABI; increases happen only in major releases. Struct fields may gain new trailing members reserved for future use. |

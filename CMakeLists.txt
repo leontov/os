@@ -99,8 +99,8 @@ if(NOT KOLIBRI_OPENSSL_TARGET)
     message(FATAL_ERROR "OpenSSL Crypto library not found. Set OPENSSL_ROOT_DIR or install openssl@3.")
 endif()
 
-target_link_libraries(kolibri_core_objects PUBLIC ${KOLIBRI_OPENSSL_TARGET})
-target_link_libraries(kolibri_core PUBLIC ${KOLIBRI_OPENSSL_TARGET} SQLite::SQLite3)
+target_link_libraries(kolibri_core_objects PUBLIC ${KOLIBRI_OPENSSL_TARGET} m)
+target_link_libraries(kolibri_core PUBLIC ${KOLIBRI_OPENSSL_TARGET} SQLite::SQLite3 m)
 
 add_library(kolibri_wasm STATIC
     backend/src/wasm_bridge.c
@@ -195,6 +195,7 @@ if(KOLIBRI_ENABLE_TESTS)
         tests/test_knowledge_queue.c
         tests/test_sim.c
         tests/test_public_api.c
+        tests/test_knowledge_server_integration.c
     )
     target_link_libraries(kolibri_tests PRIVATE kolibri_core Threads::Threads)
     add_test(NAME kolibri_tests COMMAND kolibri_tests)

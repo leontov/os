@@ -465,13 +465,14 @@ int kolibri_knowledge_index_create(const char *const *roots,
     for (size_t i = 0; i < root_count; ++i) {
         collect_markdown_files(roots[i], &paths);
     }
+    KolibriKnowledgeIndex *index = knowledge_index_new();
+
     if (paths.count == 0U) {
         path_list_free(&paths);
-        *out_index = NULL;
-        return ENOENT;
+        *out_index = index;
+        return 0;
     }
 
-    KolibriKnowledgeIndex *index = knowledge_index_new();
     index->documents = (Document *)kolibri_alloc(paths.count * sizeof(Document));
     index->document_count = paths.count;
 
@@ -618,12 +619,12 @@ static void tokenize_query(const char *query,
     *out_norm = (float)(sqrt(norm) ?: 0.0);
 }
 
-int kolibri_knowledge_search(const KolibriKnowledgeIndex *index,
-                              const char *query,
-                              size_t limit,
-                              size_t *out_indices,
-                              float *out_scores,
-                              size_t *out_result_count) {
+int kolibri_knowledge_index_search(const KolibriKnowledgeIndex *index,
+                                   const char *query,
+                                   size_t limit,
+                                   size_t *out_indices,
+                                   float *out_scores,
+                                   size_t *out_result_count) {
     if (!index || !query || limit == 0U || !out_indices || !out_scores || !out_result_count) {
         return EINVAL;
     }
@@ -751,8 +752,20 @@ int kolibri_knowledge_index_write_json(const KolibriKnowledgeIndex *index,
     }
 
     fprintf(index_file, "{\n");
+    fprintf(index_file, "  \"version\": 1,\n");
     fprintf(index_file, "  \"document_count\": %zu,\n", index->document_count);
-    fprintf(index_file, "  \"tokens\": %zu,\n", index->token_count);
+    fprintf(index_file, "  \"tokens\": [\n");
+    for (size_t i = 0; i < index->token_count; ++i) {
+        const GlobalToken *token = &index->tokens[i];
+        fprintf(index_file, "    {\"token\": ");
+        json_escape(index_file, token->token ? token->token : "");
+        fprintf(index_file, ", \"idf\": %.6f}", token->idf);
+        if (i + 1 < index->token_count) {
+            fprintf(index_file, ",");
+        }
+        fprintf(index_file, "\n");
+    }
+    fprintf(index_file, "  ],\n");
     fprintf(index_file, "  \"documents\": [\n");
     for (size_t i = 0; i < index->document_count; ++i) {
         const Document *doc = &index->documents[i];
@@ -797,11 +810,766 @@ int kolibri_knowledge_index_write_json(const KolibriKnowledgeIndex *index,
         return errno;
     }
     fprintf(manifest_file, "{\n");
+    fprintf(manifest_file, "  \"version\": 1,\n");
     fprintf(manifest_file, "  \"document_count\": %zu,\n", index->document_count);
     fprintf(manifest_file, "  \"index_path\": \"index.json\"\n");
     fprintf(manifest_file, "}\n");
     fclose(manifest_file);
 
+    return 0;
+}
+
+static void json_skip_ws(const char **cursor) {
+    while (**cursor && isspace((unsigned char)**cursor)) {
+        (*cursor)++;
+    }
+}
+
+static int json_expect(const char **cursor, char expected) {
+    json_skip_ws(cursor);
+    if (**cursor != expected) {
+        return EINVAL;
+    }
+    (*cursor)++;
+    return 0;
+}
+
+static int json_unescape_char(const char **cursor, char *out) {
+    char ch = **cursor;
+    if (ch == '\0') {
+        return EINVAL;
+    }
+    (*cursor)++;
+    switch (ch) {
+    case '"':
+    case '\\':
+    case '/':
+        *out = ch;
+        return 0;
+    case 'b':
+        *out = '\b';
+        return 0;
+    case 'f':
+        *out = '\f';
+        return 0;
+    case 'n':
+        *out = '\n';
+        return 0;
+    case 'r':
+        *out = '\r';
+        return 0;
+    case 't':
+        *out = '\t';
+        return 0;
+    default:
+        return EINVAL;
+    }
+}
+
+static char *json_parse_string(const char **cursor) {
+    json_skip_ws(cursor);
+    if (**cursor != '"') {
+        return NULL;
+    }
+    (*cursor)++;
+    size_t capacity = 64U;
+    size_t length = 0U;
+    char *buffer = (char *)malloc(capacity);
+    if (!buffer) {
+        return NULL;
+    }
+    while (**cursor && **cursor != '"') {
+        char ch = **cursor;
+        if (ch == '\\') {
+            (*cursor)++;
+            if (json_unescape_char(cursor, &ch) != 0) {
+                free(buffer);
+                return NULL;
+            }
+        } else {
+            (*cursor)++;
+        }
+        if (length + 1U >= capacity) {
+            size_t new_capacity = capacity * 2U;
+            char *tmp = (char *)realloc(buffer, new_capacity);
+            if (!tmp) {
+                free(buffer);
+                return NULL;
+            }
+            buffer = tmp;
+            capacity = new_capacity;
+        }
+        buffer[length++] = ch;
+    }
+    if (**cursor != '"') {
+        free(buffer);
+        return NULL;
+    }
+    (*cursor)++;
+    buffer[length] = '\0';
+    return buffer;
+}
+
+static double json_parse_number(const char **cursor, int *err) {
+    json_skip_ws(cursor);
+    char *end = NULL;
+    double value = strtod(*cursor, &end);
+    if (end == *cursor) {
+        if (err) {
+            *err = EINVAL;
+        }
+        return 0.0;
+    }
+    *cursor = end;
+    if (err) {
+        *err = 0;
+    }
+    return value;
+}
+
+static int json_skip_value(const char **cursor) {
+    json_skip_ws(cursor);
+    if (**cursor == '{') {
+        (*cursor)++;
+        int depth = 1;
+        while (**cursor && depth > 0) {
+            if (**cursor == '"') {
+                char *tmp = json_parse_string(cursor);
+                if (!tmp) {
+                    return EINVAL;
+                }
+                free(tmp);
+            } else if (**cursor == '{') {
+                depth++;
+                (*cursor)++;
+            } else if (**cursor == '}') {
+                depth--;
+                (*cursor)++;
+            } else {
+                (*cursor)++;
+            }
+        }
+        return depth == 0 ? 0 : EINVAL;
+    }
+    if (**cursor == '[') {
+        (*cursor)++;
+        int depth = 1;
+        while (**cursor && depth > 0) {
+            if (**cursor == '"') {
+                char *tmp = json_parse_string(cursor);
+                if (!tmp) {
+                    return EINVAL;
+                }
+                free(tmp);
+            } else if (**cursor == '[') {
+                depth++;
+                (*cursor)++;
+            } else if (**cursor == ']') {
+                depth--;
+                (*cursor)++;
+            } else {
+                (*cursor)++;
+            }
+        }
+        return depth == 0 ? 0 : EINVAL;
+    }
+    if (**cursor == '"') {
+        char *tmp = json_parse_string(cursor);
+        if (!tmp) {
+            return EINVAL;
+        }
+        free(tmp);
+        return 0;
+    }
+    if (**cursor == '-' || isdigit((unsigned char)**cursor)) {
+        int err = 0;
+        (void)json_parse_number(cursor, &err);
+        return err;
+    }
+    if (strncmp(*cursor, "true", 4) == 0) {
+        *cursor += 4;
+        return 0;
+    }
+    if (strncmp(*cursor, "false", 5) == 0) {
+        *cursor += 5;
+        return 0;
+    }
+    if (strncmp(*cursor, "null", 4) == 0) {
+        *cursor += 4;
+        return 0;
+    }
+    return EINVAL;
+}
+
+static size_t locate_token(const GlobalToken *tokens, size_t count, const char *token) {
+    for (size_t i = 0; i < count; ++i) {
+        if (tokens[i].token && strcmp(tokens[i].token, token) == 0) {
+            return i;
+        }
+    }
+    return (size_t)-1;
+}
+
+static int parse_terms_array(const char **cursor,
+                             const GlobalToken *tokens,
+                             size_t token_count,
+                             KolibriKnowledgeVectorItem **out_items,
+                             size_t *out_count) {
+    if (!out_items || !out_count) {
+        return EINVAL;
+    }
+    *out_items = NULL;
+    *out_count = 0U;
+    if (json_expect(cursor, '[') != 0) {
+        return EINVAL;
+    }
+    size_t capacity = 0U;
+    KolibriKnowledgeVectorItem *items = NULL;
+    while (1) {
+        json_skip_ws(cursor);
+        if (**cursor == ']') {
+            (*cursor)++;
+            break;
+        }
+        if (json_expect(cursor, '{') != 0) {
+            free(items);
+            return EINVAL;
+        }
+        char *term_token = NULL;
+        double weight = 0.0;
+        int have_token = 0;
+        int have_weight = 0;
+        while (1) {
+            json_skip_ws(cursor);
+            if (**cursor == '}') {
+                (*cursor)++;
+                break;
+            }
+            char *key = json_parse_string(cursor);
+            if (!key) {
+                free(term_token);
+                free(items);
+                return ENOMEM;
+            }
+            if (json_expect(cursor, ':') != 0) {
+                free(key);
+                free(term_token);
+                free(items);
+                return EINVAL;
+            }
+            if (strcmp(key, "token") == 0) {
+                free(term_token);
+                term_token = json_parse_string(cursor);
+                if (!term_token) {
+                    free(key);
+                    free(items);
+                    return ENOMEM;
+                }
+                have_token = 1;
+            } else if (strcmp(key, "weight") == 0) {
+                int err = 0;
+                weight = json_parse_number(cursor, &err);
+                if (err != 0) {
+                    free(term_token);
+                    free(key);
+                    free(items);
+                    return err;
+                }
+                have_weight = 1;
+            } else {
+                if (json_skip_value(cursor) != 0) {
+                    free(term_token);
+                    free(key);
+                    free(items);
+                    return EINVAL;
+                }
+            }
+            free(key);
+            json_skip_ws(cursor);
+            if (**cursor == ',') {
+                (*cursor)++;
+                continue;
+            }
+        }
+        if (!have_token) {
+            free(term_token);
+            free(items);
+            return EINVAL;
+        }
+        size_t token_index = locate_token(tokens, token_count, term_token);
+        free(term_token);
+        if (token_index == (size_t)-1) {
+            free(items);
+            return EINVAL;
+        }
+        if (!have_weight) {
+            weight = 0.0;
+        }
+        if (*out_count == capacity) {
+            size_t new_capacity = capacity == 0U ? 8U : capacity * 2U;
+            KolibriKnowledgeVectorItem *tmp = (KolibriKnowledgeVectorItem *)realloc(items,
+                                                                                   new_capacity * sizeof(*items));
+            if (!tmp) {
+                free(items);
+                return ENOMEM;
+            }
+            items = tmp;
+            capacity = new_capacity;
+        }
+        items[*out_count].token_index = token_index;
+        items[*out_count].weight = (float)weight;
+        *out_count += 1U;
+        json_skip_ws(cursor);
+        if (**cursor == ',') {
+            (*cursor)++;
+        }
+    }
+    *out_items = items;
+    return 0;
+}
+
+static int parse_documents_array(const char **cursor,
+                                 const GlobalToken *tokens,
+                                 size_t token_count,
+                                 Document **out_docs,
+                                 size_t *out_count) {
+    if (!out_docs || !out_count) {
+        return EINVAL;
+    }
+    *out_docs = NULL;
+    *out_count = 0U;
+    if (json_expect(cursor, '[') != 0) {
+        return EINVAL;
+    }
+    size_t capacity = 0U;
+    Document *docs = NULL;
+    while (1) {
+        json_skip_ws(cursor);
+        if (**cursor == ']') {
+            (*cursor)++;
+            break;
+        }
+        if (json_expect(cursor, '{') != 0) {
+            if (docs) {
+                for (size_t i = 0; i < *out_count; ++i) {
+                    free(docs[i].id);
+                    free(docs[i].title);
+                    free(docs[i].source);
+                    free(docs[i].content);
+                    free(docs[i].vector);
+                }
+            }
+            free(docs);
+            return EINVAL;
+        }
+        Document doc;
+        memset(&doc, 0, sizeof(doc));
+        while (1) {
+            json_skip_ws(cursor);
+            if (**cursor == '}') {
+                (*cursor)++;
+                break;
+            }
+            char *key = json_parse_string(cursor);
+            if (!key) {
+                if (doc.vector) {
+                    free(doc.vector);
+                }
+                free(doc.id);
+                free(doc.title);
+                free(doc.source);
+                free(doc.content);
+                if (docs) {
+                    for (size_t i = 0; i < *out_count; ++i) {
+                        free(docs[i].id);
+                        free(docs[i].title);
+                        free(docs[i].source);
+                        free(docs[i].content);
+                        free(docs[i].vector);
+                    }
+                }
+                free(docs);
+                return ENOMEM;
+            }
+            if (json_expect(cursor, ':') != 0) {
+                free(key);
+                if (doc.vector) {
+                    free(doc.vector);
+                }
+                free(doc.id);
+                free(doc.title);
+                free(doc.source);
+                free(doc.content);
+                if (docs) {
+                    for (size_t i = 0; i < *out_count; ++i) {
+                        free(docs[i].id);
+                        free(docs[i].title);
+                        free(docs[i].source);
+                        free(docs[i].content);
+                        free(docs[i].vector);
+                    }
+                }
+                free(docs);
+                return EINVAL;
+            }
+            if (strcmp(key, "id") == 0) {
+                free(doc.id);
+                doc.id = json_parse_string(cursor);
+            } else if (strcmp(key, "title") == 0) {
+                free(doc.title);
+                doc.title = json_parse_string(cursor);
+            } else if (strcmp(key, "source") == 0) {
+                free(doc.source);
+                doc.source = json_parse_string(cursor);
+            } else if (strcmp(key, "content") == 0) {
+                free(doc.content);
+                doc.content = json_parse_string(cursor);
+            } else if (strcmp(key, "terms") == 0) {
+                if (doc.vector) {
+                    free(doc.vector);
+                    doc.vector = NULL;
+                    doc.vector_size = 0U;
+                }
+                if (parse_terms_array(cursor, tokens, token_count, &doc.vector, &doc.vector_size) != 0) {
+                    free(key);
+                    free(doc.id);
+                    free(doc.title);
+                    free(doc.source);
+                    free(doc.content);
+                    if (docs) {
+                        for (size_t i = 0; i < *out_count; ++i) {
+                            free(docs[i].id);
+                            free(docs[i].title);
+                            free(docs[i].source);
+                            free(docs[i].content);
+                            free(docs[i].vector);
+                        }
+                    }
+                    free(docs);
+                    return EINVAL;
+                }
+            } else if (strcmp(key, "norm") == 0) {
+                int err = 0;
+                double norm = json_parse_number(cursor, &err);
+                if (err == 0) {
+                    doc.norm = (float)norm;
+                }
+            } else {
+                if (json_skip_value(cursor) != 0) {
+                    free(key);
+                    free(doc.id);
+                    free(doc.title);
+                    free(doc.source);
+                    free(doc.content);
+                    if (doc.vector) {
+                        free(doc.vector);
+                    }
+                    if (docs) {
+                        for (size_t i = 0; i < *out_count; ++i) {
+                            free(docs[i].id);
+                            free(docs[i].title);
+                            free(docs[i].source);
+                            free(docs[i].content);
+                            free(docs[i].vector);
+                        }
+                    }
+                    free(docs);
+                    return EINVAL;
+                }
+            }
+            free(key);
+            json_skip_ws(cursor);
+            if (**cursor == ',') {
+                (*cursor)++;
+                continue;
+            }
+        }
+        if (*out_count == capacity) {
+            size_t new_capacity = capacity == 0U ? 8U : capacity * 2U;
+            Document *tmp = (Document *)realloc(docs, new_capacity * sizeof(*docs));
+            if (!tmp) {
+                free(doc.id);
+                free(doc.title);
+                free(doc.source);
+                free(doc.content);
+                free(doc.vector);
+                if (docs) {
+                    for (size_t i = 0; i < *out_count; ++i) {
+                        free(docs[i].id);
+                        free(docs[i].title);
+                        free(docs[i].source);
+                        free(docs[i].content);
+                        free(docs[i].vector);
+                    }
+                }
+                free(docs);
+                return ENOMEM;
+            }
+            docs = tmp;
+            capacity = new_capacity;
+        }
+        docs[*out_count] = doc;
+        *out_count += 1U;
+        json_skip_ws(cursor);
+        if (**cursor == ',') {
+            (*cursor)++;
+        }
+    }
+    *out_docs = docs;
+    return 0;
+}
+
+static int parse_tokens_array(const char **cursor,
+                              GlobalToken **out_tokens,
+                              size_t *out_count) {
+    if (!out_tokens || !out_count) {
+        return EINVAL;
+    }
+    *out_tokens = NULL;
+    *out_count = 0U;
+    if (json_expect(cursor, '[') != 0) {
+        return EINVAL;
+    }
+    size_t capacity = 0U;
+    GlobalToken *tokens = NULL;
+    while (1) {
+        json_skip_ws(cursor);
+        if (**cursor == ']') {
+            (*cursor)++;
+            break;
+        }
+        if (json_expect(cursor, '{') != 0) {
+            free(tokens);
+            return EINVAL;
+        }
+        GlobalToken token;
+        memset(&token, 0, sizeof(token));
+        while (1) {
+            json_skip_ws(cursor);
+            if (**cursor == '}') {
+                (*cursor)++;
+                break;
+            }
+            char *key = json_parse_string(cursor);
+            if (!key) {
+                free(tokens);
+                return ENOMEM;
+            }
+            if (json_expect(cursor, ':') != 0) {
+                free(key);
+                if (token.token) {
+                    free(token.token);
+                }
+                free(tokens);
+                return EINVAL;
+            }
+            if (strcmp(key, "token") == 0) {
+                free(token.token);
+                token.token = json_parse_string(cursor);
+                if (!token.token) {
+                    free(key);
+                    free(tokens);
+                    return ENOMEM;
+                }
+            } else if (strcmp(key, "idf") == 0) {
+                int err = 0;
+                token.idf = (float)json_parse_number(cursor, &err);
+                if (err != 0) {
+                    free(key);
+                    if (token.token) {
+                        free(token.token);
+                    }
+                    free(tokens);
+                    return err;
+                }
+            } else {
+                if (json_skip_value(cursor) != 0) {
+                    free(key);
+                    if (token.token) {
+                        free(token.token);
+                    }
+                    free(tokens);
+                    return EINVAL;
+                }
+            }
+            free(key);
+            json_skip_ws(cursor);
+            if (**cursor == ',') {
+                (*cursor)++;
+            }
+        }
+        if (*out_count == capacity) {
+            size_t new_capacity = capacity == 0U ? 8U : capacity * 2U;
+            GlobalToken *tmp = (GlobalToken *)realloc(tokens, new_capacity * sizeof(*tokens));
+            if (!tmp) {
+                if (token.token) {
+                    free(token.token);
+                }
+                free(tokens);
+                return ENOMEM;
+            }
+            tokens = tmp;
+            capacity = new_capacity;
+        }
+        tokens[*out_count] = token;
+        *out_count += 1U;
+        json_skip_ws(cursor);
+        if (**cursor == ',') {
+            (*cursor)++;
+        }
+    }
+    *out_tokens = tokens;
+    return 0;
+}
+
+int kolibri_knowledge_index_load_json(const char *input_dir,
+                                      KolibriKnowledgeIndex **out_index) {
+    if (!input_dir || !out_index) {
+        return EINVAL;
+    }
+    *out_index = NULL;
+
+    char manifest_path[4096];
+    snprintf(manifest_path, sizeof(manifest_path), "%s/manifest.json", input_dir);
+    char *manifest = read_file_utf8(manifest_path);
+    if (!manifest) {
+        return errno ? errno : ENOENT;
+    }
+
+    const char *cursor = manifest;
+    if (json_expect(&cursor, '{') != 0) {
+        free(manifest);
+        return EINVAL;
+    }
+    char *index_rel = NULL;
+    while (1) {
+        json_skip_ws(&cursor);
+        if (*cursor == '}') {
+            cursor++;
+            break;
+        }
+        char *key = json_parse_string(&cursor);
+        if (!key) {
+            free(index_rel);
+            free(manifest);
+            return ENOMEM;
+        }
+        if (json_expect(&cursor, ':') != 0) {
+            free(key);
+            free(index_rel);
+            free(manifest);
+            return EINVAL;
+        }
+        if (strcmp(key, "index_path") == 0) {
+            free(index_rel);
+            index_rel = json_parse_string(&cursor);
+            if (!index_rel) {
+                free(key);
+                free(manifest);
+                return ENOMEM;
+            }
+        } else {
+            if (json_skip_value(&cursor) != 0) {
+                free(key);
+                free(index_rel);
+                free(manifest);
+                return EINVAL;
+            }
+        }
+        free(key);
+        json_skip_ws(&cursor);
+        if (*cursor == ',') {
+            cursor++;
+        }
+    }
+    free(manifest);
+
+    if (!index_rel) {
+        index_rel = kolibri_strdup("index.json");
+    }
+
+    char index_path[4096];
+    snprintf(index_path, sizeof(index_path), "%s/%s", input_dir, index_rel);
+    free(index_rel);
+
+    char *index_data = read_file_utf8(index_path);
+    if (!index_data) {
+        return errno ? errno : ENOENT;
+    }
+
+    cursor = index_data;
+    if (json_expect(&cursor, '{') != 0) {
+        free(index_data);
+        return EINVAL;
+    }
+
+    KolibriKnowledgeIndex *index = knowledge_index_new();
+    while (1) {
+        json_skip_ws(&cursor);
+        if (*cursor == '}') {
+            cursor++;
+            break;
+        }
+        char *key = json_parse_string(&cursor);
+        if (!key) {
+            kolibri_knowledge_index_destroy(index);
+            free(index_data);
+            return ENOMEM;
+        }
+        if (json_expect(&cursor, ':') != 0) {
+            free(key);
+            kolibri_knowledge_index_destroy(index);
+            free(index_data);
+            return EINVAL;
+        }
+        if (strcmp(key, "tokens") == 0) {
+            GlobalToken *tokens = NULL;
+            size_t token_count = 0U;
+            int err = parse_tokens_array(&cursor, &tokens, &token_count);
+            if (err != 0) {
+                free(key);
+                kolibri_knowledge_index_destroy(index);
+                free(index_data);
+                return err;
+            }
+            free(index->tokens);
+            index->tokens = tokens;
+            index->token_count = token_count;
+            index->token_capacity = token_count;
+        } else if (strcmp(key, "documents") == 0) {
+            Document *docs = NULL;
+            size_t doc_count = 0U;
+            int err = parse_documents_array(&cursor,
+                                            index->tokens,
+                                            index->token_count,
+                                            &docs,
+                                            &doc_count);
+            if (err != 0) {
+                free(key);
+                kolibri_knowledge_index_destroy(index);
+                free(index_data);
+                return err;
+            }
+            free(index->documents);
+            index->documents = docs;
+            index->document_count = doc_count;
+        } else {
+            if (json_skip_value(&cursor) != 0) {
+                free(key);
+                kolibri_knowledge_index_destroy(index);
+                free(index_data);
+                return EINVAL;
+            }
+        }
+        free(key);
+        json_skip_ws(&cursor);
+        if (*cursor == ',') {
+            cursor++;
+        }
+    }
+
+    free(index_data);
+    *out_index = index;
     return 0;
 }
 
