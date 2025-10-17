@@ -4,6 +4,7 @@ import AnalyticsView from "./components/AnalyticsView";
 import ChatInput from "./components/ChatInput";
 import ChatView from "./components/ChatView";
 import InspectorPanel from "./components/InspectorPanel";
+import KernelControlsPanel from "./components/KernelControlsPanel";
 import KnowledgeView from "./components/KnowledgeView";
 import NavigationRail, { type NavigationSection } from "./components/NavigationRail";
 import Sidebar from "./components/Sidebar";
@@ -11,6 +12,7 @@ import SwarmView from "./components/SwarmView";
 import TopBar from "./components/TopBar";
 import WelcomeScreen from "./components/WelcomeScreen";
 import useKolibriChat from "./core/useKolibriChat";
+import { findModeLabel } from "./core/modes";
 
 const App = () => {
   const {
@@ -30,6 +32,8 @@ const App = () => {
     attachments,
     setDraft,
     setMode,
+    kernelControls,
+    updateKernelControls,
     renameConversation,
     attachFiles,
     removeAttachment,
@@ -43,13 +47,35 @@ const App = () => {
 
   const [activeSection, setActiveSection] = useState<NavigationSection>("dialog");
 
+  const modeLabel = useMemo(() => findModeLabel(mode), [mode]);
+
+  const handleSuggestionSelect = useCallback(
+    (suggestion: string) => {
+      const trimmedDraft = draft.trimEnd();
+      const prefix = trimmedDraft.length > 0 ? `${trimmedDraft}\n\n` : "";
+      setDraft(`${prefix}${suggestion}`);
+    },
+    [draft, setDraft],
+  );
+
   const chatContent = useMemo(() => {
     if (!messages.length) {
       return <WelcomeScreen onSuggestionSelect={setDraft} />;
     }
 
-    return <ChatView messages={messages} isLoading={isProcessing} conversationId={conversationId} />;
-  }, [conversationId, isProcessing, messages, setDraft]);
+    return (
+      <ChatView
+        messages={messages}
+        isLoading={isProcessing}
+        isBusy={isProcessing}
+        conversationId={conversationId}
+        conversationTitle={conversationTitle}
+        metrics={metrics}
+        modeLabel={modeLabel}
+        onSuggestionSelect={handleSuggestionSelect}
+      />
+    );
+  }, [conversationId, conversationTitle, handleSuggestionSelect, isProcessing, messages, metrics, modeLabel, setDraft]);
 
   const handleCreateConversation = useCallback(() => {
     void createConversation();
@@ -144,16 +170,19 @@ const App = () => {
       }
       inspector={
         activeSection === "dialog" ? (
-          <InspectorPanel
-            status={knowledgeStatus}
-            error={knowledgeError}
-            isLoading={statusLoading}
-            metrics={metrics}
-            latestAssistantMessage={latestAssistantMessage}
-            onRefresh={() => {
-              void refreshKnowledgeStatus();
-            }}
-          />
+          <div className="flex h-full flex-col gap-4">
+            <KernelControlsPanel controls={kernelControls} onChange={updateKernelControls} />
+            <InspectorPanel
+              status={knowledgeStatus}
+              error={knowledgeError}
+              isLoading={statusLoading}
+              metrics={metrics}
+              latestAssistantMessage={latestAssistantMessage}
+              onRefresh={() => {
+                void refreshKnowledgeStatus();
+              }}
+            />
+          </div>
         ) : undefined
       }
     >

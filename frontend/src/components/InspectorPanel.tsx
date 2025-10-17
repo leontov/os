@@ -28,6 +28,8 @@ const formatDateTime = (iso?: string): string => {
   }
 };
 
+const formatPercent = (value: number): string => `${Math.round(value * 100)}%`;
+
 const StatCard = ({
   icon: Icon,
   label,
@@ -50,6 +52,13 @@ const StatCard = ({
 
 const InspectorPanel = ({ status, error, isLoading, metrics, latestAssistantMessage, onRefresh }: InspectorPanelProps) => {
   const context = latestAssistantMessage?.context;
+  const kernelMetrics: Array<{ label: string; value: string }> = [
+    { label: "Conserved B/D", value: formatPercent(metrics.conservedRatio) },
+    { label: "Stability@5", value: formatPercent(metrics.stability) },
+    { label: "Auditability", value: formatPercent(metrics.auditability) },
+    { label: "Return-to-Attractor", value: formatPercent(metrics.returnToAttractor) },
+    { label: "Latency P50", value: `${metrics.latencyP50.toFixed(0)} мс` },
+  ];
 
   return (
     <section className="flex h-full flex-col gap-4 rounded-3xl border border-border-strong bg-background-card/80 p-6 backdrop-blur">
@@ -104,6 +113,24 @@ const InspectorPanel = ({ status, error, isLoading, metrics, latestAssistantMess
             Колибри ещё не использовал внешние знания в этой беседе.
           </p>
         )}
+      </div>
+
+      <div className="space-y-3">
+        <h3 className="text-xs uppercase tracking-[0.35em] text-text-secondary">Метрики ядра</h3>
+        <div className="overflow-hidden rounded-2xl border border-border-strong bg-background-input/80">
+          <table className="w-full border-collapse text-[0.7rem] text-text-secondary">
+            <tbody>
+              {kernelMetrics.map((entry) => (
+                <tr key={entry.label} className="border-b border-border-strong/60 last:border-b-0">
+                  <th scope="row" className="px-4 py-3 text-left font-semibold uppercase tracking-wide text-text-secondary">
+                    {entry.label}
+                  </th>
+                  <td className="px-4 py-3 text-right text-sm font-semibold text-text-primary">{entry.value}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div className="mt-auto space-y-3">

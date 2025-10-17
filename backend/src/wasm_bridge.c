@@ -3,6 +3,7 @@
 #include "kolibri/formula.h"
 #include "kolibri/script.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,6 +11,15 @@
 static KolibriFormulaPool g_pool;
 static KolibriScript g_script;
 static int g_bridge_ready = 0;
+static KolibriScriptControls g_controls = {
+    .lambda_b = 0.25,
+    .lambda_d = 0.2,
+    .target_b = NAN,
+    .target_d = NAN,
+    .temperature = 0.85,
+    .top_k = 4.0,
+    .cf_beam = 1,
+};
 
 static int bridge_ensure_initialized(void) {
     if (g_bridge_ready) {
@@ -18,6 +28,9 @@ static int bridge_ensure_initialized(void) {
 
     kf_pool_init(&g_pool, 424242ULL);
     if (ks_init(&g_script, &g_pool, NULL) != 0) {
+        return -1;
+    }
+    if (ks_set_controls(&g_script, &g_controls) != 0) {
         return -1;
     }
 
@@ -36,6 +49,30 @@ int kolibri_bridge_reset(void) {
         g_bridge_ready = 0;
     }
     return bridge_ensure_initialized();
+}
+
+int kolibri_bridge_configure(int lambda_b_milli,
+                             int lambda_d_milli,
+                             int target_b_milli,
+                             int target_d_milli,
+                             int temperature_milli,
+                             int top_k,
+                             int enable_cf_beam) {
+    if (bridge_ensure_initialized() != 0) {
+        return -1;
+    }
+
+    KolibriScriptControls next = g_controls;
+    next.lambda_b = (double)lambda_b_milli / 1000.0;
+    next.lambda_d = (double)lambda_d_milli / 1000.0;
+    next.target_b = target_b_milli < 0 ? NAN : (double)target_b_milli / 1000.0;
+    next.target_d = target_d_milli < 0 ? NAN : (double)target_d_milli / 1000.0;
+    next.temperature = (double)temperature_milli / 100.0;
+    next.top_k = top_k > 0 ? (double)top_k : 1.0;
+    next.cf_beam = enable_cf_beam ? 1 : 0;
+
+    g_controls = next;
+    return ks_set_controls(&g_script, &g_controls);
 }
 
 int kolibri_bridge_execute(const char *program_utf8, char *out_buffer, size_t out_capacity) {
