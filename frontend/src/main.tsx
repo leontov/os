@@ -2,7 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import "./styles/tailwind.css";
-import { wasmUrl, wasmInfoUrl, wasmAvailable } from "virtual:kolibri-wasm";
+import { wasmUrl, wasmInfoUrl, wasmAvailable, wasmIsStub } from "virtual:kolibri-wasm";
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
@@ -15,7 +15,7 @@ if (import.meta.env.PROD && typeof navigator !== "undefined" && "serviceWorker" 
     try {
       await navigator.serviceWorker.register("/kolibri-sw.js");
       const registration = await navigator.serviceWorker.ready;
-      if (wasmAvailable && wasmUrl) {
+      if (wasmAvailable && !wasmIsStub && wasmUrl) {
         registration.active?.postMessage({
           type: "SET_WASM_ARTIFACTS",
           url: wasmUrl,
