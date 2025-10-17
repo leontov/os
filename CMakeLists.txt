@@ -118,6 +118,8 @@ target_link_libraries(kolibri_wasm PUBLIC kolibri_core)
 
 if(KOLIBRI_ENABLE_WASM_TARGET)
     set(KOLIBRI_WASM_SOURCES
+        ${CMAKE_CURRENT_SOURCE_DIR}/wasm/kolibri_core.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/scripts/build_wasm.sh
         ${CMAKE_CURRENT_SOURCE_DIR}/backend/src/decimal.c
         ${CMAKE_CURRENT_SOURCE_DIR}/backend/src/digits.c
         ${CMAKE_CURRENT_SOURCE_DIR}/backend/src/formula.c
@@ -139,9 +141,6 @@ if(KOLIBRI_ENABLE_WASM_TARGET)
 
     if(KOLIBRI_WASM_EMCC)
         list(APPEND _kolibri_wasm_env "EMCC=${KOLIBRI_WASM_EMCC}")
-    endif()
-    if(KOLIBRI_WASM_INCLUDE_GENOME)
-        list(APPEND _kolibri_wasm_env "KOLIBRI_WASM_INCLUDE_GENOME=1")
     endif()
     if(KOLIBRI_WASM_GENERATE_MAP)
         list(APPEND _kolibri_wasm_env "KOLIBRI_WASM_GENERATE_MAP=1")
