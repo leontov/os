@@ -323,4 +323,6 @@ export async function fetchKnowledgeStatus(): Promise<KnowledgeStatus> {
   return fetchRemoteKnowledgeStatus();
 }
 
+export const knowledgeStrategy = knowledgeConfig.strategy;
+
 export type { KnowledgeSearchOptions, KnowledgeStatus } from "../types/knowledge-service";
