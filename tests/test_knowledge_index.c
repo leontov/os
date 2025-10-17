@@ -43,7 +43,7 @@ void test_knowledge_index(void) {
     size_t indices[2];
     float scores[2];
     size_t result_count = 0U;
-    err = kolibri_knowledge_search(index, "Kolibri", 2U, indices, scores, &result_count);
+    err = kolibri_knowledge_index_search(index, "Kolibri", 2U, indices, scores, &result_count);
     if (err != 0 || result_count == 0U) {
         fprintf(stderr, "search failed: %d\n", err);
         kolibri_knowledge_index_destroy(index);

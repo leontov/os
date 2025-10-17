@@ -82,7 +82,7 @@ static int handle_search(int argc, char **argv) {
     }
 
     size_t result_count = 0U;
-    err = kolibri_knowledge_search(index, query, limit, indices, scores, &result_count);
+    err = kolibri_knowledge_index_search(index, query, limit, indices, scores, &result_count);
     if (err != 0) {
         fprintf(stderr, "Search failed: %d\n", err);
         kolibri_knowledge_index_destroy(index);
