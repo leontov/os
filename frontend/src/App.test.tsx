@@ -19,7 +19,7 @@ const { askMock, resetMock, searchMock, configureMock, capabilitiesMock } = vi.h
   resetMock: vi.fn<Parameters<ResetFunction>, ReturnType<ResetFunction>>(),
   searchMock: vi.fn<Parameters<SearchFunction>, ReturnType<SearchFunction>>(),
   configureMock: vi.fn<[KernelControlPayload], Promise<void>>(),
-  capabilitiesMock: vi.fn<[], Promise<{ wasm: boolean; simd: boolean }>>(),
+  capabilitiesMock: vi.fn<[], Promise<{ wasm: boolean; simd: boolean; laneWidth: number }>>(),
 }));
 
 vi.mock("./core/kolibri-bridge", () => ({
@@ -47,7 +47,7 @@ describe("App contextual retrieval", () => {
     capabilitiesMock.mockReset();
     resetMock.mockResolvedValue();
     configureMock.mockResolvedValue();
-    capabilitiesMock.mockResolvedValue({ wasm: true, simd: false });
+    capabilitiesMock.mockResolvedValue({ wasm: true, simd: false, laneWidth: 1 });
     consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
   });
 

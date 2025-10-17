@@ -62,6 +62,8 @@ const InspectorPanel = ({
   onRefresh,
 }: InspectorPanelProps) => {
   const context = latestAssistantMessage?.context;
+  const laneWidth = Math.max(1, Math.floor(capabilities.laneWidth));
+  const laneWidthLabel = laneWidth > 1 ? `${laneWidth}×` : "1× (скалярный)";
   const kernelMetrics: Array<{ label: string; value: string }> = [
     { label: "Conserved B/D", value: formatPercent(metrics.conservedRatio) },
     { label: "Stability@5", value: formatPercent(metrics.stability) },
@@ -69,6 +71,7 @@ const InspectorPanel = ({
     { label: "Return-to-Attractor", value: formatPercent(metrics.returnToAttractor) },
     { label: "Latency P50", value: `${metrics.latencyP50.toFixed(0)} мс` },
     { label: "WASM SIMD", value: capabilities.simd ? "активно" : "скалярный режим" },
+    { label: "SIMD Lanes", value: laneWidthLabel },
   ];
 
   return (

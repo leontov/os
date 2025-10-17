@@ -33,6 +33,7 @@ export interface KernelControlPayload {
 export interface KernelCapabilities {
   wasm: boolean;
   simd: boolean;
+  laneWidth: number;
 }
 
 export interface KolibriBridge {
@@ -65,6 +66,7 @@ interface KolibriWasmExports {
     cfBeam: number,
   ): number;
   _kolibri_bridge_has_simd(): number;
+  _kolibri_bridge_lane_width(): number;
 }
 
 const OUTPUT_CAPACITY = 8192;
@@ -338,7 +340,7 @@ async function describeWasmFailure(error: unknown): Promise<string> {
 class KolibriWasmRuntime {
   private exports: KolibriWasmExports | null = null;
   private readonly wasi = new WasiAdapter();
-  private capabilitiesSnapshot: KernelCapabilities = { wasm: true, simd: false };
+  private capabilitiesSnapshot: KernelCapabilities = { wasm: true, simd: false, laneWidth: 1 };
 
   async initialise(): Promise<void> {
     const instance = await this.instantiate();
@@ -350,10 +352,13 @@ class KolibriWasmRuntime {
     this.exports = exports;
     try {
       const hasSimd = exports._kolibri_bridge_has_simd() === 1;
-      this.capabilitiesSnapshot = { wasm: true, simd: hasSimd };
+      const rawLaneWidth = exports._kolibri_bridge_lane_width();
+      const laneWidth =
+        Number.isFinite(rawLaneWidth) && rawLaneWidth > 0 ? Math.floor(rawLaneWidth) : 1;
+      this.capabilitiesSnapshot = { wasm: true, simd: hasSimd, laneWidth };
     } catch (error) {
       console.warn("[kolibri-bridge] Не удалось определить поддержку SIMD", error);
-      this.capabilitiesSnapshot = { wasm: true, simd: false };
+      this.capabilitiesSnapshot = { wasm: true, simd: false, laneWidth: 1 };
     }
   }
 
@@ -520,7 +525,7 @@ class KolibriScriptBridge implements KolibriBridge {
 class KolibriFallbackBridge implements KolibriBridge {
   readonly ready = Promise.resolve();
 
-  private readonly capability: KernelCapabilities = { wasm: false, simd: false };
+  private readonly capability: KernelCapabilities = { wasm: false, simd: false, laneWidth: 1 };
 
   constructor(private readonly reason: string) {}
 

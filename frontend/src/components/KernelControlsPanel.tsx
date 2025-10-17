@@ -25,18 +25,27 @@ const KernelControlsPanel = ({ controls, capabilities, onChange }: KernelControl
     onChange({ cfBeam: !controls.cfBeam });
   };
 
+  const laneWidth = Math.max(1, Math.floor(capabilities.laneWidth));
+  const laneWidthClass = laneWidth > 1 ? "text-primary" : "text-text-primary";
+
   return (
     <section className="flex flex-col gap-5 rounded-3xl border border-border-strong bg-background-card/80 p-6 backdrop-blur">
       <header className="flex items-center justify-between gap-3">
         <div>
           <p className="text-xs uppercase tracking-[0.35em] text-text-secondary">Ядро</p>
           <h2 className="mt-2 text-lg font-semibold text-text-primary">Контроль орбит</h2>
-          <p className="mt-1 text-[0.65rem] uppercase tracking-wide text-text-secondary">
-            SIMD: {capabilities.simd ? (
-              <span className="font-semibold text-primary">активно</span>
-            ) : (
-              <span className="font-semibold text-text-primary">скалярный режим</span>
-            )}
+          <p className="mt-1 flex flex-wrap items-center gap-x-2 text-[0.65rem] uppercase tracking-wide text-text-secondary">
+            <span>
+              SIMD: {capabilities.simd ? (
+                <span className="font-semibold text-primary">активно</span>
+              ) : (
+                <span className="font-semibold text-text-primary">скалярный режим</span>
+              )}
+            </span>
+            <span className="opacity-60">•</span>
+            <span>
+              Линии: <span className={`font-semibold ${laneWidthClass}`}>{laneWidth}×</span>
+            </span>
           </p>
         </div>
         <button

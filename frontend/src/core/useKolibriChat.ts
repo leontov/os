@@ -60,6 +60,7 @@ const DEFAULT_KERNEL_CONTROLS: KernelControlsState = {
 const DEFAULT_KERNEL_CAPABILITIES: KernelCapabilities = {
   wasm: false,
   simd: false,
+  laneWidth: 1,
 };
 
 const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
