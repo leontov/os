@@ -1,21 +1,21 @@
 import { Activity, Compass, Network, Plus, Settings, Sparkles } from "lucide-react";
 import type { ConversationMetrics } from "../core/useKolibriChat";
 
-const navigationItems = [
-  { icon: Sparkles, label: "Диалог", key: "dialog" },
-  { icon: Compass, label: "Знания", key: "knowledge" },
-  { icon: Network, label: "Рой", key: "swarm" },
-  { icon: Activity, label: "Аналитика", key: "analytics" },
-] as const;
+export type NavigationSection = "dialog" | "knowledge" | "swarm" | "analytics";
 
-export type SectionKey = (typeof navigationItems)[number]["key"];
+const navigationItems: Array<{ icon: typeof Sparkles; label: string; value: NavigationSection }> = [
+  { icon: Sparkles, label: "Диалог", value: "dialog" },
+  { icon: Compass, label: "Знания", value: "knowledge" },
+  { icon: Network, label: "Рой", value: "swarm" },
+  { icon: Activity, label: "Аналитика", value: "analytics" },
+];
 
 interface NavigationRailProps {
   onCreateConversation: () => void;
   isBusy: boolean;
   metrics: ConversationMetrics;
-  activeSection: SectionKey;
-  onSectionChange: (section: SectionKey) => void;
+  activeSection: NavigationSection;
+  onSectionChange: (section: NavigationSection) => void;
 }
 
 const NavigationRail = ({
@@ -41,23 +41,23 @@ const NavigationRail = ({
       </button>
       <nav className="flex flex-col items-center gap-3">
         {navigationItems.map((item) => {
-          const isActive = activeSection === item.key;
-
+          const isActive = activeSection === item.value;
           return (
-            <button
-              key={item.label}
-              type="button"
-              className={`flex h-11 w-11 items-center justify-center rounded-2xl border text-text-secondary transition-colors hover:border-primary/40 hover:text-text-primary ${
-                isActive
-                  ? "border-primary/60 bg-primary/10 text-text-primary"
-                  : "border-transparent"
-              }`}
-              aria-label={item.label}
-              aria-pressed={isActive}
-              onClick={() => onSectionChange(item.key)}
-            >
-              <item.icon className="h-5 w-5" />
-            </button>
+          <button
+            key={item.value}
+            type="button"
+            className={`flex h-11 w-11 items-center justify-center rounded-2xl border transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
+              isActive
+                ? "border-primary/60 bg-primary/15 text-primary"
+                : "border-transparent text-text-secondary hover:border-primary/40 hover:text-text-primary"
+            }`}
+            aria-label={item.label}
+            aria-pressed={isActive}
+            onClick={() => onSectionChange(item.value)}
+            disabled={isBusy && item.value !== "dialog"}
+          >
+            <item.icon className="h-5 w-5" />
+          </button>
           );
         })}
       </nav>
