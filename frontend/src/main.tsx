@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import "./styles/tailwind.css";
 import { wasmUrl, wasmInfoUrl, wasmAvailable, wasmIsStub } from "virtual:kolibri-wasm";
+import { knowledgeUrl as knowledgeBundleUrl, knowledgeAvailable as knowledgeBundleAvailable } from "virtual:kolibri-knowledge";
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
@@ -20,6 +21,12 @@ if (import.meta.env.PROD && typeof navigator !== "undefined" && "serviceWorker" 
           type: "SET_WASM_ARTIFACTS",
           url: wasmUrl,
           infoUrl: wasmInfoUrl,
+        });
+      }
+      if (knowledgeBundleAvailable && knowledgeBundleUrl) {
+        registration.active?.postMessage({
+          type: "SET_KNOWLEDGE_ARTIFACTS",
+          url: knowledgeBundleUrl,
         });
       }
     } catch (error) {

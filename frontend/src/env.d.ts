@@ -17,3 +17,10 @@ declare module "virtual:kolibri-wasm" {
   export const wasmIsStub: boolean;
   export const wasmError: string;
 }
+
+declare module "virtual:kolibri-knowledge" {
+  export const knowledgeUrl: string;
+  export const knowledgeHash: string;
+  export const knowledgeAvailable: boolean;
+  export const knowledgeError: string;
+}

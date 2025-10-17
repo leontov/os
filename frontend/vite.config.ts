@@ -1,14 +1,27 @@
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import type { Plugin } from "vite";
-import { access, readFile } from "node:fs/promises";
+import { access, readFile, readdir, stat } from "node:fs/promises";
 import { createReadStream } from "node:fs";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { resolve } from "node:path";
+import { basename, extname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 type WasiPluginContext = "serve" | "build";
+
+interface KnowledgeDocument {
+  id: string;
+  title: string;
+  content: string;
+  source: string;
+}
+
+interface KnowledgePayload {
+  version: number;
+  generatedAt: string;
+  documents: KnowledgeDocument[];
+}
 
 function copyKolibriWasm(): Plugin {
   const frontendDir = fileURLToPath(new URL(".", import.meta.url));
@@ -331,10 +344,283 @@ export const wasmError = ${errorLiteral};
   };
 }
 
+function embedKolibriKnowledge(): Plugin {
+  const frontendDir = fileURLToPath(new URL(".", import.meta.url));
+  const projectRoot = resolve(frontendDir, "..");
+  const knowledgeRoots = [resolve(projectRoot, "docs"), resolve(projectRoot, "data")];
+  const virtualModuleId = "virtual:kolibri-knowledge";
+  const resolvedVirtualModuleId = `\0${virtualModuleId}`;
+
+  const textExtensions = new Set([".md", ".markdown", ".txt", ".ks", ".json"]);
+  const sizeLimitBytes = 512 * 1024; // 512 KiB per document cap to avoid bloating bundle
+
+  let knowledgeBuffer: Buffer | null = null;
+  let knowledgeHash = "";
+  let knowledgeBundleFileName = "assets/kolibri-knowledge.json";
+  let knowledgePublicPath = "/kolibri-knowledge.json";
+  let knowledgeAvailable = false;
+  let knowledgeError: Error | null = null;
+  let ensureInFlight: Promise<void> | null = null;
+
+  const normaliseWhitespace = (value: string): string => value.replace(/[\t\r]+/g, " ").replace(/\u00A0/g, " ");
+
+  const stripMarkdown = (value: string): string =>
+    value
+      .replace(/```[\s\S]*?```/g, " ")
+      .replace(/`[^`]*`/g, " ")
+      .replace(/\[(.*?)\]\((.*?)\)/g, "$1")
+      .replace(/[#>*_~]/g, " ")
+      .replace(/\{\{[^}]+\}\}/g, " ")
+      .replace(/<[^>]*>/g, " ");
+
+  const summarise = (value: string): string => {
+    const stripped = stripMarkdown(normaliseWhitespace(value));
+    const condensed = stripped.replace(/[ \f\v]+/g, " ").trim();
+    if (!condensed) {
+      return "";
+    }
+    const limit = 4000;
+    return condensed.length > limit ? `${condensed.slice(0, limit)}…` : condensed;
+  };
+
+  const resolveTitle = (filePath: string, content: string): string => {
+    const headingMatch = content.match(/^\s*#\s+(.+)$/m);
+    if (headingMatch && headingMatch[1]) {
+      return headingMatch[1].trim();
+    }
+    const fileName = basename(filePath);
+    const withoutExt = fileName.replace(extname(fileName), "");
+    return withoutExt.replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim() || withoutExt;
+  };
+
+  const collectFiles = async (root: string): Promise<string[]> => {
+    try {
+      const entries = await readdir(root, { withFileTypes: true });
+      const files: string[] = [];
+      for (const entry of entries) {
+        const entryPath = resolve(root, entry.name);
+        if (entry.isDirectory()) {
+          files.push(...(await collectFiles(entryPath)));
+          continue;
+        }
+        if (!entry.isFile()) {
+          continue;
+        }
+        const extension = extname(entry.name).toLowerCase();
+        if (!textExtensions.has(extension)) {
+          continue;
+        }
+        files.push(entryPath);
+      }
+      return files;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes("ENOENT")) {
+        return [];
+      }
+      throw error;
+    }
+  };
+
+  const collectDocuments = async (): Promise<KnowledgeDocument[]> => {
+    const seenIds = new Set<string>();
+    const documents: KnowledgeDocument[] = [];
+
+    for (const root of knowledgeRoots) {
+      const files = await collectFiles(root);
+      for (const file of files) {
+        const stats = await stat(file);
+        if (!stats.isFile()) {
+          continue;
+        }
+        if (stats.size === 0 || stats.size > sizeLimitBytes) {
+          continue;
+        }
+        let raw = "";
+        try {
+          raw = await readFile(file, "utf-8");
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          if (message.includes("ENOENT")) {
+            continue;
+          }
+          throw error;
+        }
+
+        const summary = summarise(raw);
+        if (!summary) {
+          continue;
+        }
+
+        const relPath = relative(projectRoot, file).replace(/\\/g, "/");
+        if (seenIds.has(relPath)) {
+          continue;
+        }
+        seenIds.add(relPath);
+
+        const title = resolveTitle(file, raw);
+        documents.push({
+          id: relPath,
+          title,
+          content: summary,
+          source: relPath,
+        });
+      }
+    }
+
+    return documents;
+  };
+
+  const ensureKnowledge = async () => {
+    if (knowledgeBuffer) {
+      return;
+    }
+
+    if (ensureInFlight) {
+      await ensureInFlight;
+      return;
+    }
+
+    ensureInFlight = (async () => {
+      try {
+        const documents = await collectDocuments();
+        const payload: KnowledgePayload = {
+          version: 1,
+          generatedAt: new Date().toISOString(),
+          documents,
+        };
+
+        const json = JSON.stringify(payload);
+        knowledgeBuffer = Buffer.from(json, "utf-8");
+        knowledgeHash = createHash("sha256").update(knowledgeBuffer).digest("hex").slice(0, 16);
+        knowledgeBundleFileName = `assets/kolibri-knowledge-${knowledgeHash}.json`;
+        knowledgePublicPath = `/${knowledgeBundleFileName}`;
+        knowledgeAvailable = documents.length > 0;
+        knowledgeError = null;
+      } catch (error) {
+        knowledgeBuffer = Buffer.from(
+          JSON.stringify({ version: 1, generatedAt: new Date().toISOString(), documents: [] }),
+          "utf-8",
+        );
+        knowledgeHash = "";
+        knowledgeBundleFileName = "assets/kolibri-knowledge.json";
+        knowledgePublicPath = "/kolibri-knowledge.json";
+        knowledgeAvailable = false;
+        knowledgeError = error instanceof Error ? error : new Error(String(error));
+      } finally {
+        ensureInFlight = null;
+      }
+    })();
+
+    await ensureInFlight;
+  };
+
+  return {
+    name: "embed-kolibri-knowledge",
+    async configResolved(resolved) {
+      if (resolved.command === "serve") {
+        knowledgeBuffer = null;
+        knowledgeHash = "";
+        knowledgeBundleFileName = "assets/kolibri-knowledge.json";
+        knowledgePublicPath = "/kolibri-knowledge.json";
+        knowledgeAvailable = false;
+        knowledgeError = null;
+      }
+    },
+    async buildStart() {
+      await ensureKnowledge();
+    },
+    async configureServer(server) {
+      await ensureKnowledge();
+      const normalisedRoots = knowledgeRoots.map((root) => root.replace(/\\/g, "/"));
+      for (const root of normalisedRoots) {
+        server.watcher.add(root);
+      }
+
+      const invalidate = (filePath: string | undefined) => {
+        if (!filePath) {
+          return;
+        }
+        const normalised = filePath.replace(/\\/g, "/");
+        if (normalisedRoots.some((root) => normalised.startsWith(root))) {
+          knowledgeBuffer = null;
+        }
+      };
+
+      server.watcher.on("change", invalidate);
+      server.watcher.on("add", invalidate);
+      server.watcher.on("unlink", invalidate);
+
+      server.middlewares.use(async (req, res, next) => {
+        const url = req.url ? req.url.split("?")[0] : "";
+        if (!url || url !== knowledgePublicPath) {
+          next();
+          return;
+        }
+
+        try {
+          await ensureKnowledge();
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          res.statusCode = 500;
+          res.setHeader("content-type", "text/plain; charset=utf-8");
+          res.end(`[kolibri-knowledge] ${message}`);
+          return;
+        }
+
+        if (!knowledgeBuffer) {
+          res.statusCode = 404;
+          res.setHeader("content-type", "text/plain; charset=utf-8");
+          res.end("kolibri-knowledge unavailable");
+          return;
+        }
+
+        res.setHeader("content-type", "application/json; charset=utf-8");
+        res.end(knowledgeBuffer);
+      });
+    },
+    resolveId(id) {
+      if (id === virtualModuleId) {
+        return resolvedVirtualModuleId;
+      }
+      return null;
+    },
+    async load(id) {
+      if (id !== resolvedVirtualModuleId) {
+        return null;
+      }
+
+      await ensureKnowledge();
+
+      const availability = knowledgeAvailable ? "true" : "false";
+      const hashLiteral = JSON.stringify(knowledgeHash);
+      const urlLiteral = JSON.stringify(knowledgePublicPath);
+      const errorLiteral = JSON.stringify(knowledgeError?.message ?? "");
+
+      return `export const knowledgeUrl = ${urlLiteral};
+export const knowledgeHash = ${hashLiteral};
+export const knowledgeAvailable = ${availability};
+export const knowledgeError = ${errorLiteral};
+`;
+    },
+    generateBundle() {
+      if (!knowledgeBuffer) {
+        return;
+      }
+
+      this.emitFile({
+        type: "asset",
+        fileName: knowledgeBundleFileName,
+        source: knowledgeBuffer,
+      });
+    },
+  };
+}
+
 const knowledgeProxyTarget = process.env.KNOWLEDGE_API || "http://localhost:8000";
 
 export default defineConfig({
-  plugins: [react(), copyKolibriWasm()],
+  plugins: [react(), copyKolibriWasm(), embedKolibriKnowledge()],
   server: {
     port: 5173,
     proxy: {
