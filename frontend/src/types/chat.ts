@@ -2,6 +2,13 @@ export type ChatRole = "user" | "assistant";
 
 import type { KnowledgeSnippet } from "./knowledge";
 
+export interface ChatAttachment {
+  id: string;
+  name: string;
+  size: number;
+  type: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: ChatRole;
@@ -10,6 +17,8 @@ export interface ChatMessage {
   isoTimestamp?: string;
   modeLabel?: string;
   modeValue?: string;
+
+  attachments?: ChatAttachment[];
 
   context?: KnowledgeSnippet[];
   contextError?: string;
