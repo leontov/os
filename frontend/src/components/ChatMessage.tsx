@@ -1,5 +1,5 @@
 
-import { Check, Copy, Link2 } from "lucide-react";
+import { Check, Copy, Link2, Paperclip } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import type { ChatMessage as ChatMessageModel } from "../types/chat";
 
@@ -8,6 +8,19 @@ const formatScore = (value: number): string => {
     return "—";
   }
   return value.toFixed(2);
+};
+
+const formatAttachmentSize = (bytes: number): string => {
+  if (!Number.isFinite(bytes) || bytes < 0) {
+    return "—";
+  }
+  if (bytes >= 1024 * 1024) {
+    return `${(bytes / (1024 * 1024)).toFixed(1)} МБ`;
+  }
+  if (bytes >= 1024) {
+    return `${(bytes / 1024).toFixed(1)} КБ`;
+  }
+  return `${bytes} Б`;
 };
 
 interface ChatMessageProps {
@@ -71,7 +84,25 @@ const ChatMessage = ({ message, conversationId, latestUserMessage }: ChatMessage
             {isCopied ? "Скопировано" : "Копировать"}
           </button>
         </div>
-        <p className="whitespace-pre-line text-sm leading-relaxed text-text-primary">{message.content}</p>
+        {message.content && (
+          <p className="whitespace-pre-line text-sm leading-relaxed text-text-primary">{message.content}</p>
+        )}
+        {message.attachments?.length ? (
+          <div className="mt-3 space-y-2">
+            {message.attachments.map((attachment) => (
+              <div
+                key={attachment.id}
+                className="flex items-center gap-3 rounded-xl border border-border-strong bg-background-card/70 px-3 py-2 text-[0.8rem] text-text-secondary"
+              >
+                <Paperclip className="h-3.5 w-3.5 text-primary" />
+                <span className="truncate text-text-primary" title={attachment.name}>
+                  {attachment.name}
+                </span>
+                <span className="ml-auto whitespace-nowrap">{formatAttachmentSize(attachment.size)}</span>
+              </div>
+            ))}
+          </div>
+        ) : null}
         <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-text-secondary">
           <span>{isoDate ?? message.timestamp}</span>
           {!isUser && message.modeLabel && (
