@@ -65,6 +65,8 @@ typedef struct {
     int use_custom_target_b;
     int use_custom_target_d;
     double coherence_gain;
+    double temperature;
+    size_t top_k;
     KolibriPoolProfile profile;
 } KolibriFormulaPool;
 
@@ -89,6 +91,7 @@ int kf_hash_from_text(const char *text);
 void kf_pool_set_penalties(KolibriFormulaPool *pool, double lambda_b, double lambda_d);
 void kf_pool_set_targets(KolibriFormulaPool *pool, double target_b, double target_d);
 void kf_pool_set_coherence_gain(KolibriFormulaPool *pool, double gain);
+void kf_pool_set_sampling(KolibriFormulaPool *pool, double temperature, size_t top_k);
 const KolibriPoolProfile *kf_pool_profile(const KolibriFormulaPool *pool);
 
 

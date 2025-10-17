@@ -251,21 +251,18 @@ def build_stub():
     result_i32 = 0x7F
 
     functypes = [
-        bytes([0x60]) + u32(0) + u32(1) + bytes([result_i32]),  # () -> i32
-        bytes([0x60]) + u32(0) + u32(0),  # () -> void
-        bytes([0x60]) + u32(1) + bytes([params_i32]) + u32(1) + bytes([result_i32]),  # (i32) -> i32
-        bytes([0x60]) + u32(1) + bytes([params_i32]) + u32(0),  # (i32) -> void
-        bytes([0x60]) + u32(2) + bytes([params_i32, params_i32]) + u32(1) + bytes([result_i32]),  # (i32,i32)->i32
-        bytes([0x60]) + u32(3) + bytes([params_i32, params_i32, params_i32]) + u32(1) + bytes([result_i32]),  # (i32,i32,i32)->i32
-        bytes([0x60])
-        + u32(6)
-        + bytes([params_i32, params_i32, params_i32, params_i32, params_i32, params_i32])
-        + u32(1)
-        + bytes([result_i32]),
+        bytes([0x60]) + u32(0) + u32(1) + bytes([params_i32]),
+        bytes([0x60]) + u32(3) + bytes([params_i32, params_i32, params_i32]) + u32(1) + bytes([params_i32]),
+        bytes([0x60]) + u32(1) + bytes([params_i32]) + u32(1) + bytes([params_i32]),
+        bytes([0x60]) + u32(2) + bytes([params_i32, params_i32]) + u32(1) + bytes([params_i32]),
+        bytes([0x60]) + u32(1) + bytes([params_i32]) + u32(0),
+        bytes([0x60]) + u32(0) + u32(0),
+        bytes([0x60]) + u32(7) + bytes([params_i32] * 7) + u32(1) + bytes([params_i32]),
     ]
 
     section_type = encode_section(1, encode_vec(functypes))
 
+    func_types = [0, 0, 1, 2, 0, 3, 4, 5, 2, 4, 6]
     func_types = [
         0,  # k_state_new
         1,  # k_state_free
@@ -293,6 +290,28 @@ def build_stub():
 
     names = [
         ("memory", 2, 0),
+        ("_kolibri_bridge_init", 0, 0),
+        ("kolibri_bridge_init", 0, 0),
+        ("_kolibri_bridge_reset", 0, 1),
+        ("kolibri_bridge_reset", 0, 1),
+        ("_kolibri_bridge_configure", 0, 10),
+        ("kolibri_bridge_configure", 0, 10),
+        ("_kolibri_bridge_execute", 0, 2),
+        ("kolibri_bridge_execute", 0, 2),
+        ("_kolibri_sim_wasm_init", 0, 3),
+        ("kolibri_sim_wasm_init", 0, 3),
+        ("_kolibri_sim_wasm_tick", 0, 4),
+        ("kolibri_sim_wasm_tick", 0, 4),
+        ("_kolibri_sim_wasm_get_logs", 0, 5),
+        ("kolibri_sim_wasm_get_logs", 0, 5),
+        ("_kolibri_sim_wasm_reset", 0, 6),
+        ("kolibri_sim_wasm_reset", 0, 6),
+        ("_kolibri_sim_wasm_free", 0, 7),
+        ("kolibri_sim_wasm_free", 0, 7),
+        ("_malloc", 0, 8),
+        ("malloc", 0, 8),
+        ("_free", 0, 9),
+        ("free", 0, 9),
         ("_k_state_new", 0, 0),
         ("k_state_new", 0, 0),
         ("_k_state_free", 0, 1),
@@ -326,6 +345,19 @@ def build_stub():
     def body_return(value):
         return func_body(bytes([0x00, 0x41]) + s32(value) + bytes([0x0b]))
 
+    bodies = [
+        body_return(-1),
+        body_return(-1),
+        body_return(-1),
+        body_return(-1),
+        body_return(-1),
+        body_return(-1),
+        func_body(bytes([0x00, 0x0b])),
+        func_body(bytes([0x00, 0x0b])),
+        body_return(0),
+        func_body(bytes([0x00, 0x0b])),
+        body_return(-1),
+    ]
     bodies = []
     for index, func_type in enumerate(func_types):
         if func_type in (0, 2, 4, 5, 6):

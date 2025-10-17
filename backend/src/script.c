@@ -1041,6 +1041,20 @@ static void kolibri_script_apply_controls(KolibriScript *script) {
         }
     }
     kf_pool_set_coherence_gain(script->pool, coherence);
+
+    double effective_temperature = script->controls.cf_beam ? script->controls.temperature : 1.0;
+    if (!isfinite(effective_temperature) || effective_temperature <= 0.0) {
+        effective_temperature = 1.0;
+    }
+    size_t effective_top_k = script->pool->count;
+    if (script->controls.cf_beam && isfinite(script->controls.top_k) && script->controls.top_k > 0.0) {
+        long long rounded = llround(script->controls.top_k);
+        if (rounded < 1) {
+            rounded = 1;
+        }
+        effective_top_k = (size_t)rounded;
+    }
+    kf_pool_set_sampling(script->pool, effective_temperature, effective_top_k);
 }
 
 int ks_set_controls(KolibriScript *skript, const KolibriScriptControls *controls) {

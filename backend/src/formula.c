@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #define KOLIBRI_FORMULA_CAPACITY (sizeof(((KolibriFormulaPool *)0)->formulas) / sizeof(KolibriFormula))
 #define KOLIBRI_DIGIT_MAX 9U
@@ -506,9 +507,34 @@ static void mutate_gene(KolibriFormulaPool *pool, KolibriGene *gene) {
     if (!gene) {
         return;
     }
-    size_t index = (size_t)(k_rng_next(&pool->rng) % gene->length);
-    uint8_t delta = random_digit(pool);
-    gene->digits[index] = delta;
+    if (!pool || gene->length == 0U) {
+        return;
+    }
+
+    double temperature = pool->temperature;
+    if (!isfinite(temperature) || temperature <= 0.0) {
+        temperature = 1.0;
+    }
+    if (temperature < 0.1) {
+        temperature = 0.1;
+    }
+    if (temperature > 2.0) {
+        temperature = 2.0;
+    }
+
+    size_t mutations = (size_t)llrint(temperature * 2.0);
+    if (mutations == 0U) {
+        mutations = 1U;
+    }
+    if (mutations > gene->length) {
+        mutations = gene->length;
+    }
+
+    for (size_t i = 0; i < mutations; ++i) {
+        size_t index = (size_t)(k_rng_next(&pool->rng) % gene->length);
+        uint8_t delta = random_digit(pool);
+        gene->digits[index] = delta;
+    }
 }
 
 static void crossover(KolibriFormulaPool *pool, const KolibriGene *parent_a, const KolibriGene *parent_b, KolibriGene *child) {
@@ -544,9 +570,20 @@ static void reproduce(KolibriFormulaPool *pool) {
     if (elite == 0) {
         elite = 1;
     }
+    size_t parent_pool = pool->top_k;
+    if (parent_pool == 0U || parent_pool > pool->count) {
+        parent_pool = pool->count;
+    }
+    if (parent_pool < elite) {
+        parent_pool = elite;
+    }
+
     for (size_t i = elite; i < pool->count; ++i) {
-        size_t parent_a_index = i % elite;
-        size_t parent_b_index = (i + 1) % elite;
+        size_t parent_a_index = (size_t)(k_rng_next(&pool->rng) % parent_pool);
+        size_t parent_b_index = (size_t)(k_rng_next(&pool->rng) % parent_pool);
+        if (parent_pool > 1U && parent_a_index == parent_b_index) {
+            parent_b_index = (parent_b_index + 1U) % parent_pool;
+        }
         KolibriGene child;
         crossover(pool, &pool->formulas[parent_a_index].gene,
                   &pool->formulas[parent_b_index].gene, &child);
@@ -600,6 +637,8 @@ void kf_pool_init(KolibriFormulaPool *pool, uint64_t seed) {
     pool->use_custom_target_b = 0;
     pool->use_custom_target_d = 0;
     pool->coherence_gain = 0.0;
+    pool->temperature = 1.0;
+    pool->top_k = pool->count;
     pool->profile.generation_steps = 0ULL;
     pool->profile.evaluation_calls = 0ULL;
     pool->profile.last_generation_ms = 0.0;
@@ -984,6 +1023,29 @@ void kf_pool_set_coherence_gain(KolibriFormulaPool *pool, double gain) {
     } else {
         pool->coherence_gain = gain;
     }
+}
+
+void kf_pool_set_sampling(KolibriFormulaPool *pool, double temperature, size_t top_k) {
+    if (!pool) {
+        return;
+    }
+
+    if (!isfinite(temperature) || temperature <= 0.0) {
+        temperature = 1.0;
+    }
+    if (temperature < 0.1) {
+        temperature = 0.1;
+    }
+    if (temperature > 2.0) {
+        temperature = 2.0;
+    }
+    pool->temperature = temperature;
+
+    size_t capacity = sizeof(pool->formulas) / sizeof(pool->formulas[0]);
+    if (top_k == 0U || top_k > capacity) {
+        top_k = capacity;
+    }
+    pool->top_k = top_k;
 }
 
 const KolibriPoolProfile *kf_pool_profile(const KolibriFormulaPool *pool) {

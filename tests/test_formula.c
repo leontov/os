@@ -1,6 +1,7 @@
 #include "kolibri/formula.h"
 
 #include <assert.h>
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -55,6 +56,24 @@ static void test_feedback_adjustment(void) {
   assert(after_penalty->fitness >= 0.0);
 }
 
+static void test_sampling_controls(void) {
+  KolibriFormulaPool pool;
+  kf_pool_init(&pool, 11);
+  size_t capacity = sizeof(pool.formulas) / sizeof(pool.formulas[0]);
+
+  kf_pool_set_sampling(&pool, 0.05, 0);
+  assert(fabs(pool.temperature - 0.1) < 1e-9);
+  assert(pool.top_k == capacity);
+
+  kf_pool_set_sampling(&pool, 1.75, 3);
+  assert(fabs(pool.temperature - 1.75) < 1e-9);
+  assert(pool.top_k == 3);
+
+  kf_pool_set_sampling(&pool, 9.0, capacity + 7);
+  assert(fabs(pool.temperature - 2.0) < 1e-9);
+  assert(pool.top_k == capacity);
+}
+
 void test_formula(void) {
   KolibriFormulaPool pool;
   kf_pool_init(&pool, 77);
@@ -80,4 +99,5 @@ void test_formula(void) {
   assert(errors <= baseline_errors);
   assert_deterministic();
   test_feedback_adjustment();
+  test_sampling_controls();
 }
