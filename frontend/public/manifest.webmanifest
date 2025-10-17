@@ -1,0 +1,16 @@
+{
+  "name": "KOLIBRI-Σ",
+  "short_name": "KolibriΣ",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "description": "Офлайн-ядро KOLIBRI-Σ с обучением и декодированием без сети.",
+  "icons": [
+    {
+      "src": "/kolibri.svg",
+      "type": "image/svg+xml",
+      "sizes": "512x512"
+    }
+  ]
+}
