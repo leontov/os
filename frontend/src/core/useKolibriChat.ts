@@ -13,6 +13,14 @@ export interface ConversationMetrics {
   lastUpdatedIso?: string;
 }
 
+export interface ConversationSummary {
+  id: string;
+  title: string;
+  preview: string;
+  updatedAtIso?: string;
+  createdAtIso: string;
+}
+
 const DEFAULT_TITLE = "Новая беседа";
 const BASE64_CHUNK_SIZE = 8192;
 
@@ -102,6 +110,7 @@ interface UseKolibriChatResult {
   bridgeReady: boolean;
   conversationId: string;
   conversationTitle: string;
+  conversationSummaries: ConversationSummary[];
   knowledgeStatus: Awaited<ReturnType<typeof fetchKnowledgeStatus>> | null;
   knowledgeError?: string;
   statusLoading: boolean;
@@ -116,23 +125,59 @@ interface UseKolibriChatResult {
   clearAttachments: () => void;
   sendMessage: () => Promise<void>;
   resetConversation: () => Promise<void>;
+  selectConversation: (id: string) => void;
+  createConversation: () => Promise<void>;
   refreshKnowledgeStatus: () => Promise<void>;
+  selectConversation: (id: string) => Promise<void>;
+  attachFiles: (files: FileList | File[]) => void;
+  removeAttachment: (id: string) => void;
+  clearAttachments: () => void;
 }
 
 export const useKolibriChat = (): UseKolibriChatResult => {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const { conversations: initialConversations, active: initialActiveConversation } = loadInitialConversationState();
+
+  const [conversations, setConversations] = useState<ConversationRecord[]>(initialConversations);
+  const [messages, setMessages] = useState<ChatMessage[]>(initialActiveConversation.messages);
   const [draft, setDraft] = useState("");
-  const [mode, setMode] = useState(MODE_OPTIONS[0]?.value ?? "neutral");
+  const [mode, setMode] = useState(DEFAULT_MODE_VALUE);
   const [isProcessing, setIsProcessing] = useState(false);
   const [bridgeReady, setBridgeReady] = useState(false);
-  const [conversationId, setConversationId] = useState(() => crypto.randomUUID());
-  const [conversationTitle, setConversationTitle] = useState<string>(DEFAULT_TITLE);
+  const [conversationId, setConversationId] = useState<string>(initialActiveConversation.id);
+  const [conversationTitle, setConversationTitle] = useState<string>(initialActiveConversation.title);
   const [knowledgeStatus, setKnowledgeStatus] = useState<Awaited<ReturnType<typeof fetchKnowledgeStatus>> | null>(null);
   const [knowledgeError, setKnowledgeError] = useState<string | undefined>();
   const [statusLoading, setStatusLoading] = useState(false);
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
 
   const knowledgeSearchAbortRef = useRef<AbortController | null>(null);
+  const conversationsRef = useRef<ConversationRecord[]>(initialConversations);
+
+  useEffect(() => {
+    conversationsRef.current = conversations;
+  }, [conversations]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
+    } catch (error) {
+      console.warn("Failed to persist conversation history", error);
+    }
+  }, [conversations]);
+
+  const beginNewConversation = useCallback((): ConversationRecord => {
+    const record = createConversationRecord();
+    setConversations((prev) => [record, ...prev]);
+    setConversationId(record.id);
+    setConversationTitle(record.title);
+    setMessages(record.messages);
+    setDraft("");
+    setMode(DEFAULT_MODE_VALUE);
+    return record;
+  }, []);
 
   const attachFiles = useCallback((files: File[]) => {
     if (!files.length) {
@@ -212,21 +257,69 @@ export const useKolibriChat = (): UseKolibriChatResult => {
     setConversationTitle(deriveTitleFromMessages(messages));
   }, [conversationTitle, messages]);
 
+  useEffect(() => {
+    const preview = createPreviewFromMessages(messages);
+    const lastIso = findLastIsoTimestamp(messages);
+    setConversations((prev) => {
+      const existingIndex = prev.findIndex((item) => item.id === conversationId);
+      if (existingIndex === -1) {
+        const fallbackIso = lastIso ?? new Date().toISOString();
+        const record = createConversationRecord({
+          id: conversationId,
+          title: conversationTitle,
+          createdAtIso: fallbackIso,
+          updatedAtIso: fallbackIso,
+          preview,
+          messages,
+        });
+        return [record, ...prev];
+      }
+
+      const existing = prev[existingIndex];
+      const nextUpdatedAtIso = lastIso ?? (messages.length ? new Date().toISOString() : existing.updatedAtIso);
+      const shouldUpdate =
+        existing.title !== conversationTitle ||
+        existing.preview !== preview ||
+        existing.messages !== messages ||
+        existing.updatedAtIso !== nextUpdatedAtIso;
+
+      if (!shouldUpdate) {
+        return prev;
+      }
+
+      const updated: ConversationRecord = {
+        ...existing,
+        title: conversationTitle,
+        preview,
+        messages,
+        updatedAtIso: nextUpdatedAtIso,
+      };
+
+      const next = [...prev];
+      const shouldReorder =
+        existing.messages !== messages || existing.preview !== preview || existing.updatedAtIso !== nextUpdatedAtIso;
+
+      if (shouldReorder) {
+        next.splice(existingIndex, 1);
+        next.unshift(updated);
+      } else {
+        next[existingIndex] = updated;
+      }
+
+      return next;
+    });
+  }, [conversationId, conversationTitle, messages]);
+
   const resetConversation = useCallback(async () => {
     knowledgeSearchAbortRef.current?.abort();
     knowledgeSearchAbortRef.current = null;
 
     if (!bridgeReady) {
-      setMessages([]);
-      setDraft("");
-      setMode(MODE_OPTIONS[0]?.value ?? "neutral");
-      setConversationId(crypto.randomUUID());
-      setConversationTitle(DEFAULT_TITLE);
+      beginNewConversation();
       setIsProcessing(false);
       clearAttachments();
       return;
     }
-
     try {
       await kolibriBridge.reset();
       setMessages([]);
@@ -255,9 +348,14 @@ export const useKolibriChat = (): UseKolibriChatResult => {
 
   const sendMessage = useCallback(async () => {
     const content = draft.trim();
-    if (!content || isProcessing || !bridgeReady) {
+    if (!content && attachments.length === 0) {
       return;
     }
+    if (isProcessing || !bridgeReady) {
+      return;
+    }
+
+    const serializedAttachments = attachments.map(({ id, name, size, type }) => ({ id, name, size, type }));
 
     const pendingAttachments = attachments;
     let serializedAttachments: SerializedAttachment[] = [];
@@ -274,6 +372,7 @@ export const useKolibriChat = (): UseKolibriChatResult => {
       content,
       timestamp: timestamp.display,
       isoTimestamp: timestamp.iso,
+      attachments: serializedAttachments.length ? serializedAttachments : undefined,
     };
     if (serializedAttachments.length) {
       userMessage.attachments = serializedAttachments;
@@ -293,7 +392,7 @@ export const useKolibriChat = (): UseKolibriChatResult => {
     let aborted = false;
 
     try {
-      knowledgeContext = await searchKnowledge(content, { topK: 3, signal: controller.signal });
+      knowledgeContext = await searchKnowledge(content || "", { topK: 3, signal: controller.signal });
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") {
         aborted = true;
@@ -311,7 +410,7 @@ export const useKolibriChat = (): UseKolibriChatResult => {
       return;
     }
 
-    const prompt = knowledgeContext.length ? formatPromptWithContext(content, knowledgeContext) : content;
+    const prompt = knowledgeContext.length ? formatPromptWithContext(content || "", knowledgeContext) : content;
 
     try {
       const answer = await kolibriBridge.ask(prompt, mode, knowledgeContext, serializedAttachments);
@@ -356,6 +455,30 @@ export const useKolibriChat = (): UseKolibriChatResult => {
     setConversationTitle(trimmed ? trimmed.slice(0, 80) : DEFAULT_TITLE);
   }, []);
 
+  useEffect(() => {
+    updateConversation(conversationId, (existing) => {
+      const hasMessagesChanged = existing.messages !== messages;
+      const hasDraftChanged = existing.draft !== draft;
+      const hasModeChanged = existing.mode !== mode;
+      const hasTitleChanged = existing.title !== conversationTitle;
+
+      if (!hasMessagesChanged && !hasDraftChanged && !hasModeChanged && !hasTitleChanged) {
+        return existing;
+      }
+
+      const updatedAtIso = hasMessagesChanged ? new Date().toISOString() : existing.updatedAtIso;
+
+      return {
+        ...existing,
+        messages,
+        draft,
+        mode,
+        title: conversationTitle,
+        updatedAtIso,
+      };
+    });
+  }, [conversationId, conversationTitle, draft, messages, mode, updateConversation]);
+
   const latestAssistantMessage = useMemo(() => {
     for (let index = messages.length - 1; index >= 0; index -= 1) {
       const message = messages[index];
@@ -394,6 +517,20 @@ export const useKolibriChat = (): UseKolibriChatResult => {
     };
   }, [messages]);
 
+  const conversationSummaries = useMemo<ConversationSummary[]>(
+    () =>
+      conversations.map((conversation) => ({
+        id: conversation.id,
+        title: conversation.title,
+        createdAtIso: conversation.createdAtIso,
+        updatedAtIso: conversation.updatedAtIso,
+        preview: conversation.preview,
+      })),
+    [conversations],
+  );
+
+  const createConversation = useCallback(() => resetConversation(), [resetConversation]);
+
   return {
     messages,
     draft,
@@ -402,6 +539,7 @@ export const useKolibriChat = (): UseKolibriChatResult => {
     bridgeReady,
     conversationId,
     conversationTitle,
+    conversationSummaries,
     knowledgeStatus,
     knowledgeError,
     statusLoading,
@@ -416,7 +554,13 @@ export const useKolibriChat = (): UseKolibriChatResult => {
     clearAttachments,
     sendMessage,
     resetConversation,
+    selectConversation,
+    createConversation,
     refreshKnowledgeStatus,
+    selectConversation,
+    attachFiles,
+    removeAttachment,
+    clearAttachments,
   };
 };
 

@@ -85,10 +85,27 @@ const ChatInput = ({
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
-      if (!isBusy && value.trim()) {
+      if (!isBusy && (value.trim() || attachments.length)) {
         onSubmit();
       }
     }
+  };
+
+  const handleAttachmentClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (files?.length) {
+      onAttach(files);
+      event.target.value = "";
+    }
+  };
+
+  const handleClear = () => {
+    onChange("");
+    onClear();
   };
 
   return (
@@ -184,6 +201,7 @@ const ChatInput = ({
             onClick={handleAttachClick}
             className="flex items-center gap-2 rounded-xl border border-border-strong bg-background-card/80 px-3 py-2 transition-colors hover:text-text-primary"
             disabled={isBusy}
+            onClick={handleAttachmentClick}
           >
             <Paperclip className="h-4 w-4" />
             Вложить
@@ -210,7 +228,7 @@ const ChatInput = ({
             type="button"
             onClick={onSubmit}
             className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={isBusy || !value.trim()}
+            disabled={isBusy || (!value.trim() && attachments.length === 0)}
           >
             <SendHorizontal className="h-4 w-4" />
             Отправить
