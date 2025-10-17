@@ -16,11 +16,43 @@
 #include <string.h>
 #include <time.h>
 
+#if defined(__GNUC__) || defined(__clang__)
+#define KOLIBRI_FORCE_INLINE static inline __attribute__((always_inline))
+#else
+#define KOLIBRI_FORCE_INLINE static inline
+#endif
+
+#if defined(__GNUC__) || defined(__clang__)
+#define KOLIBRI_ATOMIC_STORE_U64(ptr, value) __atomic_store_n((ptr), (uint64_t)(value), __ATOMIC_RELAXED)
+#define KOLIBRI_ATOMIC_ADD_U64(ptr, value) __atomic_add_fetch((ptr), (uint64_t)(value), __ATOMIC_RELAXED)
+#else
+#define KOLIBRI_ATOMIC_STORE_U64(ptr, value) (*(ptr) = (uint64_t)(value))
+#define KOLIBRI_ATOMIC_ADD_U64(ptr, value) ((*(ptr) += (uint64_t)(value)))
+#endif
+
+#if defined(KOLIBRI_CF_BEAM_LANES)
+#define KOLIBRI_BEAM_MAX_LANES (KOLIBRI_CF_BEAM_LANES)
+#elif defined(KOLIBRI_USE_PTHREADS)
+#define KOLIBRI_BEAM_MAX_LANES 8U
+#else
+#define KOLIBRI_BEAM_MAX_LANES 4U
+#endif
+
+#if (KOLIBRI_BEAM_MAX_LANES) < 4U
+#undef KOLIBRI_BEAM_MAX_LANES
+#define KOLIBRI_BEAM_MAX_LANES 4U
+#endif
+
+#if (KOLIBRI_BEAM_MAX_LANES) > 8U
+#undef KOLIBRI_BEAM_MAX_LANES
+#define KOLIBRI_BEAM_MAX_LANES 8U
+#endif
+
 #if defined(KOLIBRI_USE_WASM_SIMD) && defined(__wasm_simd128__)
 #include <wasm_simd128.h>
 #define KOLIBRI_HAS_WASM_SIMD 1
 
-static inline size_t kolibri_popcount16(uint32_t mask) {
+KOLIBRI_FORCE_INLINE size_t kolibri_popcount16(uint32_t mask) {
 #if defined(__has_builtin)
 #if __has_builtin(__builtin_popcount)
     return (size_t)__builtin_popcount(mask);
@@ -45,18 +77,18 @@ static inline size_t kolibri_popcount16(uint32_t mask) {
 
 /* ---------------------------- Утилиты ----------------------------- */
 
-static uint8_t random_digit(KolibriFormulaPool *pool) {
+KOLIBRI_FORCE_INLINE uint8_t random_digit(KolibriFormulaPool *pool) {
     return (uint8_t)(k_rng_next(&pool->rng) % 10ULL);
 }
 
-static void gene_randomize(KolibriFormulaPool *pool, KolibriGene *gene) {
+KOLIBRI_FORCE_INLINE void gene_randomize(KolibriFormulaPool *pool, KolibriGene *gene) {
     gene->length = sizeof(gene->digits);
     for (size_t i = 0; i < gene->length; ++i) {
         gene->digits[i] = random_digit(pool);
     }
 }
 
-static int gene_copy(const KolibriGene *src, KolibriGene *dst) {
+KOLIBRI_FORCE_INLINE int gene_copy(const KolibriGene *src, KolibriGene *dst) {
     if (!src || !dst) {
         return -1;
     }
@@ -676,8 +708,8 @@ void kf_pool_init(KolibriFormulaPool *pool, uint64_t seed) {
     pool->coherence_gain = 0.0;
     pool->temperature = 1.0;
     pool->top_k = pool->count;
-    pool->profile.generation_steps = 0ULL;
-    pool->profile.evaluation_calls = 0ULL;
+    KOLIBRI_ATOMIC_STORE_U64(&pool->profile.generation_steps, 0ULL);
+    KOLIBRI_ATOMIC_STORE_U64(&pool->profile.evaluation_calls, 0ULL);
     pool->profile.last_generation_ms = 0.0;
     k_rng_seed(&pool->rng, seed);
     for (size_t i = 0; i < pool->count; ++i) {
@@ -700,8 +732,8 @@ void kf_pool_clear_examples(KolibriFormulaPool *pool) {
     }
     pool->examples = 0;
     pool->association_count = 0;
-    pool->profile.generation_steps = 0ULL;
-    pool->profile.evaluation_calls = 0ULL;
+    KOLIBRI_ATOMIC_STORE_U64(&pool->profile.generation_steps, 0ULL);
+    KOLIBRI_ATOMIC_STORE_U64(&pool->profile.evaluation_calls, 0ULL);
     pool->profile.last_generation_ms = 0.0;
     for (size_t i = 0; i < KOLIBRI_POOL_MAX_ASSOCIATIONS; ++i) {
         association_reset(&pool->associations[i]);
@@ -769,9 +801,9 @@ void kf_pool_tick(KolibriFormulaPool *pool, size_t generations) {
     for (size_t g = 0; g < generations; ++g) {
         size_t index = 0;
         while (index < pool->count) {
-            KolibriBeamLane lanes[4];
+            KolibriBeamLane lanes[KOLIBRI_BEAM_MAX_LANES];
             size_t lane_count = 0U;
-            while (lane_count < 4U && index < pool->count) {
+            while (lane_count < KOLIBRI_BEAM_MAX_LANES && index < pool->count) {
                 lanes[lane_count].formula = &pool->formulas[index];
                 lanes[lane_count].score = 0.0;
                 lanes[lane_count].evaluation.base_score = 0.0;
@@ -787,9 +819,9 @@ void kf_pool_tick(KolibriFormulaPool *pool, size_t generations) {
 
     size_t index = 0;
     while (index < pool->count) {
-        KolibriBeamLane lanes[4];
+        KolibriBeamLane lanes[KOLIBRI_BEAM_MAX_LANES];
         size_t lane_count = 0U;
-        while (lane_count < 4U && index < pool->count) {
+        while (lane_count < KOLIBRI_BEAM_MAX_LANES && index < pool->count) {
             lanes[lane_count].formula = &pool->formulas[index];
             lanes[lane_count].score = 0.0;
             lanes[lane_count].evaluation.base_score = 0.0;
@@ -819,8 +851,8 @@ void kf_pool_tick(KolibriFormulaPool *pool, size_t generations) {
         double elapsed = ((double)(end_clock - start_clock) * 1000.0) / (double)CLOCKS_PER_SEC;
         pool->profile.last_generation_ms = elapsed;
     }
-    pool->profile.generation_steps += generations;
-    pool->profile.evaluation_calls += evaluations;
+    KOLIBRI_ATOMIC_ADD_U64(&pool->profile.generation_steps, generations);
+    KOLIBRI_ATOMIC_ADD_U64(&pool->profile.evaluation_calls, evaluations);
 }
 
 const KolibriFormula *kf_pool_best(const KolibriFormulaPool *pool) {
