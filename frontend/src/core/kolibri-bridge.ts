@@ -11,8 +11,13 @@
 import type { KnowledgeSnippet } from "../types/knowledge";
 import { sendKnowledgeFeedback, teachKnowledge } from "./knowledge";
 import { findModeLabel } from "./modes";
-import { getWasiImports, resetWasi, setMemory } from "./wasi";
-import { wasmUrl as WASM_RESOURCE_URL, wasmInfoUrl as WASM_INFO_URL } from "virtual:kolibri-wasm";
+import {
+  wasmUrl as importedWasmUrl,
+  wasmInfoUrl as importedWasmInfoUrl,
+  wasmAvailable as wasmBundleAvailable,
+  wasmIsStub as wasmBundleIsStub,
+  wasmError as wasmBundleError,
+} from "virtual:kolibri-wasm";
 
 export interface KolibriBridge {
   readonly ready: Promise<void>;
@@ -31,8 +36,11 @@ interface KolibriWasmExports {
 
 const OUTPUT_CAPACITY = 8192;
 const DEFAULT_MODE_LABEL = "Нейтральный";
-const WASM_RESOURCE_URL = "/kolibri.wasm";
-const WASM_INFO_URL = "/kolibri.wasm.txt";
+const WASM_RESOURCE_URL = importedWasmUrl ?? "/kolibri.wasm";
+const WASM_INFO_URL = importedWasmInfoUrl ?? "/kolibri.wasm.txt";
+const WASM_BUNDLE_AVAILABLE = wasmBundleAvailable;
+const WASM_BUNDLE_IS_STUB = wasmBundleIsStub;
+const WASM_BUNDLE_ERROR = wasmBundleError?.trim() ?? "";
 const DEFAULT_MODE = "Быстрый ответ";
 const DEFAULT_API_BASE = "/api";
 const RESPONSE_MODE = (import.meta.env.VITE_KOLIBRI_RESPONSE_MODE ?? "script").toLowerCase();
@@ -408,9 +416,11 @@ class KolibriFallbackBridge implements KolibriBridge {
   constructor(private readonly reason: string) {}
 
   async ask(): Promise<string> {
+    const details = this.reason.trim();
+    const reasonText = details ? `Причина: ${details}` : "Причина: неизвестна.";
     return [
       "KolibriScript недоступен: kolibri.wasm не был загружен.",
-      `Причина: ${this.reason}`,
+      reasonText,
       "Запустите scripts/build_wasm.sh или установите переменную KOLIBRI_ALLOW_WASM_STUB=1 для деградированного режима.",
     ].join("\n");
   }
@@ -457,6 +467,19 @@ class KolibriLLMBridge implements KolibriBridge {
 }
 
 const createBridge = async (): Promise<KolibriBridge> => {
+  if (!WASM_BUNDLE_AVAILABLE) {
+    const fallbackReason = WASM_BUNDLE_ERROR || "kolibri.wasm недоступен. Запустите scripts/build_wasm.sh.";
+    const reason = await describeWasmFailure(new Error(fallbackReason));
+    console.warn("[kolibri-bridge] Переход в деградированный режим без WebAssembly.", reason);
+    return new KolibriFallbackBridge(reason);
+  }
+
+  if (WASM_BUNDLE_IS_STUB) {
+    const reason = await describeWasmFailure(new Error("kolibri.wasm собран как заглушка."));
+    console.warn("[kolibri-bridge] Обнаружена заглушка kolibri.wasm, активирован деградированный режим.", reason);
+    return new KolibriFallbackBridge(reason);
+  }
+
   const runtime = new KolibriWasmRuntime();
 
   try {

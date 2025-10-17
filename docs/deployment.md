@@ -117,6 +117,7 @@ curl http://kolibri-backend:8000/metrics
 ```
 
 На продакшене можно развернуть только JSON (без Markdown), указав `KOLIBRI_KNOWLEDGE_INDEX_JSON=/opt/kolibri/index-cache` — `/healthz` вернёт `"indexSource":"prebuilt"`, что подтверждает загрузку из подготовленного снапшота.
+Ответ `/healthz` содержит временные метки (`generatedAt`, `bootstrapGeneratedAt`), список корней индекса и источник HMAC-ключа (`keyOrigin`) — UI использует эти поля для отображения актуальности знаний.
 
 ## 7. Обновления
 1. Скачать релизный пакет (`kolibri-release-bundle`).

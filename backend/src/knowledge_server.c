@@ -381,6 +381,11 @@ static int apply_cli_arguments(int argc, char **argv) {
                     "       Environment overrides: KOLIBRI_KNOWLEDGE_PORT, KOLIBRI_KNOWLEDGE_BIND," 
                     " KOLIBRI_KNOWLEDGE_DIRS, KOLIBRI_KNOWLEDGE_INDEX_JSON,\n"
                     "         KOLIBRI_KNOWLEDGE_INDEX_CACHE, KOLIBRI_KNOWLEDGE_ADMIN_TOKEN\n",
+        } else if (strcmp(arg, "--help") == 0 || strcmp(arg, "-h") == 0) {
+            fprintf(stdout,
+                    "Usage: %s [--port PORT] [--bind ADDRESS] [--knowledge-dir PATH]\n"
+                    "       Environment overrides: KOLIBRI_KNOWLEDGE_PORT, KOLIBRI_KNOWLEDGE_BIND,"
+                    " KOLIBRI_KNOWLEDGE_DIRS (colon-separated)\n",
                     argv[0]);
             return 1;
         } else {
@@ -1125,6 +1130,10 @@ static void handle_client(int client_fd, const KolibriKnowledgeIndex *index) {
 
     if (strcmp(method, "GET") == 0 &&
         (strcmp(path_start, "/healthz") == 0 || starts_with(path_start, "/api/knowledge/healthz"))) {
+    *space = '\0';
+
+    if (strcmp(path_start, "/healthz") == 0 ||
+        starts_with(path_start, "/api/knowledge/healthz")) {
         char generated_iso[64];
         char bootstrap_iso[64];
         char generated_field[72];
@@ -1169,6 +1178,13 @@ static void handle_client(int client_fd, const KolibriKnowledgeIndex *index) {
                            sizeof(body_json),
                            "{\"status\":\"ok\",\"documents\":%zu,\"generatedAt\":%s,\"bootstrapGeneratedAt\":%s,\"requests\":%zu,\"hits\":%zu,\"misses\":%zu,\"uptimeSeconds\":%.0f,\"keyOrigin\":%s,\"indexRoots\":%s,\"indexSource\":\"%s\",\"indexCache\":\"%s\"}",
                            document_count,
+        char body[1024];
+        int len = snprintf(body,
+                           sizeof(body),
+                           "{\"status\":\"ok\",\"documents\":%zu,\"generatedAt\":%s,"
+                           "\"bootstrapGeneratedAt\":%s,\"requests\":%zu,\"hits\":%zu,\"misses\":%zu,"
+                           "\"uptimeSeconds\":%.0f,\"keyOrigin\":%s,\"indexRoots\":%s}",
+                           index->count,
                            generated_field,
                            bootstrap_field,
                            kolibri_requests_total,
@@ -1189,6 +1205,17 @@ static void handle_client(int client_fd, const KolibriKnowledgeIndex *index) {
 
     if (strcmp(method, "GET") == 0 &&
         (strcmp(path_start, "/metrics") == 0 || starts_with(path_start, "/api/knowledge/metrics"))) {
+                           directories_json);
+        if (len < 0 || (size_t)len >= sizeof(body)) {
+            send_response(client_fd, 500, "application/json", "{\"error\":\"internal\"}");
+            return;
+        }
+        send_response(client_fd, 200, "application/json", body);
+        return;
+    }
+
+    if (strcmp(path_start, "/metrics") == 0 ||
+        starts_with(path_start, "/api/knowledge/metrics")) {
         double bootstrap_generated = kolibri_bootstrap_timestamp > 0 ? (double)kolibri_bootstrap_timestamp : 0.0;
         double index_generated = kolibri_index_timestamp > 0 ? (double)kolibri_index_timestamp : 0.0;
         double uptime = 0.0;
@@ -1203,6 +1230,37 @@ static void handle_client(int client_fd, const KolibriKnowledgeIndex *index) {
                            sizeof(body_metrics),
                            "# HELP kolibri_knowledge_documents Number of documents in knowledge index\n# TYPE kolibri_knowledge_documents gauge\nkolibri_knowledge_documents %zu\n# HELP kolibri_requests_total Total HTTP requests handled\n# TYPE kolibri_requests_total counter\nkolibri_requests_total %zu\n# HELP kolibri_search_hits_success Total search queries with results\n# TYPE kolibri_search_hits_success counter\nkolibri_search_hits_success %zu\n# HELP kolibri_search_misses_total Total search queries without results\n# TYPE kolibri_search_misses_total counter\nkolibri_search_misses_total %zu\n# HELP kolibri_bootstrap_generated_unixtime Timestamp of last bootstrap script generation\n# TYPE kolibri_bootstrap_generated_unixtime gauge\nkolibri_bootstrap_generated_unixtime %.0f\n# HELP kolibri_knowledge_generated_unixtime Timestamp of last knowledge index build\n# TYPE kolibri_knowledge_generated_unixtime gauge\nkolibri_knowledge_generated_unixtime %.0f\n# HELP kolibri_knowledge_uptime_seconds Knowledge server uptime\n# TYPE kolibri_knowledge_uptime_seconds gauge\nkolibri_knowledge_uptime_seconds %.0f\n# HELP kolibri_knowledge_key_length_bytes Length of configured HMAC key\n# TYPE kolibri_knowledge_key_length_bytes gauge\nkolibri_knowledge_key_length_bytes %zu\n# HELP kolibri_knowledge_directories_total Number of knowledge directories\n# TYPE kolibri_knowledge_directories_total gauge\nkolibri_knowledge_directories_total %zu\n",
                            document_count,
+        char body[2048];
+        int len = snprintf(body,
+                           sizeof(body),
+                           "# HELP kolibri_knowledge_documents Number of documents in knowledge index\n"
+                           "# TYPE kolibri_knowledge_documents gauge\n"
+                           "kolibri_knowledge_documents %zu\n"
+                           "# HELP kolibri_requests_total Total HTTP requests handled\n"
+                           "# TYPE kolibri_requests_total counter\n"
+                           "kolibri_requests_total %zu\n"
+                           "# HELP kolibri_search_hits_success Total search queries with results\n"
+                           "# TYPE kolibri_search_hits_success counter\n"
+                           "kolibri_search_hits_success %zu\n"
+                           "# HELP kolibri_search_misses_total Total search queries without results\n"
+                           "# TYPE kolibri_search_misses_total counter\n"
+                           "kolibri_search_misses_total %zu\n"
+                           "# HELP kolibri_bootstrap_generated_unixtime Timestamp of last bootstrap script generation\n"
+                           "# TYPE kolibri_bootstrap_generated_unixtime gauge\n"
+                           "kolibri_bootstrap_generated_unixtime %.0f\n"
+                           "# HELP kolibri_knowledge_generated_unixtime Timestamp of last knowledge index build\n"
+                           "# TYPE kolibri_knowledge_generated_unixtime gauge\n"
+                           "kolibri_knowledge_generated_unixtime %.0f\n"
+                           "# HELP kolibri_knowledge_uptime_seconds Knowledge server uptime\n"
+                           "# TYPE kolibri_knowledge_uptime_seconds gauge\n"
+                           "kolibri_knowledge_uptime_seconds %.0f\n"
+                           "# HELP kolibri_knowledge_key_length_bytes Length of configured HMAC key\n"
+                           "# TYPE kolibri_knowledge_key_length_bytes gauge\n"
+                           "kolibri_knowledge_key_length_bytes %zu\n"
+                           "# HELP kolibri_knowledge_directories_total Number of knowledge directories\n"
+                           "# TYPE kolibri_knowledge_directories_total gauge\n"
+                           "kolibri_knowledge_directories_total %zu\n",
+                           index->count,
                            kolibri_requests_total,
                            kolibri_search_hits,
                            kolibri_search_misses,
@@ -1212,6 +1270,7 @@ static void handle_client(int client_fd, const KolibriKnowledgeIndex *index) {
                            kolibri_hmac_key_len,
                            kolibri_knowledge_directory_count);
         if (len < 0 || (size_t)len >= sizeof(body_metrics)) {
+        if (len < 0) {
             send_response(client_fd, 500, "text/plain", "error");
             return;
         }
@@ -1226,6 +1285,57 @@ static void handle_client(int client_fd, const KolibriKnowledgeIndex *index) {
             if (written < 0 || (size_t)written >= sizeof(body_metrics) - offset) {
                 send_response(client_fd, 500, "text/plain", "error");
                 return;
+        for (size_t i = 0; i < kolibri_knowledge_directory_count; ++i) {
+            char label[256];
+            prometheus_escape_label(kolibri_knowledge_directories[i], label, sizeof(label));
+            int written = snprintf(body + offset,
+                                   sizeof(body) - offset,
+                                   "kolibri_knowledge_directory_info{path=\"%s\"} 1\n",
+                                   label);
+            if (written < 0 || (size_t)written >= sizeof(body) - offset) {
+                send_response(client_fd, 500, "text/plain", "error");
+                return;
+            }
+            offset += (size_t)written;
+        }
+        if (kolibri_hmac_key_origin[0] != '\0') {
+            char origin_label[256];
+            prometheus_escape_label(kolibri_hmac_key_origin, origin_label, sizeof(origin_label));
+            int written = snprintf(body + offset,
+                                   sizeof(body) - offset,
+                                   "kolibri_knowledge_hmac_key_info{origin=\"%s\"} 1\n",
+                                   origin_label);
+            if (written < 0 || (size_t)written >= sizeof(body) - offset) {
+                send_response(client_fd, 500, "text/plain", "error");
+                return;
+            }
+            offset += (size_t)written;
+        }
+        send_response(client_fd, 200, "text/plain; version=0.0.4", body);
+        return;
+    }
+
+    if (starts_with(path_start, "/api/knowledge/feedback")) {
+        /* Very simple GET handler: /api/knowledge/feedback?rating=good|bad&q=...&a=... */
+        char q[512];
+        size_t dummy = 0U;
+        parse_query(path_start, q, sizeof(q), &dummy);
+        /* Extract rating and answer from query string */
+        const char *rating = NULL;
+        const char *answer = NULL;
+        const char *params = strchr(path_start, '?');
+        if (params) {
+            char tmp[1024];
+            strncpy(tmp, params + 1, sizeof(tmp) - 1U);
+            tmp[sizeof(tmp) - 1U] = '\0';
+            char *tok = strtok(tmp, "&");
+            while (tok) {
+                if (starts_with(tok, "rating=")) {
+                    rating = tok + 7;
+                } else if (starts_with(tok, "a=")) {
+                    answer = tok + 2;
+                }
+                tok = strtok(NULL, "&");
             }
             offset += (size_t)written;
         }
@@ -1283,6 +1393,29 @@ static void handle_client(int client_fd, const KolibriKnowledgeIndex *index) {
                  question,
                  192,
                  answer);
+        url_decode(decoded_q);
+        const char *rating_value = rating ? rating : "unknown";
+        char payload[512];
+        int remaining = (int)sizeof(payload) - 1 - 13; /* rating= + q= + a= */
+        if (remaining < 0) {
+            remaining = 0;
+        }
+        int rating_limit = remaining > 64 ? 64 : remaining;
+        remaining -= rating_limit;
+        if (remaining < 0) {
+            remaining = 0;
+        }
+        int q_limit = remaining > 0 ? remaining / 2 : 0;
+        int a_limit = remaining - q_limit;
+        snprintf(payload,
+                 sizeof(payload),
+                 "rating=%.*s q=%.*s a=%.*s",
+                 rating_limit,
+                 rating_value,
+                 q_limit,
+                 decoded_q,
+                 a_limit,
+                 decoded_a);
         knowledge_record_event("USER_FEEDBACK", payload);
         send_response(client_fd, 200, "application/json", "{\"status\":\"ok\"}");
         return;
@@ -1314,6 +1447,26 @@ static void handle_client(int client_fd, const KolibriKnowledgeIndex *index) {
         parse_form_field(body, "q", question, sizeof(question));
         parse_form_field(body, "a", answer, sizeof(answer));
         if (question[0] == '\0' || answer[0] == '\0') {
+        url_decode(qbuf);
+        url_decode(abuf);
+        if (qbuf[0] != '\0' && abuf[0] != '\0') {
+            char payload[512];
+            int remaining = (int)sizeof(payload) - 1 - 5; /* q= + a= */
+            if (remaining < 0) {
+                remaining = 0;
+            }
+            int q_limit = remaining > 0 ? remaining / 2 : 0;
+            int a_limit = remaining - q_limit;
+            snprintf(payload,
+                     sizeof(payload),
+                     "q=%.*s a=%.*s",
+                     q_limit,
+                     qbuf,
+                     a_limit,
+                     abuf);
+            knowledge_record_event("TEACH", payload);
+            send_response(client_fd, 200, "application/json", "{\"status\":\"ok\"}");
+        } else {
             send_response(client_fd, 400, "application/json", "{\"error\":\"missing q or a\"}");
             return;
         }
@@ -1469,6 +1622,27 @@ int main(int argc, char **argv) {
 
     if (kolibri_genome_init_or_open() != 0) {
         kolibri_knowledge_index_destroy(index);
+    KolibriKnowledgeIndex index;
+    if (kolibri_knowledge_index_init(&index) != 0) {
+        fprintf(stderr, "[kolibri-knowledge] failed to init index\n");
+        free_knowledge_directories();
+        return 1;
+    }
+
+    for (size_t i = 0; i < kolibri_knowledge_directory_count; ++i) {
+        const char *dir = kolibri_knowledge_directories[i];
+        if (kolibri_knowledge_index_load_directory(&index, dir) != 0) {
+            fprintf(stderr, "[kolibri-knowledge] failed to load directory: %s\n", dir);
+        }
+    }
+    kolibri_index_timestamp = time(NULL);
+    fprintf(stdout, "[kolibri-knowledge] loaded %zu documents\n", index.count);
+    if (index.count > 0) {
+        write_bootstrap_script(&index, KOLIBRI_BOOTSTRAP_SCRIPT);
+    }
+
+    if (kolibri_genome_init_or_open() != 0) {
+        kolibri_knowledge_index_free(&index);
         free_knowledge_directories();
         return 1;
     }
@@ -1488,6 +1662,7 @@ int main(int argc, char **argv) {
     if (server_fd < 0) {
         perror("socket");
         kolibri_knowledge_index_destroy(index);
+        kolibri_knowledge_index_free(&index);
         free_knowledge_directories();
         return 1;
     }
@@ -1501,6 +1676,7 @@ int main(int argc, char **argv) {
         fprintf(stderr, "[kolibri-knowledge] invalid bind address: %s\n", kolibri_bind_address);
         close(server_fd);
         kolibri_knowledge_index_destroy(index);
+        kolibri_knowledge_index_free(&index);
         free_knowledge_directories();
         return 1;
     }
@@ -1509,6 +1685,7 @@ int main(int argc, char **argv) {
         perror("bind");
         close(server_fd);
         kolibri_knowledge_index_destroy(index);
+        kolibri_knowledge_index_free(&index);
         free_knowledge_directories();
         return 1;
     }
@@ -1516,6 +1693,7 @@ int main(int argc, char **argv) {
         perror("listen");
         close(server_fd);
         kolibri_knowledge_index_destroy(index);
+        kolibri_knowledge_index_free(&index);
         free_knowledge_directories();
         return 1;
     }
@@ -1542,6 +1720,7 @@ int main(int argc, char **argv) {
     close(server_fd);
     kolibri_genome_close();
     kolibri_knowledge_index_destroy(index);
+    kolibri_knowledge_index_free(&index);
     free_knowledge_directories();
     fprintf(stdout, "[kolibri-knowledge] shutdown\n");
     return 0;

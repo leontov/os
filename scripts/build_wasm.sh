@@ -200,11 +200,134 @@ EOF
 }
 
 sozdat_stub_wasm() {
-    local stub_istochnik="$proekt_koren/scripts/assets/kolibri_stub.wasm"
-    if [[ -f "$stub_istochnik" ]]; then
-        cp "$stub_istochnik" "$vyhod_wasm"
+    if command -v python3 >/dev/null 2>&1; then
+        python3 - "$vyhod_wasm" <<'PY'
+import os
+import sys
+
+
+def u32(value):
+    out = bytearray()
+    while True:
+        byte = value & 0x7F
+        value >>= 7
+        if value:
+            out.append(byte | 0x80)
+        else:
+            out.append(byte)
+            break
+    return bytes(out)
+
+
+def s32(value):
+    out = bytearray()
+    more = True
+    while more:
+        byte = value & 0x7F
+        value >>= 7
+        sign_bit = byte & 0x40
+        done = ((value == 0 and sign_bit == 0) or (value == -1 and sign_bit != 0))
+        if not done:
+            byte |= 0x80
+        out.append(byte & 0xFF)
+        more = not done
+    return bytes(out)
+
+
+def encode_vec(items):
+    return u32(len(items)) + b"".join(items)
+
+
+def encode_section(section_id, payload):
+    return bytes([section_id]) + u32(len(payload)) + payload
+
+
+def func_body(code_bytes):
+    return u32(len(code_bytes)) + code_bytes
+
+
+def build_stub():
+    params_i32 = 0x7F
+
+    functypes = [
+        bytes([0x60]) + u32(0) + u32(1) + bytes([params_i32]),
+        bytes([0x60]) + u32(3) + bytes([params_i32, params_i32, params_i32]) + u32(1) + bytes([params_i32]),
+        bytes([0x60]) + u32(1) + bytes([params_i32]) + u32(1) + bytes([params_i32]),
+        bytes([0x60]) + u32(2) + bytes([params_i32, params_i32]) + u32(1) + bytes([params_i32]),
+        bytes([0x60]) + u32(1) + bytes([params_i32]) + u32(0),
+        bytes([0x60]) + u32(0) + u32(0),
+    ]
+
+    section_type = encode_section(1, encode_vec(functypes))
+
+    func_types = [0, 0, 1, 2, 0, 3, 4, 5, 2, 4]
+    section_func = encode_section(3, u32(len(func_types)) + b"".join(u32(t) for t in func_types))
+
+    mem_type = bytes([0x00]) + u32(1)
+    section_mem = encode_section(5, encode_vec([mem_type]))
+
+    def export_entry(name, kind, index):
+        name_bytes = name.encode("utf-8")
+        return u32(len(name_bytes)) + name_bytes + bytes([kind]) + u32(index)
+
+    names = [
+        ("memory", 2, 0),
+        ("_kolibri_bridge_init", 0, 0),
+        ("kolibri_bridge_init", 0, 0),
+        ("_kolibri_bridge_reset", 0, 1),
+        ("kolibri_bridge_reset", 0, 1),
+        ("_kolibri_bridge_execute", 0, 2),
+        ("kolibri_bridge_execute", 0, 2),
+        ("_kolibri_sim_wasm_init", 0, 3),
+        ("kolibri_sim_wasm_init", 0, 3),
+        ("_kolibri_sim_wasm_tick", 0, 4),
+        ("kolibri_sim_wasm_tick", 0, 4),
+        ("_kolibri_sim_wasm_get_logs", 0, 5),
+        ("kolibri_sim_wasm_get_logs", 0, 5),
+        ("_kolibri_sim_wasm_reset", 0, 6),
+        ("kolibri_sim_wasm_reset", 0, 6),
+        ("_kolibri_sim_wasm_free", 0, 7),
+        ("kolibri_sim_wasm_free", 0, 7),
+        ("_malloc", 0, 8),
+        ("malloc", 0, 8),
+        ("_free", 0, 9),
+        ("free", 0, 9),
+    ]
+
+    section_export = encode_section(7, encode_vec([export_entry(*n) for n in names]))
+
+    def body_return(value):
+        return func_body(bytes([0x00, 0x41]) + s32(value) + bytes([0x0b]))
+
+    bodies = [
+        body_return(-1),
+        body_return(-1),
+        body_return(-1),
+        body_return(-1),
+        body_return(-1),
+        body_return(-1),
+        func_body(bytes([0x00, 0x0b])),
+        func_body(bytes([0x00, 0x0b])),
+        body_return(0),
+        func_body(bytes([0x00, 0x0b])),
+    ]
+
+    section_code = encode_section(10, u32(len(bodies)) + b"".join(bodies))
+
+    return b"\x00asm" + b"\x01\x00\x00\x00" + section_type + section_func + section_mem + section_export + section_code
+
+
+def main():
+    target = sys.argv[1]
+    with open(target, "wb") as handle:
+        handle.write(build_stub())
+
+
+if __name__ == "__main__":
+    main()
+PY
     else
-        printf '\x00asm\x01\x00\x00\x00' >"$vyhod_wasm"
+        printf '%b' '\x00\x61\x73\x6d\x01\x00\x00\x00\x01\x1e\x06\x60\x00\x01\x7f\x60\x03\x7f\x7f\x7f\x01\x7f\x60\x01\x7f\x01\x7f\x60\x02\x7f\x7f\x01\x7f\x60\x01\x7f\x00\x60\x00\x00\x03\x0b\x0a\x00\x00\x01\x02\x00\x03\x04\x05\x02\x04\x05\x03\x01\x00\x01\x07\xba\x03\x15\x06\x6d\x65\x6d\x6f\x72\x79\x02\x00\x14\x5f\x6b\x6f\x6c\x69\x62\x72\x69\x5f\x62\x72\x69\x64\x67\x65\x5f\x69\x6e\x69\x74\x00\x00\x13\x6b\x6f\x6c\x69\x62\x72\x69\x5f\x62\x72\x69\x64\x67\x65\x5f\x69\x6e\x69\x74\x00\x00\x15\x5f\x6b\x6f\x6c\x69\x62\x72\x69\x5f\x62\x72\x69\x64\x67\x65\x5f\x72\x65\x73\x65\x74\x00\x01\x14\x6b\x6f\x6c\x69\x62\x72\x69\x5f\x62\x72\x69\x64\x67\x65\x5f\x72\x65\x73\x65\x74\x00\x01\x17\x5f\x6b\x6f\x6c\x69\x62\x72\x69\x5f\x62\x72\x69\x64\x67\x65\x5f\x65\x78\x65\x63\x75\x74\x65\x00\x02\x16\x6b\x6f\x6c\x69\x62\x72\x69\x5f\x62\x72\x69\x64\x67\x65\x5f\x65\x78\x65\x63\x75\x74\x65\x00\x02\x16\x5f\x6b\x6f\x6c\x69\x62\x72\x69\x5f\x73\x69\x6d\x5f\x77\x61\x73\x6d\x5f\x69\x6e\x69\x74\x00\x03\x15\x6b\x6f\x6c\x69\x62\x72\x69\x5f\x73\x69\x6d\x5f\x77\x61\x73\x6d\x5f\x69\x6e\x69\x74\x00\x03\x16\x5f\x6b\x6f\x6c\x69\x62\x72\x69\x5f\x73\x69\x6d\x5f\x77\x61\x73\x6d\x5f\x74\x69\x63\x6b\x00\x04\x15\x6b\x6f\x6c\x69\x62\x72\x69\x5f\x73\x69\x6d\x5f\x77\x61\x73\x6d\x5f\x74\x69\x63\x6b\x00\x04\x1a\x5f\x6b\x6f\x6c\x69\x62\x72\x69\x5f\x73\x69\x6d\x5f\x77\x61\x73\x6d\x5f\x67\x65\x74\x5f\x6c\x6f\x67\x73\x00\x05\x19\x6b\x6f\x6c\x69\x62\x72\x69\x5f\x73\x69\x6d\x5f\x77\x61\x73\x6d\x5f\x67\x65\x74\x5f\x6c\x6f\x67\x73\x00\x05\x17\x5f\x6b\x6f\x6c\x69\x62\x72\x69\x5f\x73\x69\x6d\x5f\x77\x61\x73\x6d\x5f\x72\x65\x73\x65\x74\x00\x06\x16\x6b\x6f\x6c\x69\x62\x72\x69\x5f\x73\x69\x6d\x5f\x77\x61\x73\x6d\x5f\x72\x65\x73\x65\x74\x00\x06\x16\x5f\x6b\x6f\x6c\x69\x62\x72\x69\x5f\x73\x69\x6d\x5f\x77\x61\x73\x6d\x5f\x66\x72\x65\x65\x00\x07\x15\x6b\x6f\x6c\x69\x62\x72\x69\x5f\x73\x69\x6d\x5f\x77\x61\x73\x6d\x5f\x66\x72\x65\x65\x00\x07\x07\x5f\x6d\x61\x6c\x6c\x6f\x63\x00\x08\x06\x6d\x61\x6c\x6c\x6f\x63\x00\x08\x05\x5f\x66\x72\x65\x65\x00\x09\x04\x66\x72\x65\x65\x00\x09\x0a\x2d\x0a\x04\x00\x41\x7f\x0b\x04\x00\x41\x7f\x0b\x04\x00\x41\x7f\x0b\x04\x00\x41\x7f\x0b\x04\x00\x41\x7f\x0b\x04\x00\x41\x7f\x0b\x02\x00\x0b\x02\x00\x0b\x04\x00\x41\x00\x0b\x02\x00\x0b' >"$vyhod_wasm"
     fi
 
     cat >"$vyhod_dir/kolibri.wasm.txt" <<'EOF_INFO'
