@@ -1,10 +1,12 @@
 #include "kolibri/knowledge_index.h"
 #include "kolibri/genome.h"
+#include "kolibri/swarm.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
 #include <netinet/in.h>
 #include <strings.h>
+#include <ctype.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -50,6 +52,10 @@ static int kolibri_genome_ready = 0;
 static unsigned char kolibri_hmac_key[KOLIBRI_HMAC_KEY_SIZE];
 static size_t kolibri_hmac_key_len = 0U;
 static char kolibri_hmac_key_origin[128];
+static KolibriSwarm kolibri_swarm;
+static int kolibri_swarm_ready = 0;
+static char kolibri_swarm_nodes_config[1024];
+static char kolibri_swarm_node_id[KOLIBRI_SWARM_ID_MAX];
 
 typedef struct {
     time_t window_start;
@@ -134,6 +140,75 @@ static void free_knowledge_directories(void) {
     free(kolibri_knowledge_directories);
     kolibri_knowledge_directories = NULL;
     kolibri_knowledge_directory_count = 0U;
+}
+
+static void trim_whitespace(char *text) {
+    if (!text) {
+        return;
+    }
+    char *start = text;
+    while (*start && isspace((unsigned char)*start)) {
+        start++;
+    }
+    if (start != text) {
+        memmove(text, start, strlen(start) + 1U);
+    }
+    size_t len = strlen(text);
+    while (len > 0U && isspace((unsigned char)text[len - 1U])) {
+        text[len - 1U] = '\0';
+        len--;
+    }
+}
+
+static void configure_swarm_from_config(void) {
+    if (!kolibri_swarm_ready || kolibri_swarm_nodes_config[0] == '\0') {
+        return;
+    }
+    char copy[sizeof(kolibri_swarm_nodes_config)];
+    strncpy(copy, kolibri_swarm_nodes_config, sizeof(copy) - 1U);
+    copy[sizeof(copy) - 1U] = '\0';
+    char *saveptr = NULL;
+    char *token = strtok_r(copy, ",", &saveptr);
+    size_t generated = 0U;
+    while (token) {
+        trim_whitespace(token);
+        if (*token) {
+            char node_id[KOLIBRI_SWARM_ID_MAX];
+            char endpoint[KOLIBRI_SWARM_ENDPOINT_MAX];
+            node_id[0] = '\0';
+            endpoint[0] = '\0';
+            char *at = strchr(token, '@');
+            if (at) {
+                *at = '\0';
+                strncpy(node_id, token, sizeof(node_id) - 1U);
+                node_id[sizeof(node_id) - 1U] = '\0';
+                strncpy(endpoint, at + 1, sizeof(endpoint) - 1U);
+                endpoint[sizeof(endpoint) - 1U] = '\0';
+            } else {
+                snprintf(node_id, sizeof(node_id), "peer-%zu", kolibri_swarm.node_count + generated + 1U);
+                strncpy(endpoint, token, sizeof(endpoint) - 1U);
+                endpoint[sizeof(endpoint) - 1U] = '\0';
+            }
+            trim_whitespace(node_id);
+            trim_whitespace(endpoint);
+            if (endpoint[0] != '\0') {
+                if (node_id[0] == '\0') {
+                    snprintf(node_id, sizeof(node_id), "peer-%zu", kolibri_swarm.node_count + generated + 1U);
+                }
+                if (kolibri_swarm_add_node(&kolibri_swarm, node_id, endpoint) != 0) {
+                    fprintf(stderr,
+                            "[kolibri-knowledge] failed to add swarm peer %s@%s\n",
+                            node_id,
+                            endpoint);
+                }
+            }
+        }
+        token = strtok_r(NULL, ",", &saveptr);
+        generated += 1U;
+    }
+    fprintf(stdout,
+            "[kolibri-knowledge] swarm configured with %zu peers\n",
+            kolibri_swarm.node_count);
 }
 
 static int add_knowledge_directory(const char *path) {
@@ -304,6 +379,20 @@ static void apply_environment_configuration(void) {
                         admin_file_env);
             }
         }
+    }
+
+    const char *swarm_nodes_env = getenv("KOLIBRI_SWARM_NODES");
+    if (swarm_nodes_env && *swarm_nodes_env) {
+        strncpy(kolibri_swarm_nodes_config, swarm_nodes_env, sizeof(kolibri_swarm_nodes_config) - 1U);
+        kolibri_swarm_nodes_config[sizeof(kolibri_swarm_nodes_config) - 1U] = '\0';
+    } else {
+        kolibri_swarm_nodes_config[0] = '\0';
+    }
+
+    const char *swarm_id_env = getenv("KOLIBRI_SWARM_ID");
+    if (swarm_id_env && *swarm_id_env) {
+        strncpy(kolibri_swarm_node_id, swarm_id_env, sizeof(kolibri_swarm_node_id) - 1U);
+        kolibri_swarm_node_id[sizeof(kolibri_swarm_node_id) - 1U] = '\0';
     }
 }
 
@@ -1548,6 +1637,13 @@ static void handle_client(int client_fd, const KolibriKnowledgeIndex *index) {
 
     send_response(client_fd, 200, "application/json", response);
 
+    if (kolibri_swarm_ready) {
+        double normalized = result_count > 0U
+                                 ? 0.6 + fmin((double)result_count, (double)limit) / ((double)limit + 1.0) * 0.4
+                                 : -0.35;
+        kolibri_swarm_record_local_activity(&kolibri_swarm, query, normalized);
+    }
+
     if (kolibri_genome_ready) {
         char ask_payload[512];
         int query_limit = (int)sizeof(ask_payload) - 3;
@@ -1641,6 +1737,21 @@ static void handle_client(int client_fd, const KolibriKnowledgeIndex *index) {
     const char *body = buffer + header_len;
 
     size_t document_count = index ? kolibri_knowledge_index_document_count(index) : 0U;
+
+    if (strcmp(method, "GET") == 0 &&
+        (strcmp(path_start, "/api/swarm/status") == 0 || strcmp(path_start, "/swarm/status") == 0)) {
+        if (!kolibri_swarm_ready) {
+            send_response(client_fd, 503, "application/json", "{\"error\":\"swarm unavailable\"}");
+            return;
+        }
+        char status_body[4096];
+        if (kolibri_swarm_format_status(&kolibri_swarm, status_body, sizeof(status_body)) != 0) {
+            send_response(client_fd, 500, "application/json", "{\"error\":\"swarm status error\"}");
+            return;
+        }
+        send_response(client_fd, 200, "application/json", status_body);
+        return;
+    }
 
     if (strcmp(method, "GET") == 0 &&
         (strcmp(path_start, "/healthz") == 0 || starts_with(path_start, "/api/knowledge/healthz"))) {
@@ -1979,6 +2090,7 @@ int main(int argc, char **argv) {
     kolibri_server_started_at = time(NULL);
 
     apply_environment_configuration();
+    int swarm_initialized = 0;
     int cli_status = apply_cli_arguments(argc, argv);
     if (cli_status > 0) {
         free_knowledge_directories();
@@ -2119,6 +2231,7 @@ int main(int argc, char **argv) {
     kolibri_server_started_at = time(NULL);
 
     apply_environment_configuration();
+    int swarm_initialized = 0;
     int cli_status = apply_cli_arguments(argc, argv);
     if (cli_status > 0) {
         free_knowledge_directories();
@@ -2155,6 +2268,33 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+    if (kolibri_swarm_node_id[0] == '\0') {
+        char hostname_buf[KOLIBRI_SWARM_ID_MAX];
+        if (gethostname(hostname_buf, sizeof(hostname_buf)) == 0) {
+            hostname_buf[sizeof(hostname_buf) - 1U] = '\0';
+            trim_whitespace(hostname_buf);
+            strncpy(kolibri_swarm_node_id, hostname_buf, sizeof(kolibri_swarm_node_id) - 1U);
+            kolibri_swarm_node_id[sizeof(kolibri_swarm_node_id) - 1U] = '\0';
+        } else {
+            strncpy(kolibri_swarm_node_id, "kolibri-local", sizeof(kolibri_swarm_node_id) - 1U);
+            kolibri_swarm_node_id[sizeof(kolibri_swarm_node_id) - 1U] = '\0';
+        }
+    } else {
+        trim_whitespace(kolibri_swarm_node_id);
+    }
+
+    if (kolibri_swarm_init(&kolibri_swarm, kolibri_swarm_node_id, 8U) == 0) {
+        kolibri_swarm_ready = 1;
+        swarm_initialized = 1;
+        configure_swarm_from_config();
+        fprintf(stdout,
+                "[kolibri-knowledge] swarm online as %s (%zu peers)\n",
+                kolibri_swarm.self_id,
+                kolibri_swarm.node_count);
+    } else {
+        fprintf(stderr, "[kolibri-knowledge] failed to initialize swarm fabric\n");
+    }
+
     struct sigaction sa;
     memset(&sa, 0, sizeof(sa));
     sa.sa_handler = handle_signal;
@@ -2163,6 +2303,10 @@ int main(int argc, char **argv) {
         perror("sigaction");
         kolibri_genome_close();
         kolibri_knowledge_index_destroy(index);
+        if (swarm_initialized) {
+            kolibri_swarm_free(&kolibri_swarm);
+            kolibri_swarm_ready = 0;
+        }
         free_knowledge_directories();
         return 1;
     }
@@ -2172,6 +2316,10 @@ int main(int argc, char **argv) {
         perror("socket");
         kolibri_genome_close();
         kolibri_knowledge_index_destroy(index);
+        if (swarm_initialized) {
+            kolibri_swarm_free(&kolibri_swarm);
+            kolibri_swarm_ready = 0;
+        }
         free_knowledge_directories();
         return 1;
     }
@@ -2186,6 +2334,10 @@ int main(int argc, char **argv) {
         close(server_fd);
         kolibri_genome_close();
         kolibri_knowledge_index_destroy(index);
+        if (swarm_initialized) {
+            kolibri_swarm_free(&kolibri_swarm);
+            kolibri_swarm_ready = 0;
+        }
         free_knowledge_directories();
         return 1;
     }
@@ -2195,6 +2347,10 @@ int main(int argc, char **argv) {
         close(server_fd);
         kolibri_genome_close();
         kolibri_knowledge_index_destroy(index);
+        if (swarm_initialized) {
+            kolibri_swarm_free(&kolibri_swarm);
+            kolibri_swarm_ready = 0;
+        }
         free_knowledge_directories();
         return 1;
     }
@@ -2203,6 +2359,10 @@ int main(int argc, char **argv) {
         close(server_fd);
         kolibri_genome_close();
         kolibri_knowledge_index_destroy(index);
+        if (swarm_initialized) {
+            kolibri_swarm_free(&kolibri_swarm);
+            kolibri_swarm_ready = 0;
+        }
         free_knowledge_directories();
         return 1;
     }
@@ -2228,6 +2388,10 @@ int main(int argc, char **argv) {
     }
 
     close(server_fd);
+    if (swarm_initialized) {
+        kolibri_swarm_free(&kolibri_swarm);
+        kolibri_swarm_ready = 0;
+    }
     kolibri_genome_close();
     kolibri_knowledge_index_destroy(index);
     free_knowledge_directories();
