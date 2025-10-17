@@ -67,6 +67,8 @@ export KOLIBRI_RESPONSE_MODE=llm
 export KOLIBRI_LLM_ENDPOINT="https://llm.example.com/v1/infer"
 export KOLIBRI_LLM_API_KEY="<token>"  # опционально
 export KOLIBRI_LLM_MODEL="kolibri-pro"  # опционально
+export KOLIBRI_LLM_TEMPERATURE="0.7"  # опционально, диапазон 0.0-2.0
+export KOLIBRI_LLM_MAX_TOKENS="512"  # опционально, положительное целое
 ./scripts/run_backend.sh --port 8080
 ```
 
