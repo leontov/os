@@ -43,6 +43,42 @@ def test_t2_teach_and_ask() -> None:
     assert sim.sprosit("неизвестно") == "..."
 
 
+def test_memory_similarity_search_returns_neighbour() -> None:
+    sim = KolibriSim(zerno=0)
+    sim.obuchit_svjaz("привет мир", "глобальный привет")
+    sim.obuchit_svjaz("как дела", "отлично")
+    assert sim.sprosit("привет мир!") == "глобальный привет"
+
+
+def test_memory_similarity_fallback_to_unknown() -> None:
+    sim = KolibriSim(zerno=1)
+    sim.obuchit_svjaz("доброе утро", "солнечного дня")
+    assert sim.sprosit("совершенно иной запрос") == "..."
+
+
+def test_memory_recall_quality_batch() -> None:
+    sim = KolibriSim(zerno=2)
+    pairs = [
+        ("привет как дела", "здорово"),
+        ("расскажи про погоду", "солнечно"),
+        ("поделись рецептом борща", "свекла"),
+        ("где находится библиотека", "у площади"),
+        ("что нового в науке", "квантовые открытия"),
+    ]
+    variations = [
+        ("привет, как же дела?", "здорово"),
+        ("расскажи про погоду завтра", "солнечно"),
+        ("поделись рецептом вкусного борща", "свекла"),
+        ("где же находится эта библиотека", "у площади"),
+        ("что нового сегодня в науке", "квантовые открытия"),
+    ]
+    for stimul, otvet in pairs:
+        sim.obuchit_svjaz(stimul, otvet)
+
+    popadaniya = sum(1 for variant, expected in variations if sim.sprosit(variant) == expected)
+    assert popadaniya / len(variations) >= 0.8
+
+
 def test_t3_formula_evolution() -> None:
     sim = KolibriSim(zerno=1)
     f1 = sim.evolyuciya_formul("math")

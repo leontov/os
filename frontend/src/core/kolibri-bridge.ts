@@ -11,6 +11,8 @@
 import type { KnowledgeSnippet } from "../types/knowledge";
 import { sendKnowledgeFeedback, teachKnowledge } from "./knowledge";
 import { findModeLabel } from "./modes";
+import { getWasiImports, resetWasi, setMemory } from "./wasi";
+import { wasmUrl as WASM_RESOURCE_URL, wasmInfoUrl as WASM_INFO_URL } from "virtual:kolibri-wasm";
 
 export interface KolibriBridge {
   readonly ready: Promise<void>;
@@ -31,6 +33,7 @@ const OUTPUT_CAPACITY = 8192;
 const DEFAULT_MODE_LABEL = "Нейтральный";
 const WASM_RESOURCE_URL = "/kolibri.wasm";
 const WASM_INFO_URL = "/kolibri.wasm.txt";
+const DEFAULT_MODE = "Быстрый ответ";
 const DEFAULT_API_BASE = "/api";
 const RESPONSE_MODE = (import.meta.env.VITE_KOLIBRI_RESPONSE_MODE ?? "script").toLowerCase();
 const RAW_API_BASE = import.meta.env.VITE_KOLIBRI_API_BASE ?? DEFAULT_API_BASE;

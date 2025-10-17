@@ -21,6 +21,8 @@ from .kolibri_script.genome import (
 )
 from .tracing import JsonLinesTracer
 
+from .memory import MemoryIndex
+
 
 class FormulaRecord(TypedDict):
     """Структура формулы, эволюционирующей в KolibriSim."""
@@ -62,7 +64,9 @@ class FormulaZapis(TypedDict):
     context: str
 
 
+
 class MetricEntry(TypedDict):
+class MetricRecord(TypedDict):
     """Метрика одного шага soak-прогона."""
 
     minute: int
@@ -78,6 +82,7 @@ class SoakResult(TypedDict):
     """Результат выполнения soak-сессии."""
 
     events: int
+    metrics: List[MetricEntry]
     metrics: List[MetricRecord]
 
 
@@ -146,6 +151,7 @@ class KolibriSim:
         *,
         trace_path: "Path | str | None" = None,
         trace_include_genome: Optional[bool] = None,
+        memory_threshold: float = 0.75,
         genome_path: "Path | str | None" = None,
         secrets_config: "SecretsConfig | None" = None,
         secrets_path: "Path | str | None" = None,
@@ -165,6 +171,7 @@ class KolibriSim:
         self._tracer: Optional[ZhurnalTracer] = None
         self._tracer_include_genome = False
         self._trace_path: Optional[Path] = None
+        self._memory_index = MemoryIndex(similarity_threshold=memory_threshold)
         self._genome_writer: Optional[KolibriGenomeLedger] = None
         self._journal_path: Optional[Path] = None
         self._journal_file: Optional[io.TextIOWrapper] = None
@@ -330,6 +337,7 @@ class KolibriSim:
         """Добавляет ассоциацию в память и фиксирует событие в геноме."""
 
         self.znanija[stimul] = otvet
+        self._memory_index.dobavit(stimul, otvet)
         self._registrirovat("TEACH", f"{stimul}->{otvet}")
 
     def bulk_obuchit(self, pary: Iterable[tuple[str, str]]) -> None:
@@ -340,6 +348,11 @@ class KolibriSim:
 
     def sprosit(self, stimul: str) -> str:
         """Возвращает ответ из памяти или многоточие, если знания нет."""
+        poiski = self._memory_index.poiski(stimul, limit=1)
+        if poiski:
+            otvet = poiski[0].otvet
+        else:
+            otvet = self.znanija.get(stimul, "...")
 
         otvet = self.znanija.get(stimul, "...")
         self._registrirovat("ASK", f"{stimul}->{otvet}")
@@ -408,6 +421,7 @@ class KolibriSim:
         smeshchenie = self.generator.randint(0, 9)
         kod = f"f(x)={mnozhitel}*x+{smeshchenie}"
         nazvanie = f"F{len(self.formuly) + 1:04d}"
+
         zapis: FormulaZapis = {
             "kod": kod,
             "fitness": 0.0,
@@ -467,6 +481,7 @@ class KolibriSim:
         for stimul, otvet in sostoyanie.items():
             if stimul not in self.znanija:
                 self.znanija[stimul] = otvet
+                self._memory_index.dobavit(stimul, otvet)
                 dobavleno += 1
         self._registrirovat("SYNC", f"imported={dobavleno}")
         return dobavleno
