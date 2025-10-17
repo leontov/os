@@ -4,6 +4,7 @@ const PRECACHE_URLS = ["/", OFFLINE_URL];
 
 let wasmUrl = "/kolibri.wasm";
 let wasmInfoUrl = "/kolibri.wasm.txt";
+let knowledgeUrl = "/kolibri-knowledge.json";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -79,6 +80,13 @@ self.addEventListener("message", (event) => {
       event.waitUntil(precacheResource(wasmInfoUrl));
     }
   }
+
+  if (data.type === "SET_KNOWLEDGE_ARTIFACTS") {
+    if (typeof data.url === "string" && data.url) {
+      knowledgeUrl = data.url;
+      event.waitUntil(precacheResource(knowledgeUrl));
+    }
+  }
 });
 
 self.addEventListener("fetch", (event) => {
@@ -93,6 +101,11 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (url.pathname === wasmUrl || url.pathname === wasmInfoUrl) {
+    event.respondWith(cacheFirst(request));
+    return;
+  }
+
+  if (url.pathname === knowledgeUrl) {
     event.respondWith(cacheFirst(request));
     return;
   }

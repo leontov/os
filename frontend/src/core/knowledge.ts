@@ -1,38 +1,127 @@
 import type { KnowledgeSnippet } from "../types/knowledge";
-
-export interface KnowledgeSearchOptions {
-  signal?: AbortSignal;
-  topK?: number;
-}
-
-export interface KnowledgeStatus {
-  status: string;
-  documents: number;
-  timestamp?: string;
-}
+import type { KnowledgeSearchOptions, KnowledgeStatus } from "../types/knowledge-service";
+import {
+  fetchLocalKnowledgeStatus,
+  getLocalKnowledgeError,
+  isLocalKnowledgeBundleAvailable,
+  searchLocalKnowledge,
+  sendLocalKnowledgeFeedback,
+  teachLocalKnowledge,
+} from "./local-knowledge";
 
 const DEFAULT_ENDPOINT = "/api/knowledge/search";
-const KNOWLEDGE_API_BASE =
-  (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_KNOWLEDGE_API) || DEFAULT_ENDPOINT;
 
-const resolveBaseUrl = (): URL => {
+type KnowledgeStrategy = "local" | "remote" | "hybrid";
+
+interface KnowledgeConfiguration {
+  strategy: KnowledgeStrategy;
+  remoteEndpoint: string | null;
+}
+
+const resolveEnvValue = (key: string): string | undefined => {
+  const importMetaEnv = typeof import.meta !== "undefined" ? (import.meta as any).env ?? {} : {};
+  const metaValue = typeof importMetaEnv[key] === "string" ? (importMetaEnv[key] as string) : undefined;
+  if (metaValue && metaValue.trim()) {
+    return metaValue;
+  }
+  if (typeof process !== "undefined" && process.env && typeof process.env[key] === "string") {
+    return process.env[key];
+  }
+  return undefined;
+};
+
+const resolveKnowledgeConfiguration = (): KnowledgeConfiguration => {
+  const rawMode = resolveEnvValue("VITE_KNOWLEDGE_MODE")?.trim().toLowerCase() ?? "";
+  const rawEndpoint = resolveEnvValue("VITE_KNOWLEDGE_API")?.trim() ?? "";
+
+  const explicitRemoteEndpoint = rawEndpoint && rawEndpoint.toLowerCase() !== "local" ? rawEndpoint : "";
+
+  if (rawMode === "remote") {
+    return {
+      strategy: "remote",
+      remoteEndpoint: explicitRemoteEndpoint || DEFAULT_ENDPOINT,
+    };
+  }
+
+  if (rawMode === "local") {
+    return {
+      strategy: explicitRemoteEndpoint ? "local" : "local",
+      remoteEndpoint: explicitRemoteEndpoint || null,
+    };
+  }
+
+  if (explicitRemoteEndpoint) {
+    return {
+      strategy: "hybrid",
+      remoteEndpoint: explicitRemoteEndpoint,
+    };
+  }
+
+  return {
+    strategy: "local",
+    remoteEndpoint: null,
+  };
+};
+
+const knowledgeConfig = resolveKnowledgeConfiguration();
+
+const resolveBaseUrl = (endpoint: string): URL => {
   const origin = typeof window !== "undefined" && window.location ? window.location.origin : "http://localhost";
   try {
-    if (KNOWLEDGE_API_BASE.startsWith("http")) {
-      return new URL(KNOWLEDGE_API_BASE);
+    if (endpoint.startsWith("http")) {
+      return new URL(endpoint);
     }
-    return new URL(KNOWLEDGE_API_BASE, origin);
+    return new URL(endpoint, origin);
   } catch {
     return new URL(DEFAULT_ENDPOINT, origin);
   }
 };
 
-const baseUrl = resolveBaseUrl();
-const basePath = baseUrl.pathname.endsWith("/search")
-  ? baseUrl.pathname.slice(0, -"search".length)
-  : baseUrl.pathname.replace(/[^/]+$/, "");
-const rootPath = basePath.endsWith("/") ? basePath : `${basePath}/`;
-const healthEndpoint = `${baseUrl.origin}${rootPath}healthz`;
+const resolveRemotePaths = (endpoint: string | null) => {
+  if (!endpoint) {
+    return {
+      baseUrl: null,
+      rootPath: null,
+      healthEndpoint: null,
+    };
+  }
+
+  const baseUrl = resolveBaseUrl(endpoint);
+  const basePath = baseUrl.pathname.endsWith("/search")
+    ? baseUrl.pathname.slice(0, -"search".length)
+    : baseUrl.pathname.replace(/[^/]+$/, "");
+  const rootPath = basePath.endsWith("/") ? basePath : `${basePath}/`;
+  const healthEndpoint = `${baseUrl.origin}${rootPath}healthz`;
+
+  return { baseUrl, rootPath, healthEndpoint };
+};
+
+const { baseUrl, rootPath, healthEndpoint } = resolveRemotePaths(knowledgeConfig.remoteEndpoint);
+
+const remoteComponents = baseUrl && rootPath && healthEndpoint ? { baseUrl, rootPath, healthEndpoint } : null;
+
+const remoteEnabled = knowledgeConfig.strategy !== "local" && Boolean(remoteComponents);
+const remoteFallbackAllowed = knowledgeConfig.strategy === "hybrid" && Boolean(remoteComponents);
+
+const ensureRemoteAvailable = () => {
+  if (!knowledgeConfig.remoteEndpoint || !remoteComponents) {
+    throw new Error("Удалённый сервис знаний отключён.");
+  }
+};
+
+const remoteEndpointBase = () => {
+  ensureRemoteAvailable();
+  const base = knowledgeConfig.remoteEndpoint as string;
+  return base.endsWith("/") ? base.slice(0, -1) : base;
+};
+
+const remoteHealthEndpoint = (): string => {
+  ensureRemoteAvailable();
+  return remoteComponents!.healthEndpoint as string;
+};
+
+const isAbortError = (error: unknown): error is DOMException =>
+  error instanceof DOMException && error.name === "AbortError";
 
 const normaliseSnippet = (value: unknown, index: number): KnowledgeSnippet | null => {
   if (!value || typeof value !== "object") {
@@ -55,16 +144,22 @@ const normaliseSnippet = (value: unknown, index: number): KnowledgeSnippet | nul
 };
 
 export const buildSearchUrl = (query: string, options?: KnowledgeSearchOptions): string => {
+  ensureRemoteAvailable();
   const params = new URLSearchParams({ q: query });
   if (options?.topK && Number.isFinite(options.topK)) {
     params.set("limit", String(options.topK));
   }
   const suffix = params.toString();
-  const base = KNOWLEDGE_API_BASE.endsWith("/") ? KNOWLEDGE_API_BASE.slice(0, -1) : KNOWLEDGE_API_BASE;
+  const base = remoteEndpointBase();
   return suffix ? `${base}?${suffix}` : base;
 };
 
-export async function searchKnowledge(query: string, options?: KnowledgeSearchOptions): Promise<KnowledgeSnippet[]> {
+const searchRemoteKnowledge = async (
+  query: string,
+  options?: KnowledgeSearchOptions,
+): Promise<KnowledgeSnippet[]> => {
+  ensureRemoteAvailable();
+
   const trimmed = query.trim();
   if (!trimmed) {
     return [];
@@ -78,7 +173,7 @@ export async function searchKnowledge(query: string, options?: KnowledgeSearchOp
       signal: options?.signal,
     });
   } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") {
+    if (isAbortError(error)) {
       throw error;
     }
     throw new Error("Не удалось выполнить поиск знаний: сеть недоступна.");
@@ -91,7 +186,7 @@ export async function searchKnowledge(query: string, options?: KnowledgeSearchOp
   let payload: unknown;
   try {
     payload = await response.json();
-  } catch (error) {
+  } catch {
     throw new Error("Сервис знаний вернул некорректный ответ.");
   }
 
@@ -104,12 +199,14 @@ export async function searchKnowledge(query: string, options?: KnowledgeSearchOp
     .filter((snippet): snippet is KnowledgeSnippet => Boolean(snippet));
 
   return snippets;
-}
+};
 
-export async function fetchKnowledgeStatus(): Promise<KnowledgeStatus> {
+const fetchRemoteKnowledgeStatus = async (): Promise<KnowledgeStatus> => {
+  ensureRemoteAvailable();
+
   let response: Response;
   try {
-    response = await fetch(healthEndpoint, { cache: "no-store" });
+    response = await fetch(remoteHealthEndpoint(), { cache: "no-store" });
   } catch {
     throw new Error("Сервис знаний недоступен");
   }
@@ -131,6 +228,34 @@ export async function fetchKnowledgeStatus(): Promise<KnowledgeStatus> {
   } catch {
     throw new Error("Сервис знаний вернул некорректный ответ");
   }
+};
+
+export async function searchKnowledge(query: string, options?: KnowledgeSearchOptions): Promise<KnowledgeSnippet[]> {
+  const preferLocal = knowledgeConfig.strategy !== "remote";
+
+  if (preferLocal) {
+    try {
+      const localResults = await searchLocalKnowledge(query, options);
+      if (localResults.length || !remoteFallbackAllowed) {
+        return localResults;
+      }
+    } catch (error) {
+      if (isAbortError(error)) {
+        throw error;
+      }
+      if (!remoteFallbackAllowed) {
+        throw error;
+      }
+      const localReason = error instanceof Error ? error.message : getLocalKnowledgeError();
+      console.warn("[knowledge] Локальный поиск знаний недоступен:", localReason);
+    }
+  }
+
+  if (!remoteEnabled) {
+    return [];
+  }
+
+  return searchRemoteKnowledge(query, options);
 }
 
 export async function sendKnowledgeFeedback(
@@ -138,8 +263,16 @@ export async function sendKnowledgeFeedback(
   q: string,
   a: string,
 ): Promise<void> {
+  if (knowledgeConfig.strategy !== "remote") {
+    await sendLocalKnowledgeFeedback();
+  }
+
+  if (!remoteEnabled) {
+    return;
+  }
+
   const params = new URLSearchParams({ rating, q, a });
-  const endpoint = `${healthEndpoint.replace(/healthz$/, "feedback")}?${params.toString()}`;
+  const endpoint = `${remoteHealthEndpoint().replace(/healthz$/, "feedback")}?${params.toString()}`;
   try {
     await fetch(endpoint, { method: "GET", cache: "no-store" });
   } catch {
@@ -148,11 +281,46 @@ export async function sendKnowledgeFeedback(
 }
 
 export async function teachKnowledge(q: string, a: string): Promise<void> {
+  if (knowledgeConfig.strategy !== "remote") {
+    await teachLocalKnowledge();
+  }
+
+  if (!remoteEnabled) {
+    return;
+  }
+
   const params = new URLSearchParams({ q, a });
-  const endpoint = `${healthEndpoint.replace(/healthz$/, "teach")}?${params.toString()}`;
+  const endpoint = `${remoteHealthEndpoint().replace(/healthz$/, "teach")}?${params.toString()}`;
   try {
     await fetch(endpoint, { method: "GET", cache: "no-store" });
   } catch {
     // ignore network errors for auxiliary teach channel
   }
 }
+
+export async function fetchKnowledgeStatus(): Promise<KnowledgeStatus> {
+  const preferLocal = knowledgeConfig.strategy !== "remote";
+
+  if (preferLocal) {
+    try {
+      return await fetchLocalKnowledgeStatus();
+    } catch (error) {
+      if (!remoteEnabled || isAbortError(error)) {
+        throw error;
+      }
+      const reason = error instanceof Error ? error.message : getLocalKnowledgeError();
+      console.warn("[knowledge] Не удалось получить локальный статус знаний:", reason);
+    }
+  }
+
+  if (!remoteEnabled) {
+    return {
+      status: isLocalKnowledgeBundleAvailable() ? "local" : "unavailable",
+      documents: 0,
+    };
+  }
+
+  return fetchRemoteKnowledgeStatus();
+}
+
+export type { KnowledgeSearchOptions, KnowledgeStatus } from "../types/knowledge-service";

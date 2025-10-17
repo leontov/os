@@ -1,8 +1,14 @@
 version: "3.9"
 
+x-backend-build: &backend-build
+  context: ..
+  dockerfile: backend/Dockerfile
+
 services:
   kolibri-node:
-    image: REPLACE_WITH_REGISTRY/kolibri-backend:RELEASE_TAG
+    build:
+      <<: *backend-build
+    image: kolibri-backend:local
     command: ["kolibri_node", "--listen", "4050"]
     ports:
       - "4050:4050"
@@ -17,7 +23,9 @@ services:
       retries: 3
 
   knowledge:
-    image: REPLACE_WITH_REGISTRY/kolibri-backend:RELEASE_TAG
+    build:
+      <<: *backend-build
+    image: kolibri-backend:local
     command: ["kolibri_knowledge_server"]
     depends_on:
       - kolibri-node

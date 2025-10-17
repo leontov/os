@@ -33,3 +33,12 @@ Docker Compose:
 docker compose -f deploy/docker-compose.yml up -d
 docker compose ps
 ```
+
+Файл `docker-compose.yml` собирает Docker-образ бэкенда локально из `backend/Dockerfile` и
+использует его для сервисов `kolibri-node` и `knowledge`. Это позволяет клиентам
+контролировать процесс сборки и не загружать готовые образы из внешних реестров.
+При необходимости можно явно выполнить сборку перед запуском:
+
+```bash
+docker compose -f deploy/docker-compose.yml build kolibri-node knowledge
+```
