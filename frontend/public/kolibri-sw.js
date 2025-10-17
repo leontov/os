@@ -1,15 +1,94 @@
 const CACHE_NAME = "kolibri-cache-v1";
-const OFFLINE_URL = "/index.html";
-const PRECACHE_URLS = ["/", OFFLINE_URL];
+const ABSOLUTE_URL_PATTERN = /^[a-z][a-z0-9+.-]*:\/\//i;
+
+const ensureDirectoryUrl = (input) => {
+  const url = new URL(input.href);
+  url.hash = "";
+  url.search = "";
+  if (!url.pathname.endsWith("/")) {
+    const index = url.pathname.lastIndexOf("/");
+    url.pathname = index >= 0 ? url.pathname.slice(0, index + 1) : "/";
+  }
+  if (!url.pathname.startsWith("/")) {
+    url.pathname = `/${url.pathname}`;
+  }
+  if (!url.pathname) {
+    url.pathname = "/";
+  }
+  return url;
+};
+
+const deriveBaseDirectory = () => {
+  try {
+    if (self.registration && self.registration.scope) {
+      return ensureDirectoryUrl(new URL(self.registration.scope));
+    }
+  } catch (error) {
+    console.warn("[kolibri-sw] Не удалось обработать scope service worker.", error);
+  }
+
+  try {
+    return ensureDirectoryUrl(new URL(self.location.href));
+  } catch (error) {
+    console.warn("[kolibri-sw] Не удалось обработать текущий URL service worker.", error);
+  }
+
+  const fallbackOrigin = self.location?.origin ?? "https://kolibri.invalid";
+  return ensureDirectoryUrl(new URL("/", fallbackOrigin));
+};
+
+const baseDirectory = deriveBaseDirectory();
+const baseOrigin = baseDirectory.origin;
+const BASE_PATH = baseDirectory.pathname.endsWith("/") ? baseDirectory.pathname : `${baseDirectory.pathname}/`;
+
+const resolveBasePath = (path = "") => {
+  if (!path) {
+    return BASE_PATH;
+  }
+
+  if (ABSOLUTE_URL_PATTERN.test(path)) {
+    return path;
+  }
+
+  if (path.startsWith("/")) {
+    return path;
+  }
+
+  if (path.startsWith("./") || path.startsWith("../")) {
+    return new URL(path, baseDirectory).pathname;
+  }
+
+  return `${BASE_PATH}${path}`.replace(/\/{2,}/g, "/");
+};
+
+const toAbsoluteUrl = (path = "") => {
+  if (!path) {
+    return `${baseOrigin}${BASE_PATH}`;
+  }
+
+  if (ABSOLUTE_URL_PATTERN.test(path)) {
+    return path;
+  }
+
+  if (path.startsWith("/")) {
+    return `${baseOrigin}${path}`;
+  }
+
+  return `${baseOrigin}${resolveBasePath(path)}`;
+};
+
+const OFFLINE_URL = resolveBasePath("index.html");
+const PRECACHE_URLS = [BASE_PATH, OFFLINE_URL];
 
 const JSON_HEADERS = {
   "Content-Type": "application/json; charset=utf-8",
   "Cache-Control": "no-store",
 };
 
-let wasmUrl = "/kolibri.wasm";
-let wasmInfoUrl = "/kolibri.wasm.txt";
-let knowledgeUrl = "/kolibri-knowledge.json";
+let wasmUrl = resolveBasePath("kolibri.wasm");
+let wasmInfoUrl = resolveBasePath("kolibri.wasm.txt");
+let knowledgeUrl = resolveBasePath("kolibri-knowledge.json");
+const ASSETS_PREFIX = resolveBasePath("assets/");
 
 let knowledgeDatasetPromise = null;
 let knowledgeDataset = null;
@@ -510,9 +589,13 @@ async function precacheResource(path) {
     return;
   }
 
+  if (ABSOLUTE_URL_PATTERN.test(path) && !path.startsWith(baseOrigin)) {
+    return;
+  }
+
   const cache = await caches.open(CACHE_NAME);
   try {
-    const request = new Request(path, { credentials: "same-origin" });
+    const request = new Request(toAbsoluteUrl(path), { credentials: "same-origin" });
     const response = await fetch(request);
     if (response && response.ok) {
       await cache.put(request, response.clone());
@@ -530,19 +613,20 @@ self.addEventListener("message", (event) => {
 
   if (data.type === "SET_WASM_ARTIFACTS") {
     if (typeof data.url === "string" && data.url) {
-      wasmUrl = data.url;
+      wasmUrl = resolveBasePath(data.url);
       event.waitUntil(precacheResource(wasmUrl));
     }
     if (typeof data.infoUrl === "string" && data.infoUrl) {
-      wasmInfoUrl = data.infoUrl;
+      wasmInfoUrl = resolveBasePath(data.infoUrl);
       event.waitUntil(precacheResource(wasmInfoUrl));
     }
   }
 
   if (data.type === "SET_KNOWLEDGE_ARTIFACTS") {
     if (typeof data.url === "string" && data.url) {
-      const changed = knowledgeUrl !== data.url;
-      knowledgeUrl = data.url;
+      const nextUrl = resolveBasePath(data.url);
+      const changed = knowledgeUrl !== nextUrl;
+      knowledgeUrl = nextUrl;
       if (changed) {
         resetKnowledgeDataset();
       }
@@ -555,7 +639,14 @@ self.addEventListener("message", (event) => {
   if (data.type === "SET_KNOWLEDGE_MODE") {
     if (typeof data.mode === "string" && data.mode) {
       knowledgeMode = data.mode;
-      knowledgeUrl = data.url;
+    }
+    if (typeof data.url === "string" && data.url) {
+      const nextUrl = resolveBasePath(data.url);
+      const changed = knowledgeUrl !== nextUrl;
+      knowledgeUrl = nextUrl;
+      if (changed) {
+        resetKnowledgeDataset();
+      }
       event.waitUntil(precacheResource(knowledgeUrl));
     }
   }
@@ -614,7 +705,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (url.pathname.startsWith("/assets/")) {
+  if (url.pathname.startsWith(ASSETS_PREFIX)) {
     event.respondWith(cacheFirst(request));
     return;
   }

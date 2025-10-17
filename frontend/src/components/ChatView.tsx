@@ -55,14 +55,13 @@ const ChatView = ({ messages, isLoading, conversationId }: ChatViewProps) => {
         <ChatMessageView
           key={message.id}
           message={message}
-          conversationId={conversationId}
           latestUserMessage={contextUserMessage}
         />,
       );
     });
 
     return items;
-  }, [conversationId, messages]);
+  }, [messages]);
 
   return (
     <section className="flex h-full flex-col rounded-3xl border border-border-strong bg-background-card/80 p-8 backdrop-blur">

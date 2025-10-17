@@ -24,6 +24,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Determine public base URL
+        run: |
+          if [ -s CNAME ]; then
+            echo "KOLIBRI_PUBLIC_BASE_URL=/" >> "$GITHUB_ENV"
+            echo "Using root base URL because CNAME is present"
+          else
+            echo "KOLIBRI_PUBLIC_BASE_URL=/${GITHUB_REPOSITORY#*/}/" >> "$GITHUB_ENV"
+            echo "Using repository base URL /${GITHUB_REPOSITORY#*/}/"
+          fi
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
