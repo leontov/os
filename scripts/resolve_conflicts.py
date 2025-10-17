@@ -9,7 +9,8 @@ import logging
 import sys
 from fnmatch import fnmatch
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple, TypedDict
+from typing import Literal
 from scripts.policy_validate import zagruzit_blok
 
 KONFLIKT_START = "<<<<<<<"
@@ -201,9 +202,23 @@ def razobrat_konflikt(
     return rezultat, strategii
 
 
+class FileReport(TypedDict):
+    """Сводка по одному обработанному файлу."""
+
+    file: str
+    status: Literal["clean", "resolved", "skipped"]
+    strategy: Optional[str]
+
+
+class ResolveReport(TypedDict):
+    """Итоговый отчёт по всем обнаруженным конфликтам."""
+
+    files: List[FileReport]
+
+
 def obrabotat_fajl(
     path: Path, root: Path, pravila: Sequence[Tuple[str, str]]
-) -> Dict[str, object]:
+) -> FileReport:
     """Читает файл, устраняет конфликтные маркеры и возвращает отчёт."""
 
     soderzhimoe = path.read_text(encoding="utf-8")
@@ -237,10 +252,10 @@ def nayti_fajly(root: Path) -> List[Path]:
     ]
 
 
-def postroit_otchet(root: Path) -> Dict[str, object]:
+def postroit_otchet(root: Path) -> ResolveReport:
     """Формирует итоговый отчёт по всем обработанным файлам."""
 
-    rezultaty: List[Dict[str, object]] = []
+    rezultaty: List[FileReport] = []
     pravila = postroit_pravila(root)
     for fajl in nayti_fajly(root):
         try:
