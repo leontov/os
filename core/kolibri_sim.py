@@ -66,7 +66,6 @@ class FormulaZapis(TypedDict):
 
 
 class MetricEntry(TypedDict):
-class MetricRecord(TypedDict):
     """Метрика одного шага soak-прогона."""
 
     minute: int
@@ -75,7 +74,10 @@ class MetricRecord(TypedDict):
     genome: int
 
 
-MetricRecord = MetricEntry
+class MetricRecord(MetricEntry):
+    """Синоним для обратной совместимости с устаревшим названием."""
+
+    pass
 
 
 class SoakResult(TypedDict):
@@ -83,7 +85,6 @@ class SoakResult(TypedDict):
 
     events: int
     metrics: List[MetricEntry]
-    metrics: List[MetricRecord]
 
 
 class SoakState(TypedDict, total=False):
@@ -353,8 +354,6 @@ class KolibriSim:
             otvet = poiski[0].otvet
         else:
             otvet = self.znanija.get(stimul, "...")
-
-        otvet = self.znanija.get(stimul, "...")
         self._registrirovat("ASK", f"{stimul}->{otvet}")
         return otvet
 
