@@ -1,15 +1,7 @@
 import { useEffect, useMemo, useState, type ChangeEvent } from "react";
-import { Activity, Compass, Network, Plus, Settings, Sparkles, X } from "lucide-react";
+import { Plus, Settings, X } from "lucide-react";
 import type { ConversationMetrics } from "../core/useKolibriChat";
-
-export type NavigationSection = "dialog" | "knowledge" | "swarm" | "analytics";
-
-const navigationItems: Array<{ icon: typeof Sparkles; label: string; value: NavigationSection }> = [
-  { icon: Sparkles, label: "Диалог", value: "dialog" },
-  { icon: Compass, label: "Знания", value: "knowledge" },
-  { icon: Network, label: "Рой", value: "swarm" },
-  { icon: Activity, label: "Аналитика", value: "analytics" },
-];
+import { NAVIGATION_ITEMS, type NavigationSection } from "./navigation";
 
 interface NavigationRailProps {
   onCreateConversation: () => void;
@@ -159,7 +151,7 @@ const NavigationRail = ({
             <Plus className="h-5 w-5" />
           </button>
           <nav className="flex flex-col items-center gap-3">
-            {navigationItems.map((item) => {
+            {NAVIGATION_ITEMS.map((item) => {
               const isActive = activeSection === item.value;
               return (
                 <button
