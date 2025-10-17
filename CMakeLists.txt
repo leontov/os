@@ -28,6 +28,7 @@ add_library(kolibri_core_objects OBJECT
     backend/src/knowledge_index.c
     backend/src/knowledge_queue.c
     backend/src/sim.c
+    backend/src/sigma.c
 )
 
 target_include_directories(kolibri_core_objects
@@ -125,6 +126,7 @@ if(KOLIBRI_ENABLE_WASM_TARGET)
         ${CMAKE_CURRENT_SOURCE_DIR}/backend/src/symbol_table.c
         ${CMAKE_CURRENT_SOURCE_DIR}/backend/src/script.c
         ${CMAKE_CURRENT_SOURCE_DIR}/backend/src/sim.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/backend/src/sigma.c
         ${CMAKE_CURRENT_SOURCE_DIR}/backend/src/wasm_bridge.c
         ${CMAKE_CURRENT_SOURCE_DIR}/backend/src/wasm_genome_stub.c
         ${CMAKE_CURRENT_SOURCE_DIR}/wasm/kolibri_sim_wasm.c
@@ -196,6 +198,7 @@ if(KOLIBRI_ENABLE_TESTS)
         tests/test_sim.c
         tests/test_public_api.c
         tests/test_knowledge_server_integration.c
+        tests/test_sigma.c
     )
     target_link_libraries(kolibri_tests PRIVATE kolibri_core Threads::Threads)
     add_test(NAME kolibri_tests COMMAND kolibri_tests)
