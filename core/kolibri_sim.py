@@ -74,6 +74,10 @@ class MetricRecord(TypedDict):
     genome: int
 
 
+class MetricRecord(MetricEntry):
+    """Синоним для обратной совместимости с устаревшим названием."""
+
+    pass
 MetricEntry = MetricRecord
 
 
@@ -81,6 +85,7 @@ class SoakResult(TypedDict):
     """Результат выполнения soak-сессии."""
 
     events: int
+    metrics: List[MetricEntry]
     metrics: List[MetricRecord]
 
 
