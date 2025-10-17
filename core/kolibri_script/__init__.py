@@ -51,6 +51,11 @@ __all__ = [
     "VariableDeclaration",
     "WhileStatement",
     "parse_script",
+]
+
+# Интеграция KolibriScript с цифровым геном и форматами .ksd.
+
+__all__ += [
     "KsdBlock",
     "KsdValidationError",
     "KolibriGenomeLedger",
