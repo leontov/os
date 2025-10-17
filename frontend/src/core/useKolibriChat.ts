@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ChatAttachment, ChatMessage } from "../types/chat";
+import type { PendingAttachment, SerializedAttachment } from "../types/attachments";
+import type { ChatMessage } from "../types/chat";
 import type { KnowledgeSnippet } from "../types/knowledge";
 import { fetchKnowledgeStatus, searchKnowledge } from "./knowledge";
 import kolibriBridge from "./kolibri-bridge";
@@ -21,175 +22,48 @@ export interface ConversationSummary {
 }
 
 const DEFAULT_TITLE = "Новая беседа";
-const DEFAULT_MODE_VALUE = MODE_OPTIONS[0]?.value ?? "neutral";
-const STORAGE_KEY = "kolibri:chat:conversations";
-const PREVIEW_MAX_LENGTH = 80;
+const BASE64_CHUNK_SIZE = 8192;
 
-interface ConversationRecord {
-  id: string;
-  title: string;
-  createdAtIso: string;
-  updatedAtIso: string;
-  preview: string;
-  messages: ChatMessage[];
-}
-
-export interface ConversationSummary {
-  id: string;
-  title: string;
-  createdAtIso: string;
-  updatedAtIso: string;
-  preview: string;
-}
-
-const createConversationId = (): string => {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID();
+const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
+  if (buffer.byteLength === 0) {
+    return "";
   }
-  return Math.random().toString(36).slice(2, 12);
+
+  let binary = "";
+  const bytes = new Uint8Array(buffer);
+  for (let index = 0; index < bytes.length; index += BASE64_CHUNK_SIZE) {
+    const slice = bytes.subarray(index, index + BASE64_CHUNK_SIZE);
+    binary += String.fromCharCode(...slice);
+  }
+  return btoa(binary);
 };
 
-const normalisePreview = (value: string): string => value.replace(/\s+/g, " ").trim();
-
-const createPreviewFromMessages = (messages: ChatMessage[]): string => {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const candidate = normalisePreview(messages[index]?.content ?? "");
-    if (candidate) {
-      return candidate.length > PREVIEW_MAX_LENGTH
-        ? `${candidate.slice(0, PREVIEW_MAX_LENGTH - 1)}…`
-        : candidate;
-    }
-  }
-  return "";
-};
-
-const findLastIsoTimestamp = (messages: ChatMessage[]): string | undefined => {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const iso = messages[index]?.isoTimestamp;
-    if (iso) {
-      return iso;
-    }
-  }
-  return undefined;
-};
-
-const sanitiseMessage = (candidate: unknown): ChatMessage | null => {
-  if (!candidate || typeof candidate !== "object") {
-    return null;
-  }
-  const raw = candidate as Partial<ChatMessage> & Record<string, unknown>;
-  if (typeof raw.id !== "string" || typeof raw.role !== "string" || typeof raw.content !== "string") {
-    return null;
-  }
-  if (raw.role !== "assistant" && raw.role !== "user") {
-    return null;
-  }
-  if (typeof raw.timestamp !== "string") {
-    return null;
-  }
-  const message: ChatMessage = {
-    id: raw.id,
-    role: raw.role,
-    content: raw.content,
-    timestamp: raw.timestamp,
-  };
-  if (typeof raw.isoTimestamp === "string") {
-    message.isoTimestamp = raw.isoTimestamp;
-  }
-  if (typeof raw.modeLabel === "string") {
-    message.modeLabel = raw.modeLabel;
-  }
-  if (typeof raw.modeValue === "string") {
-    message.modeValue = raw.modeValue;
-  }
-  if (Array.isArray(raw.context)) {
-    message.context = raw.context as KnowledgeSnippet[];
-  }
-  if (typeof raw.contextError === "string") {
-    message.contextError = raw.contextError;
-  }
-  return message;
-};
-
-const createConversationRecord = (overrides: Partial<ConversationRecord> & { messages?: ChatMessage[] } = {}): ConversationRecord => {
-  const messages = overrides.messages ?? [];
-  const createdAtIso = overrides.createdAtIso ?? new Date().toISOString();
-  const lastIso = findLastIsoTimestamp(messages);
-  const updatedAtIso = overrides.updatedAtIso ?? lastIso ?? createdAtIso;
-  const preview = overrides.preview ?? createPreviewFromMessages(messages);
-  return {
-    id: overrides.id ?? createConversationId(),
-    title: overrides.title?.trim() ? overrides.title : DEFAULT_TITLE,
-    createdAtIso,
-    updatedAtIso,
-    preview,
-    messages,
-  };
-};
-
-const loadInitialConversationState = (): { conversations: ConversationRecord[]; active: ConversationRecord } => {
-  const fallback = createConversationRecord();
-  if (typeof window === "undefined") {
-    return { conversations: [fallback], active: fallback };
+const serializeAttachments = async (attachments: PendingAttachment[]): Promise<SerializedAttachment[]> => {
+  if (!attachments.length) {
+    return [];
   }
 
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      return { conversations: [fallback], active: fallback };
-    }
-
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) {
-      return { conversations: [fallback], active: fallback };
-    }
-
-    const conversations: ConversationRecord[] = [];
-    for (const item of parsed) {
-      if (!item || typeof item !== "object") {
-        continue;
+  const serialized = await Promise.all(
+    attachments.map(async ({ id, file }) => {
+      let dataBase64: string | undefined;
+      try {
+        const buffer = await file.arrayBuffer();
+        dataBase64 = arrayBufferToBase64(buffer);
+      } catch (error) {
+        console.error("Не удалось прочитать вложение", error);
       }
-      const rawConversation = item as Partial<ConversationRecord> & { messages?: unknown };
-      const messages = Array.isArray(rawConversation.messages)
-        ? (rawConversation.messages
-            .map((message) => sanitiseMessage(message))
-            .filter((value): value is ChatMessage => Boolean(value)) ?? [])
-        : [];
-      const conversation = createConversationRecord({
-        id: typeof rawConversation.id === "string" ? rawConversation.id : undefined,
-        title: typeof rawConversation.title === "string" ? rawConversation.title : undefined,
-        createdAtIso: typeof rawConversation.createdAtIso === "string" ? rawConversation.createdAtIso : undefined,
-        updatedAtIso: typeof rawConversation.updatedAtIso === "string" ? rawConversation.updatedAtIso : undefined,
-        preview: typeof rawConversation.preview === "string" ? rawConversation.preview : undefined,
-        messages,
-      });
-      conversations.push(conversation);
-    }
 
-    if (!conversations.length) {
-      return { conversations: [fallback], active: fallback };
-    }
+      return {
+        id,
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        dataBase64,
+      } satisfies SerializedAttachment;
+    }),
+  );
 
-    conversations.sort((first, second) => {
-      const firstTime = Date.parse(first.updatedAtIso);
-      const secondTime = Date.parse(second.updatedAtIso);
-      if (Number.isNaN(firstTime) && Number.isNaN(secondTime)) {
-        return 0;
-      }
-      if (Number.isNaN(firstTime)) {
-        return 1;
-      }
-      if (Number.isNaN(secondTime)) {
-        return -1;
-      }
-      return secondTime - firstTime;
-    });
-
-    return { conversations, active: conversations[0] };
-  } catch (error) {
-    console.warn("Failed to load conversation history", error);
-    return { conversations: [fallback], active: fallback };
-  }
+  return serialized;
 };
 
 const formatPromptWithContext = (question: string, context: KnowledgeSnippet[]): string => {
@@ -242,11 +116,13 @@ interface UseKolibriChatResult {
   statusLoading: boolean;
   latestAssistantMessage?: ChatMessage;
   metrics: ConversationMetrics;
-  conversations: ConversationSummary[];
-  attachments: ChatAttachment[];
+  attachments: PendingAttachment[];
   setDraft: (value: string) => void;
   setMode: (mode: string) => void;
   renameConversation: (title: string) => void;
+  attachFiles: (files: File[]) => void;
+  removeAttachment: (id: string) => void;
+  clearAttachments: () => void;
   sendMessage: () => Promise<void>;
   resetConversation: () => Promise<void>;
   selectConversation: (id: string) => void;
@@ -301,6 +177,27 @@ export const useKolibriChat = (): UseKolibriChatResult => {
     setDraft("");
     setMode(DEFAULT_MODE_VALUE);
     return record;
+  }, []);
+
+  const attachFiles = useCallback((files: File[]) => {
+    if (!files.length) {
+      return;
+    }
+    setAttachments((prev) => [
+      ...prev,
+      ...files.map((file) => ({
+        id: crypto.randomUUID(),
+        file,
+      })),
+    ]);
+  }, []);
+
+  const removeAttachment = useCallback((id: string) => {
+    setAttachments((prev) => prev.filter((item) => item.id !== id));
+  }, []);
+
+  const clearAttachments = useCallback(() => {
+    setAttachments([]);
   }, []);
 
   useEffect(() => {
@@ -420,11 +317,17 @@ export const useKolibriChat = (): UseKolibriChatResult => {
     if (!bridgeReady) {
       beginNewConversation();
       setIsProcessing(false);
+      clearAttachments();
       return;
     }
     try {
       await kolibriBridge.reset();
-      beginNewConversation();
+      setMessages([]);
+      setDraft("");
+      setMode(MODE_OPTIONS[0]?.value ?? "neutral");
+      setConversationId(crypto.randomUUID());
+      setConversationTitle(DEFAULT_TITLE);
+      clearAttachments();
     } catch (error) {
       const moment = nowPair();
       const assistantMessage: ChatMessage = {
@@ -441,24 +344,7 @@ export const useKolibriChat = (): UseKolibriChatResult => {
     } finally {
       setIsProcessing(false);
     }
-  }, [beginNewConversation, bridgeReady]);
-
-  const selectConversation = useCallback(
-    (targetId: string) => {
-      const candidate = conversationsRef.current.find((item) => item.id === targetId);
-      if (!candidate) {
-        return;
-      }
-      knowledgeSearchAbortRef.current?.abort();
-      knowledgeSearchAbortRef.current = null;
-      setConversationId(candidate.id);
-      setConversationTitle(candidate.title);
-      setMessages(candidate.messages);
-      setDraft("");
-      setIsProcessing(false);
-    },
-    [setConversationId, setConversationTitle, setMessages, setDraft, setIsProcessing],
-  );
+  }, [bridgeReady, clearAttachments]);
 
   const sendMessage = useCallback(async () => {
     const content = draft.trim();
@@ -471,6 +357,14 @@ export const useKolibriChat = (): UseKolibriChatResult => {
 
     const serializedAttachments = attachments.map(({ id, name, size, type }) => ({ id, name, size, type }));
 
+    const pendingAttachments = attachments;
+    let serializedAttachments: SerializedAttachment[] = [];
+    try {
+      serializedAttachments = await serializeAttachments(pendingAttachments);
+    } catch (error) {
+      console.error("Не удалось сериализовать вложения", error);
+    }
+
     const timestamp = nowPair();
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
@@ -480,10 +374,13 @@ export const useKolibriChat = (): UseKolibriChatResult => {
       isoTimestamp: timestamp.iso,
       attachments: serializedAttachments.length ? serializedAttachments : undefined,
     };
+    if (serializedAttachments.length) {
+      userMessage.attachments = serializedAttachments;
+    }
 
     setMessages((prev) => [...prev, userMessage]);
     setDraft("");
-    setAttachments([]);
+    clearAttachments();
     setIsProcessing(true);
 
     knowledgeSearchAbortRef.current?.abort();
@@ -516,7 +413,7 @@ export const useKolibriChat = (): UseKolibriChatResult => {
     const prompt = knowledgeContext.length ? formatPromptWithContext(content || "", knowledgeContext) : content;
 
     try {
-      const answer = await kolibriBridge.ask(prompt, mode, knowledgeContext);
+      const answer = await kolibriBridge.ask(prompt, mode, knowledgeContext, serializedAttachments);
       const moment = nowPair();
       const assistantMessage: ChatMessage = {
         id: crypto.randomUUID(),
@@ -551,81 +448,7 @@ export const useKolibriChat = (): UseKolibriChatResult => {
       setIsProcessing(false);
       void refreshKnowledgeStatus();
     }
-  }, [attachments, bridgeReady, draft, isProcessing, mode, refreshKnowledgeStatus]);
-
-  const resetConversation = useCallback(async () => {
-    knowledgeSearchAbortRef.current?.abort();
-    knowledgeSearchAbortRef.current = null;
-    clearAttachments();
-
-    const startNewConversation = () => {
-      const freshConversation = createStoredConversation();
-      persistConversations([freshConversation, ...conversations.filter((item) => item.id !== freshConversation.id)]);
-      setConversationId(freshConversation.id);
-      setMessages([]);
-      setDraft("");
-      setMode(freshConversation.mode);
-      setConversationTitle(freshConversation.title);
-    };
-
-    if (!bridgeReady) {
-      startNewConversation();
-      setIsProcessing(false);
-      return;
-    }
-
-    try {
-      await kolibriBridge.reset();
-      startNewConversation();
-    } catch (error) {
-      const moment = nowPair();
-      const assistantMessage: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content:
-          error instanceof Error
-            ? `Не удалось сбросить KolibriScript: ${error.message}`
-            : "Не удалось сбросить KolibriScript.",
-        timestamp: moment.display,
-        isoTimestamp: moment.iso,
-      };
-      setMessages((prev) => [...prev, assistantMessage]);
-    } finally {
-      setIsProcessing(false);
-    }
-  }, [bridgeReady, clearAttachments, conversations, persistConversations]);
-
-  const selectConversation = useCallback(
-    async (id: string) => {
-      if (id === conversationId) {
-        return;
-      }
-      const target = conversations.find((item) => item.id === id);
-      if (!target) {
-        return;
-      }
-
-      knowledgeSearchAbortRef.current?.abort();
-      knowledgeSearchAbortRef.current = null;
-      clearAttachments();
-      setIsProcessing(false);
-
-      if (bridgeReady) {
-        try {
-          await kolibriBridge.reset();
-        } catch {
-          // ignore reset errors when switching conversations
-        }
-      }
-
-      setConversationId(target.id);
-      setMessages(target.messages);
-      setDraft(target.draft);
-      setMode(target.mode);
-      setConversationTitle(target.title);
-    },
-    [bridgeReady, clearAttachments, conversationId, conversations],
-  );
+  }, [attachments, bridgeReady, clearAttachments, draft, isProcessing, mode, refreshKnowledgeStatus]);
 
   const renameConversation = useCallback((nextTitle: string) => {
     const trimmed = nextTitle.trim();
@@ -722,11 +545,13 @@ export const useKolibriChat = (): UseKolibriChatResult => {
     statusLoading,
     latestAssistantMessage,
     metrics,
-    conversations: conversationSummaries,
-    attachments: publicAttachments,
+    attachments,
     setDraft,
     setMode,
     renameConversation,
+    attachFiles,
+    removeAttachment,
+    clearAttachments,
     sendMessage,
     resetConversation,
     selectConversation,

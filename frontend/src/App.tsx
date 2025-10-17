@@ -29,11 +29,13 @@ const App = () => {
     statusLoading,
     latestAssistantMessage,
     metrics,
-    conversations,
     attachments,
     setDraft,
     setMode,
     renameConversation,
+    attachFiles,
+    removeAttachment,
+    clearAttachments,
     sendMessage,
     selectConversation,
     createConversation,
@@ -124,27 +126,21 @@ const App = () => {
         />
       }
     >
-      <div className="flex h-full flex-1 flex-col gap-6 lg:flex-row">
-        <div className="hidden w-full max-w-xs shrink-0 lg:flex xl:max-w-sm">
-          <Sidebar
-            conversations={conversationSummaries}
-            activeConversationId={conversationId}
-            onConversationSelect={handleSelectConversation}
-            onCreateConversation={handleCreateConversation}
-          />
-        </div>
-        <div className="flex h-full flex-1 flex-col gap-6">
-          <div className="flex-1">{mainContent}</div>
-          <ChatInput
-            value={draft}
-            mode={mode}
-            isBusy={isProcessing || !bridgeReady}
-            onChange={setDraft}
-            onModeChange={setMode}
-            onSubmit={sendMessage}
-            onReset={handleCreateConversation}
-          />
-        </div>
+      <div className="flex h-full flex-1 flex-col gap-6">
+        <div className="flex-1">{mainContent}</div>
+        <ChatInput
+          value={draft}
+          mode={mode}
+          isBusy={isProcessing || !bridgeReady}
+          attachments={attachments}
+          onChange={setDraft}
+          onModeChange={setMode}
+          onSubmit={sendMessage}
+          onReset={resetConversation}
+          onAttach={attachFiles}
+          onRemoveAttachment={removeAttachment}
+          onClearAttachments={clearAttachments}
+        />
       </div>
     </AppShell>
   );
