@@ -37,6 +37,7 @@ const App = () => {
     setDraft,
     setMode,
     kernelControls,
+    kernelCapabilities,
     updateKernelControls,
     renameConversation,
     attachFiles,
@@ -225,12 +226,18 @@ const App = () => {
         inspector={
           activeSection === "dialog" && isDesktop ? (
             <div className="flex h-full flex-col gap-4">
+              <KernelControlsPanel
+                controls={kernelControls}
+                capabilities={kernelCapabilities}
+                onChange={updateKernelControls}
+              />
               <KernelControlsPanel controls={kernelControls} onChange={updateKernelControls} />
               <InspectorPanel
                 status={knowledgeStatus}
                 error={knowledgeError}
                 isLoading={statusLoading}
                 metrics={metrics}
+                capabilities={kernelCapabilities}
                 latestAssistantMessage={latestAssistantMessage}
                 onRefresh={() => {
                   void refreshKnowledgeStatus();
@@ -268,12 +275,18 @@ const App = () => {
         onClose={() => setInspectorOpen(false)}
         footer="Изменения применяются мгновенно и сохраняются для текущей сессии."
       >
+        <KernelControlsPanel
+          controls={kernelControls}
+          capabilities={kernelCapabilities}
+          onChange={updateKernelControls}
+        />
         <KernelControlsPanel controls={kernelControls} onChange={updateKernelControls} />
         <InspectorPanel
           status={knowledgeStatus}
           error={knowledgeError}
           isLoading={statusLoading}
           metrics={metrics}
+          capabilities={kernelCapabilities}
           latestAssistantMessage={latestAssistantMessage}
           onRefresh={() => {
             setInspectorOpen(false);

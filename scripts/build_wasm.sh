@@ -443,6 +443,18 @@ istochniki=(
 )
 
 flags=(
+    -Os
+    -std=gnu99
+    -msimd128
+    -s STANDALONE_WASM=1
+    -s SIDE_MODULE=0
+    -s ALLOW_MEMORY_GROWTH=0
+    -s EXPORTED_RUNTIME_METHODS='[]'
+    -s EXPORTED_FUNCTIONS='["_kolibri_bridge_init","_kolibri_bridge_reset","_kolibri_bridge_execute","_kolibri_bridge_has_simd","_kolibri_bridge_lane_width","_kolibri_sim_wasm_init","_kolibri_sim_wasm_tick","_kolibri_sim_wasm_get_logs","_kolibri_sim_wasm_reset","_kolibri_sim_wasm_free","_malloc","_free"]'
+    -s DEFAULT_LIBRARY_FUNCS_TO_INCLUDE='[]'
+    --no-entry
+    -I"$proekt_koren/backend/include"
+    -DKOLIBRI_USE_WASM_SIMD=1
     -O3
     -std=gnu11
     -msimd128

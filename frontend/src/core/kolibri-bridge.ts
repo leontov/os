@@ -30,6 +30,12 @@ export interface KernelControlPayload {
   cfBeam: boolean;
 }
 
+export interface KernelCapabilities {
+  wasm: boolean;
+  simd: boolean;
+  laneWidth: number;
+}
+
 export interface KolibriBridge {
   readonly ready: Promise<void>;
   ask(
@@ -40,6 +46,7 @@ export interface KolibriBridge {
   ): Promise<string>;
   reset(): Promise<void>;
   configure(controls: KernelControlPayload): Promise<void>;
+  capabilities(): Promise<KernelCapabilities>;
 }
 
 interface KolibriWasmExports {
@@ -58,6 +65,8 @@ interface KolibriWasmExports {
     topK: number,
     cfBeam: number,
   ): number;
+  _kolibri_bridge_has_simd(): number;
+  _kolibri_bridge_lane_width(): number;
 }
 
 const OUTPUT_CAPACITY = 8192;
@@ -243,6 +252,10 @@ const createKolibriWasmExports = (rawExports: WebAssembly.Exports, wasi: WasiAda
       topK: number,
       cfBeam: number,
     ) => number,
+    _kolibri_bridge_has_simd: resolveFunction(
+      rawExports,
+      ["_kolibri_bridge_has_simd", "kolibri_bridge_has_simd"],
+    ) as () => number,
   };
 };
 
@@ -327,6 +340,7 @@ async function describeWasmFailure(error: unknown): Promise<string> {
 class KolibriWasmRuntime {
   private exports: KolibriWasmExports | null = null;
   private readonly wasi = new WasiAdapter();
+  private capabilitiesSnapshot: KernelCapabilities = { wasm: true, simd: false, laneWidth: 1 };
 
   async initialise(): Promise<void> {
     const instance = await this.instantiate();
@@ -336,6 +350,16 @@ class KolibriWasmRuntime {
       throw new Error(`Не удалось инициализировать KolibriScript (код ${initResult})`);
     }
     this.exports = exports;
+    try {
+      const hasSimd = exports._kolibri_bridge_has_simd() === 1;
+      const rawLaneWidth = exports._kolibri_bridge_lane_width();
+      const laneWidth =
+        Number.isFinite(rawLaneWidth) && rawLaneWidth > 0 ? Math.floor(rawLaneWidth) : 1;
+      this.capabilitiesSnapshot = { wasm: true, simd: hasSimd, laneWidth };
+    } catch (error) {
+      console.warn("[kolibri-bridge] Не удалось определить поддержку SIMD", error);
+      this.capabilitiesSnapshot = { wasm: true, simd: false, laneWidth: 1 };
+    }
   }
 
   private async instantiate(): Promise<WebAssembly.Instance> {
@@ -357,6 +381,10 @@ class KolibriWasmRuntime {
     const bytes = await response.arrayBuffer();
     const { instance } = await WebAssembly.instantiate(bytes, importObject);
     return instance;
+  }
+
+  getCapabilities(): KernelCapabilities {
+    return this.capabilitiesSnapshot;
   }
 
   async execute(prompt: string, mode: string, context: KnowledgeSnippet[]): Promise<string> {
@@ -488,10 +516,16 @@ class KolibriScriptBridge implements KolibriBridge {
   async configure(controls: KernelControlPayload): Promise<void> {
     await this.runtime.configure(controls);
   }
+
+  capabilities(): Promise<KernelCapabilities> {
+    return Promise.resolve(this.runtime.getCapabilities());
+  }
 }
 
 class KolibriFallbackBridge implements KolibriBridge {
   readonly ready = Promise.resolve();
+
+  private readonly capability: KernelCapabilities = { wasm: false, simd: false, laneWidth: 1 };
 
   constructor(private readonly reason: string) {}
 
@@ -522,6 +556,10 @@ class KolibriFallbackBridge implements KolibriBridge {
   async configure(controls: KernelControlPayload): Promise<void> {
     void controls;
     // Настройки недоступны в деградированном режиме.
+  }
+
+  capabilities(): Promise<KernelCapabilities> {
+    return Promise.resolve(this.capability);
   }
 }
 
@@ -569,6 +607,10 @@ class KolibriLLMBridge implements KolibriBridge {
 
   async configure(controls: KernelControlPayload): Promise<void> {
     await this.fallback.configure(controls);
+  }
+
+  capabilities(): Promise<KernelCapabilities> {
+    return this.fallback.capabilities();
   }
 }
 
@@ -625,6 +667,10 @@ const kolibriBridge: KolibriBridge = {
   async configure(controls: KernelControlPayload): Promise<void> {
     const bridge = await bridgePromise;
     await bridge.configure(controls);
+  },
+  async capabilities(): Promise<KernelCapabilities> {
+    const bridge = await bridgePromise;
+    return bridge.capabilities();
   },
 };
 

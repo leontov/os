@@ -3,6 +3,7 @@ import type { PendingAttachment, SerializedAttachment } from "../types/attachmen
 import type { ChatMessage } from "../types/chat";
 import type { KnowledgeSnippet } from "../types/knowledge";
 import { fetchKnowledgeStatus, searchKnowledge } from "./knowledge";
+import kolibriBridge, { type KernelCapabilities, type KernelControlPayload } from "./kolibri-bridge";
 import kolibriBridge, { type KernelControlPayload } from "./kolibri-bridge";
 import { MODE_OPTIONS, findModeLabel } from "./modes";
 
@@ -55,6 +56,12 @@ const DEFAULT_KERNEL_CONTROLS: KernelControlsState = {
   temperature: 0.85,
   topK: 4,
   cfBeam: true,
+};
+
+const DEFAULT_KERNEL_CAPABILITIES: KernelCapabilities = {
+  wasm: false,
+  simd: false,
+  laneWidth: 1,
 };
 
 const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
@@ -320,6 +327,7 @@ interface UseKolibriChatResult {
   metrics: ConversationMetrics;
   attachments: PendingAttachment[];
   kernelControls: KernelControlsState;
+  kernelCapabilities: KernelCapabilities;
   updateKernelControls: (controls: Partial<KernelControlsState>) => void;
   setDraft: (value: string) => void;
   setMode: (mode: string) => void;
@@ -350,6 +358,7 @@ const useKolibriChat = (): UseKolibriChatResult => {
   const [statusLoading, setStatusLoading] = useState(false);
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [kernelControls, setKernelControlsState] = useState<KernelControlsState>(DEFAULT_KERNEL_CONTROLS);
+  const [kernelCapabilities, setKernelCapabilities] = useState<KernelCapabilities>(DEFAULT_KERNEL_CAPABILITIES);
 
   const knowledgeSearchAbortRef = useRef<AbortController | null>(null);
   const conversationsRef = useRef<ConversationRecord[]>(initialConversations);
@@ -430,13 +439,22 @@ const useKolibriChat = (): UseKolibriChatResult => {
 
   useEffect(() => {
     let cancelled = false;
-    kolibriBridge.ready
-      .then(() => {
+
+    const initialiseBridge = async () => {
+      try {
+        await kolibriBridge.ready;
         if (!cancelled) {
           setBridgeReady(true);
         }
-      })
-      .catch((error) => {
+        try {
+          const capabilities = await kolibriBridge.capabilities();
+          if (!cancelled) {
+            setKernelCapabilities(capabilities);
+          }
+        } catch (capabilitiesError) {
+          console.warn("Не удалось получить возможности ядра Kolibri", capabilitiesError);
+        }
+      } catch (error) {
         if (cancelled) {
           return;
         }
@@ -452,7 +470,10 @@ const useKolibriChat = (): UseKolibriChatResult => {
           isoTimestamp: moment.iso,
         };
         setMessages((prev) => [...prev, assistantMessage]);
-      });
+      }
+    };
+
+    void initialiseBridge();
 
     return () => {
       cancelled = true;
@@ -827,6 +848,7 @@ const useKolibriChat = (): UseKolibriChatResult => {
     metrics,
     attachments,
     kernelControls,
+    kernelCapabilities,
     setDraft,
     setMode,
     renameConversation,

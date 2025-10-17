@@ -1,4 +1,5 @@
 import { AlertTriangle, Database, ListTree, Sparkles, Timer } from "lucide-react";
+import type { KernelCapabilities } from "../core/kolibri-bridge";
 import type { ConversationMetrics } from "../core/useKolibriChat";
 import type { KnowledgeStatus } from "../core/knowledge";
 import type { ChatMessage } from "../types/chat";
@@ -8,6 +9,7 @@ interface InspectorPanelProps {
   error?: string;
   isLoading: boolean;
   metrics: ConversationMetrics;
+  capabilities: KernelCapabilities;
   latestAssistantMessage?: ChatMessage;
   onRefresh?: () => void;
 }
@@ -50,14 +52,26 @@ const StatCard = ({
   </article>
 );
 
-const InspectorPanel = ({ status, error, isLoading, metrics, latestAssistantMessage, onRefresh }: InspectorPanelProps) => {
+const InspectorPanel = ({
+  status,
+  error,
+  isLoading,
+  metrics,
+  capabilities,
+  latestAssistantMessage,
+  onRefresh,
+}: InspectorPanelProps) => {
   const context = latestAssistantMessage?.context;
+  const laneWidth = Math.max(1, Math.floor(capabilities.laneWidth));
+  const laneWidthLabel = laneWidth > 1 ? `${laneWidth}×` : "1× (скалярный)";
   const kernelMetrics: Array<{ label: string; value: string }> = [
     { label: "Conserved B/D", value: formatPercent(metrics.conservedRatio) },
     { label: "Stability@5", value: formatPercent(metrics.stability) },
     { label: "Auditability", value: formatPercent(metrics.auditability) },
     { label: "Return-to-Attractor", value: formatPercent(metrics.returnToAttractor) },
     { label: "Latency P50", value: `${metrics.latencyP50.toFixed(0)} мс` },
+    { label: "WASM SIMD", value: capabilities.simd ? "активно" : "скалярный режим" },
+    { label: "SIMD Lanes", value: laneWidthLabel },
   ];
 
   return (

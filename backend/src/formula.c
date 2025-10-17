@@ -16,24 +16,79 @@
 #include <string.h>
 #include <time.h>
 
+#if defined(__GNUC__) || defined(__clang__)
+#define KOLIBRI_FORCE_INLINE static inline __attribute__((always_inline))
+#else
+#define KOLIBRI_FORCE_INLINE static inline
+#endif
+
+#if defined(__GNUC__) || defined(__clang__)
+#define KOLIBRI_ATOMIC_STORE_U64(ptr, value) __atomic_store_n((ptr), (uint64_t)(value), __ATOMIC_RELAXED)
+#define KOLIBRI_ATOMIC_ADD_U64(ptr, value) __atomic_add_fetch((ptr), (uint64_t)(value), __ATOMIC_RELAXED)
+#else
+#define KOLIBRI_ATOMIC_STORE_U64(ptr, value) (*(ptr) = (uint64_t)(value))
+#define KOLIBRI_ATOMIC_ADD_U64(ptr, value) ((*(ptr) += (uint64_t)(value)))
+#endif
+
+#if defined(KOLIBRI_CF_BEAM_LANES)
+#define KOLIBRI_BEAM_MAX_LANES (KOLIBRI_CF_BEAM_LANES)
+#elif defined(KOLIBRI_USE_PTHREADS)
+#define KOLIBRI_BEAM_MAX_LANES 8U
+#else
+#define KOLIBRI_BEAM_MAX_LANES 4U
+#endif
+
+#if (KOLIBRI_BEAM_MAX_LANES) < 4U
+#undef KOLIBRI_BEAM_MAX_LANES
+#define KOLIBRI_BEAM_MAX_LANES 4U
+#endif
+
+#if (KOLIBRI_BEAM_MAX_LANES) > 8U
+#undef KOLIBRI_BEAM_MAX_LANES
+#define KOLIBRI_BEAM_MAX_LANES 8U
+#endif
+
+#if defined(KOLIBRI_USE_WASM_SIMD) && defined(__wasm_simd128__)
+#include <wasm_simd128.h>
+#define KOLIBRI_HAS_WASM_SIMD 1
+
+KOLIBRI_FORCE_INLINE size_t kolibri_popcount16(uint32_t mask) {
+#if defined(__has_builtin)
+#if __has_builtin(__builtin_popcount)
+    return (size_t)__builtin_popcount(mask);
+#endif
+#endif
+#if defined(__GNUC__)
+    return (size_t)__builtin_popcount(mask);
+#else
+    size_t count = 0U;
+    while (mask != 0U) {
+        count += (size_t)(mask & 1U);
+        mask >>= 1U;
+    }
+    return count;
+#endif
+}
+#endif
+
 #define KOLIBRI_FORMULA_CAPACITY (sizeof(((KolibriFormulaPool *)0)->formulas) / sizeof(KolibriFormula))
 #define KOLIBRI_DIGIT_MAX 9U
 #define KOLIBRI_ASSOC_TEXT_LIMIT (sizeof(((KolibriAssociation *)0)->question))
 
 /* ---------------------------- Утилиты ----------------------------- */
 
-static uint8_t random_digit(KolibriFormulaPool *pool) {
+KOLIBRI_FORCE_INLINE uint8_t random_digit(KolibriFormulaPool *pool) {
     return (uint8_t)(k_rng_next(&pool->rng) % 10ULL);
 }
 
-static void gene_randomize(KolibriFormulaPool *pool, KolibriGene *gene) {
+KOLIBRI_FORCE_INLINE void gene_randomize(KolibriFormulaPool *pool, KolibriGene *gene) {
     gene->length = sizeof(gene->digits);
     for (size_t i = 0; i < gene->length; ++i) {
         gene->digits[i] = random_digit(pool);
     }
 }
 
-static int gene_copy(const KolibriGene *src, KolibriGene *dst) {
+KOLIBRI_FORCE_INLINE int gene_copy(const KolibriGene *src, KolibriGene *dst) {
     if (!src || !dst) {
         return -1;
     }
@@ -375,6 +430,68 @@ static double topo_coherence(const KolibriGene *lhs, const KolibriGene *rhs) {
         return 0.0;
     }
     size_t matches = 0U;
+    size_t i = 0U;
+#if defined(KOLIBRI_HAS_WASM_SIMD)
+    if (limit >= 16U) {
+        const uint8_t *lhs_digits = lhs->digits;
+        const uint8_t *rhs_digits = rhs->digits;
+        for (; i + 16U <= limit; i += 16U) {
+            v128_t lhs_vec = wasm_v128_load(lhs_digits + i);
+            v128_t rhs_vec = wasm_v128_load(rhs_digits + i);
+            v128_t cmp = wasm_i8x16_eq(lhs_vec, rhs_vec);
+            uint32_t mask = (uint32_t)wasm_i8x16_bitmask(cmp);
+            matches += kolibri_popcount16(mask);
+        }
+    }
+#endif
+    for (; i < limit; ++i) {
+        if (lhs->digits[i] == rhs->digits[i]) {
+            matches += 1U;
+        }
+    }
+    return (double)matches / (double)limit;
+}
+
+static double clamp_score(double value) {
+    if (value < 0.0) {
+        return 0.0;
+    }
+        return 0.0;
+    }
+    int seen[10] = {0};
+    size_t unique = 0U;
+    for (size_t i = 0; i < gene->length; ++i) {
+        uint8_t digit = gene->digits[i] % 10U;
+        if (!seen[digit]) {
+            seen[digit] = 1;
+            unique += 1U;
+        }
+    }
+    return (double)unique / 10.0;
+}
+
+static double compute_gene_phase(const KolibriGene *gene) {
+    if (!gene) {
+        return 0.0;
+    }
+    uint32_t hash = 2166136261u;
+    for (size_t i = 0; i < gene->length; ++i) {
+        hash ^= (uint32_t)(gene->digits[i] + 1U);
+        hash *= 16777619u;
+    }
+    double angle_deg = (double)(hash % 360U);
+    return angle_deg * 0.017453292519943295; /* pi / 180 */
+}
+
+static double topo_coherence(const KolibriGene *lhs, const KolibriGene *rhs) {
+    if (!lhs || !rhs || lhs->length == 0 || rhs->length == 0) {
+        return 0.0;
+    }
+    size_t limit = lhs->length < rhs->length ? lhs->length : rhs->length;
+    if (limit == 0) {
+        return 0.0;
+    }
+    size_t matches = 0U;
     for (size_t i = 0; i < limit; ++i) {
         if (lhs->digits[i] == rhs->digits[i]) {
             matches += 1U;
@@ -465,6 +582,36 @@ typedef struct {
 static void evaluate_beam_group(KolibriFormulaPool *pool, KolibriBeamLane *lanes, size_t lane_count) {
     if (!pool || !lanes || lane_count == 0U) {
         return;
+    }
+
+    for (size_t i = 0; i < lane_count; ++i) {
+        lanes[i].evaluation = evaluate_formula_metrics(lanes[i].formula, pool);
+        double penalty = pool->lambda_b * fmax(0.0, lanes[i].evaluation.drift_b) +
+                         pool->lambda_d * fmax(0.0, lanes[i].evaluation.drift_d);
+        double score = lanes[i].evaluation.base_score - penalty;
+        if (score < 0.0) {
+            score = 0.0;
+        }
+        apply_feedback_bonus(lanes[i].formula, &score);
+        lanes[i].score = score;
+    }
+
+    if (pool->coherence_gain != 0.0) {
+        for (size_t i = 0; i < lane_count; ++i) {
+            double adjustment = 0.0;
+            for (size_t j = 0; j < lane_count; ++j) {
+                if (i == j) {
+                    continue;
+                }
+                double phase_diff = lanes[j].evaluation.phase - lanes[i].evaluation.phase;
+                double coherence = topo_coherence(&lanes[i].formula->gene, &lanes[j].formula->gene);
+                adjustment += pool->coherence_gain * cos(phase_diff) * coherence;
+            }
+            lanes[i].score += adjustment;
+        }
+    }
+
+    for (size_t i = 0; i < lane_count; ++i) {
     }
 
     for (size_t i = 0; i < lane_count; ++i) {
@@ -639,6 +786,8 @@ void kf_pool_init(KolibriFormulaPool *pool, uint64_t seed) {
     pool->coherence_gain = 0.0;
     pool->temperature = 1.0;
     pool->top_k = pool->count;
+    KOLIBRI_ATOMIC_STORE_U64(&pool->profile.generation_steps, 0ULL);
+    KOLIBRI_ATOMIC_STORE_U64(&pool->profile.evaluation_calls, 0ULL);
     pool->profile.generation_steps = 0ULL;
     pool->profile.evaluation_calls = 0ULL;
     pool->profile.last_generation_ms = 0.0;
@@ -663,6 +812,8 @@ void kf_pool_clear_examples(KolibriFormulaPool *pool) {
     }
     pool->examples = 0;
     pool->association_count = 0;
+    KOLIBRI_ATOMIC_STORE_U64(&pool->profile.generation_steps, 0ULL);
+    KOLIBRI_ATOMIC_STORE_U64(&pool->profile.evaluation_calls, 0ULL);
     pool->profile.generation_steps = 0ULL;
     pool->profile.evaluation_calls = 0ULL;
     pool->profile.last_generation_ms = 0.0;
@@ -732,6 +883,9 @@ void kf_pool_tick(KolibriFormulaPool *pool, size_t generations) {
     for (size_t g = 0; g < generations; ++g) {
         size_t index = 0;
         while (index < pool->count) {
+            KolibriBeamLane lanes[KOLIBRI_BEAM_MAX_LANES];
+            size_t lane_count = 0U;
+            while (lane_count < KOLIBRI_BEAM_MAX_LANES && index < pool->count) {
             KolibriBeamLane lanes[4];
             size_t lane_count = 0U;
             while (lane_count < 4U && index < pool->count) {
@@ -750,6 +904,9 @@ void kf_pool_tick(KolibriFormulaPool *pool, size_t generations) {
 
     size_t index = 0;
     while (index < pool->count) {
+        KolibriBeamLane lanes[KOLIBRI_BEAM_MAX_LANES];
+        size_t lane_count = 0U;
+        while (lane_count < KOLIBRI_BEAM_MAX_LANES && index < pool->count) {
         KolibriBeamLane lanes[4];
         size_t lane_count = 0U;
         while (lane_count < 4U && index < pool->count) {
@@ -782,6 +939,8 @@ void kf_pool_tick(KolibriFormulaPool *pool, size_t generations) {
         double elapsed = ((double)(end_clock - start_clock) * 1000.0) / (double)CLOCKS_PER_SEC;
         pool->profile.last_generation_ms = elapsed;
     }
+    KOLIBRI_ATOMIC_ADD_U64(&pool->profile.generation_steps, generations);
+    KOLIBRI_ATOMIC_ADD_U64(&pool->profile.evaluation_calls, evaluations);
     pool->profile.generation_steps += generations;
     pool->profile.evaluation_calls += evaluations;
 }

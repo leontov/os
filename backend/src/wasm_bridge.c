@@ -149,3 +149,19 @@ int kolibri_bridge_execute(const char *program_utf8, char *out_buffer, size_t ou
     return (int)written;
 #endif
 }
+
+int kolibri_bridge_has_simd(void) {
+#if defined(KOLIBRI_USE_WASM_SIMD) && defined(__wasm_simd128__)
+    return 1;
+#else
+    return 0;
+#endif
+}
+
+int kolibri_bridge_lane_width(void) {
+#if defined(KOLIBRI_USE_WASM_SIMD) && defined(__wasm_simd128__)
+    return 16;
+#else
+    return 1;
+#endif
+}
