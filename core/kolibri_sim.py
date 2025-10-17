@@ -75,7 +75,7 @@ class MetricRecord(TypedDict):
     genome: int
 
 
-MetricEntry = MetricRecord
+MetricRecord = MetricEntry
 
 
 class SoakResult(TypedDict):
