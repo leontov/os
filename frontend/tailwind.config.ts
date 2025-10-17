@@ -1,19 +1,30 @@
 import type { Config } from "tailwindcss";
 
+const withOpacityValue = (variable: string) => {
+  return ({ opacityValue }: { opacityValue?: string }) => {
+    if (opacityValue !== undefined) {
+      return `rgb(var(${variable}) / ${opacityValue})`;
+    }
+
+    return `rgb(var(${variable}) / 1)`;
+  };
+};
+
 const config: Config = {
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
       colors: {
-        primary: "#6366F1",
-        accent: "#38BDF8",
-        "background-main": "#0B1120",
-        "background-panel": "rgba(15, 23, 42, 0.75)",
-        "background-card": "rgba(30, 41, 59, 0.75)",
-        "background-input": "rgba(15, 23, 42, 0.85)",
-        "border-strong": "rgba(148, 163, 184, 0.2)",
-        "text-primary": "#E2E8F0",
-        "text-secondary": "#94A3B8",
+        primary: withOpacityValue("--color-primary"),
+        accent: withOpacityValue("--color-accent"),
+        "background-main": withOpacityValue("--color-background-main"),
+        "background-accent": withOpacityValue("--color-background-accent"),
+        "background-panel": withOpacityValue("--color-background-panel"),
+        "background-card": withOpacityValue("--color-background-card"),
+        "background-input": withOpacityValue("--color-background-input"),
+        "border-strong": withOpacityValue("--color-border-strong"),
+        "text-primary": withOpacityValue("--color-text-primary"),
+        "text-secondary": withOpacityValue("--color-text-secondary"),
       },
       fontFamily: {
         sans: ["Inter", "system-ui", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "sans-serif"],

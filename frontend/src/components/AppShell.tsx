@@ -8,7 +8,7 @@ interface AppShellProps {
 }
 
 const AppShell = ({ navigation, header, inspector, footer, children }: PropsWithChildren<AppShellProps>) => (
-  <div className="min-h-screen bg-gradient-to-br from-background-main via-[#0f1b33] to-background-main text-text-primary">
+  <div className="min-h-screen bg-gradient-to-br from-background-main via-background-accent to-background-main text-text-primary">
     <div className="mx-auto flex min-h-screen max-w-7xl gap-6 px-4 pb-10 pt-8 lg:px-8">
       {navigation && <aside className="hidden shrink-0 xl:flex">{navigation}</aside>}
       <div className="flex min-h-[80vh] flex-1 flex-col gap-6">
