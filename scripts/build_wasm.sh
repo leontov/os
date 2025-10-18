@@ -450,7 +450,7 @@ flags=(
     -sSIDE_MODULE=0
     -sALLOW_MEMORY_GROWTH=1
     -sEXPORTED_RUNTIME_METHODS='[]'
-    -sEXPORTED_FUNCTIONS='["_k_state_new","_k_state_free","_k_state_save","_k_state_load","_k_observe","_k_decode","_k_digit_add_syll","_k_profile","_kolibri_bridge_init","_kolibri_bridge_reset","_kolibri_bridge_execute","_malloc","_free"]'
+    -sEXPORTED_FUNCTIONS='["_k_state_new","_k_state_free","_k_state_save","_k_state_load","_k_observe","_k_decode","_k_digit_add_syll","_k_profile","_kolibri_bridge_init","_kolibri_bridge_reset","_kolibri_bridge_configure","_kolibri_bridge_execute","_malloc","_free"]'
     -sDEFAULT_LIBRARY_FUNCS_TO_INCLUDE='[]'
     --no-entry
     -o "$vyhod_wasm"
