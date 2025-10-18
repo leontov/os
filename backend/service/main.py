@@ -22,6 +22,8 @@ class Settings:
     llm_api_key: Optional[str] = None
     llm_model: Optional[str] = None
     llm_timeout: float = 30.0
+    llm_temperature_default: Optional[float] = None
+    llm_max_tokens_default: Optional[int] = None
 
     @classmethod
     def load(cls) -> "Settings":
@@ -30,11 +32,35 @@ class Settings:
         llm_api_key = os.getenv("KOLIBRI_LLM_API_KEY")
         llm_model = os.getenv("KOLIBRI_LLM_MODEL")
         timeout_raw = os.getenv("KOLIBRI_LLM_TIMEOUT", "30")
+        temperature_raw = os.getenv("KOLIBRI_LLM_TEMPERATURE")
+        max_tokens_raw = os.getenv("KOLIBRI_LLM_MAX_TOKENS")
 
         try:
             llm_timeout = float(timeout_raw)
         except ValueError as exc:  # pragma: no cover - defensive branch
             raise RuntimeError("KOLIBRI_LLM_TIMEOUT must be numeric") from exc
+
+        temperature_default: Optional[float]
+        if temperature_raw is None or temperature_raw == "":
+            temperature_default = None
+        else:
+            try:
+                temperature_default = float(temperature_raw)
+            except ValueError as exc:  # pragma: no cover - defensive branch
+                raise RuntimeError("KOLIBRI_LLM_TEMPERATURE must be numeric") from exc
+            if not 0.0 <= temperature_default <= 2.0:
+                raise RuntimeError("KOLIBRI_LLM_TEMPERATURE must be between 0.0 and 2.0")
+
+        max_tokens_default: Optional[int]
+        if max_tokens_raw is None or max_tokens_raw == "":
+            max_tokens_default = None
+        else:
+            try:
+                max_tokens_default = int(max_tokens_raw)
+            except ValueError as exc:  # pragma: no cover - defensive branch
+                raise RuntimeError("KOLIBRI_LLM_MAX_TOKENS must be an integer") from exc
+            if max_tokens_default <= 0:
+                raise RuntimeError("KOLIBRI_LLM_MAX_TOKENS must be positive")
 
         return cls(
             response_mode=response_mode or "script",
@@ -42,6 +68,8 @@ class Settings:
             llm_api_key=llm_api_key,
             llm_model=llm_model,
             llm_timeout=llm_timeout,
+            llm_temperature_default=temperature_default,
+            llm_max_tokens_default=max_tokens_default,
         )
 
 
@@ -106,12 +134,20 @@ async def _perform_upstream_call(
     if settings.llm_api_key:
         headers["Authorization"] = f"Bearer {settings.llm_api_key}"
 
+    temperature = request.temperature
+    if temperature is None:
+        temperature = settings.llm_temperature_default
+
+    max_tokens = request.max_tokens
+    if max_tokens is None:
+        max_tokens = settings.llm_max_tokens_default
+
     payload: Dict[str, Any] = {
         "prompt": request.prompt,
         "mode": request.mode,
         "model": settings.llm_model,
-        "temperature": request.temperature,
-        "max_tokens": request.max_tokens,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
     }
 
     sanitized_payload = {key: value for key, value in payload.items() if value is not None}

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Скрипт компиляции ядра Kolibri в WebAssembly.
-# По умолчанию собирает вычислительное ядро (десятичный слой,
-# эволюцию формул и генератор случайных чисел) и проверяет,
+# Скрипт компиляции ядра Kolibri-Sigma в WebAssembly.
+# Собирает формализованное ядро (арена памяти, обратимые скетчи,
+# DAAWG, микро-VM и резонансное голосование) и проверяет,
 # что итоговый модуль укладывается в бюджет < 1 МБ.
 
 proekt_koren="$(cd "$(dirname "$0")/.." && pwd)"
@@ -248,6 +248,7 @@ def func_body(code_bytes):
 
 def build_stub():
     params_i32 = 0x7F
+    result_i32 = 0x7F
 
     functypes = [
         bytes([0x60]) + u32(0) + u32(1) + bytes([params_i32]),
@@ -295,6 +296,32 @@ def build_stub():
         ("malloc", 0, 8),
         ("_free", 0, 9),
         ("free", 0, 9),
+        ("_k_state_new", 0, 0),
+        ("k_state_new", 0, 0),
+        ("_k_state_free", 0, 1),
+        ("k_state_free", 0, 1),
+        ("_k_state_save", 0, 2),
+        ("k_state_save", 0, 2),
+        ("_k_state_load", 0, 3),
+        ("k_state_load", 0, 3),
+        ("_k_observe", 0, 4),
+        ("k_observe", 0, 4),
+        ("_k_decode", 0, 5),
+        ("k_decode", 0, 5),
+        ("_k_digit_add_syll", 0, 6),
+        ("k_digit_add_syll", 0, 6),
+        ("_k_profile", 0, 7),
+        ("k_profile", 0, 7),
+        ("_kolibri_bridge_init", 0, 8),
+        ("kolibri_bridge_init", 0, 8),
+        ("_kolibri_bridge_reset", 0, 9),
+        ("kolibri_bridge_reset", 0, 9),
+        ("_kolibri_bridge_execute", 0, 10),
+        ("kolibri_bridge_execute", 0, 10),
+        ("_malloc", 0, 11),
+        ("malloc", 0, 11),
+        ("_free", 0, 12),
+        ("free", 0, 12),
     ]
 
     section_export = encode_section(7, encode_vec([export_entry(*n) for n in names]))
@@ -315,6 +342,12 @@ def build_stub():
         func_body(bytes([0x00, 0x0b])),
         body_return(-1),
     ]
+    bodies = []
+    for index, func_type in enumerate(func_types):
+        if func_type in (0, 2, 4, 5, 6):
+            bodies.append(body_return(0))
+        else:
+            bodies.append(func_body(bytes([0x00, 0x0b])))
 
     section_code = encode_section(10, u32(len(bodies)) + b"".join(bodies))
 
@@ -406,22 +439,8 @@ if (( sobranov_docker )) && [[ "${KOLIBRI_WASM_INVOKED_VIA_DOCKER:-0}" != "1" ]]
 fi
 
 istochniki=(
-    "$proekt_koren/backend/src/decimal.c"
-    "$proekt_koren/backend/src/digits.c"
-    "$proekt_koren/backend/src/formula.c"
-    "$proekt_koren/backend/src/random.c"
-    "$proekt_koren/backend/src/symbol_table.c"
-    "$proekt_koren/backend/src/script.c"
-    "$proekt_koren/backend/src/wasm_bridge.c"
-    "$proekt_koren/backend/src/sim.c"
-    "$proekt_koren/wasm/kolibri_sim_wasm.c"
+    "$proekt_koren/wasm/kolibri_core.c"
 )
-
-if [[ "${KOLIBRI_WASM_INCLUDE_GENOME:-0}" == "1" ]]; then
-    istochniki+=("$proekt_koren/backend/src/genome.c")
-else
-    istochniki+=("$proekt_koren/backend/src/wasm_genome_stub.c")
-fi
 
 flags=(
     -Os
@@ -436,6 +455,16 @@ flags=(
     --no-entry
     -I"$proekt_koren/backend/include"
     -DKOLIBRI_USE_WASM_SIMD=1
+    -O3
+    -std=gnu11
+    -msimd128
+    -sSTANDALONE_WASM=1
+    -sSIDE_MODULE=0
+    -sALLOW_MEMORY_GROWTH=1
+    -sEXPORTED_RUNTIME_METHODS='[]'
+    -sEXPORTED_FUNCTIONS='["_k_state_new","_k_state_free","_k_state_save","_k_state_load","_k_observe","_k_decode","_k_digit_add_syll","_k_profile","_kolibri_bridge_init","_kolibri_bridge_reset","_kolibri_bridge_execute","_malloc","_free"]'
+    -sDEFAULT_LIBRARY_FUNCS_TO_INCLUDE='[]'
+    --no-entry
     -o "$vyhod_wasm"
 )
 
@@ -454,10 +483,9 @@ fi
 ekport_info="$vyhod_dir/kolibri.wasm.txt"
 cat >"$ekport_info" <<EOF_INFO
 kolibri.wasm: $(awk -v b="$razmer" 'BEGIN {printf "%.2f МБ", b/1048576}')
-Эта сборка включает вычислительное ядро (десятичные трансдукции,
-эволюцию формул и генератор случайных чисел). Для включения цифрового
-генома запустите скрипт с KOLIBRI_WASM_INCLUDE_GENOME=1 и добавьте
-поддержку HMAC в окружении.
+Эта сборка содержит ядро KOLIBRI-Σ: арена памяти, обратимые скетчи,
+компактный DAAWG, микро-VM с резонансным голосованием и аудит профиля.
+Модуль автономен и готов к офлайн-запуску в PWA.
 EOF_INFO
 
 zapisat_sha256 "$vyhod_wasm" "$vyhod_dir/kolibri.wasm.sha256"

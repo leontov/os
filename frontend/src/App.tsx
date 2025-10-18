@@ -69,6 +69,17 @@ const App = () => {
     [draft, setDraft],
   );
 
+  const modeLabel = useMemo(() => findModeLabel(mode), [mode]);
+
+  const handleSuggestionSelect = useCallback(
+    (suggestion: string) => {
+      const trimmedDraft = draft.trimEnd();
+      const prefix = trimmedDraft.length > 0 ? `${trimmedDraft}\n\n` : "";
+      setDraft(`${prefix}${suggestion}`);
+    },
+    [draft, setDraft],
+  );
+
   const chatContent = useMemo(() => {
     if (!messages.length) {
       return <WelcomeScreen onSuggestionSelect={setDraft} />;
@@ -225,6 +236,7 @@ const App = () => {
                 capabilities={kernelCapabilities}
                 onChange={updateKernelControls}
               />
+              <KernelControlsPanel controls={kernelControls} onChange={updateKernelControls} />
               <InspectorPanel
                 status={knowledgeStatus}
                 error={knowledgeError}
@@ -273,6 +285,7 @@ const App = () => {
           capabilities={kernelCapabilities}
           onChange={updateKernelControls}
         />
+        <KernelControlsPanel controls={kernelControls} onChange={updateKernelControls} />
         <InspectorPanel
           status={knowledgeStatus}
           error={knowledgeError}
@@ -287,6 +300,27 @@ const App = () => {
         />
       </OverlaySheet>
     </>
+      }
+      inspector={
+        activeSection === "dialog" ? (
+          <div className="flex h-full flex-col gap-4">
+            <KernelControlsPanel controls={kernelControls} onChange={updateKernelControls} />
+            <InspectorPanel
+              status={knowledgeStatus}
+              error={knowledgeError}
+              isLoading={statusLoading}
+              metrics={metrics}
+              latestAssistantMessage={latestAssistantMessage}
+              onRefresh={() => {
+                void refreshKnowledgeStatus();
+              }}
+            />
+          </div>
+        ) : undefined
+      }
+    >
+      {renderSection()}
+    </AppShell>
   );
 };
 
