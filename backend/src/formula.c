@@ -585,6 +585,9 @@ static void evaluate_beam_group(KolibriFormulaPool *pool, KolibriBeamLane *lanes
     }
 
     for (size_t i = 0; i < lane_count; ++i) {
+    }
+
+    for (size_t i = 0; i < lane_count; ++i) {
         lanes[i].evaluation = evaluate_formula_metrics(lanes[i].formula, pool);
         double penalty = pool->lambda_b * fmax(0.0, lanes[i].evaluation.drift_b) +
                          pool->lambda_d * fmax(0.0, lanes[i].evaluation.drift_d);

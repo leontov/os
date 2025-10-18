@@ -206,6 +206,11 @@ const ChatInput = ({
           </ul>
         </div>
       )}
+      <p className="text-[0.7rem] text-text-secondary">
+        Быстрые команды: <code className="font-mono text-xs text-text-primary">/help</code>,
+        <code className="font-mono text-xs text-text-primary">/learn on|off</code>,
+        <code className="font-mono text-xs text-text-primary">/profile next</code>, <code className="font-mono text-xs text-text-primary">/status</code>.
+      </p>
       <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-text-secondary">
         <div className="flex flex-wrap items-center gap-2">
           <input

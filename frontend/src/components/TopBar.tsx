@@ -1,3 +1,4 @@
+import { CheckCircle2, CircleDashed, Globe2, History, MessageSquare, RefreshCcw, Sparkles } from "lucide-react";
 import { CheckCircle2, CircleDashed, History, MessageSquare, RefreshCcw, Sparkles } from "lucide-react";
 import { useId } from "react";
 import type { ConversationMetrics } from "../core/useKolibriChat";
@@ -15,6 +16,7 @@ interface TopBarProps {
   showMobileActions?: boolean;
   onOpenHistory?: () => void;
   onOpenControls?: () => void;
+  onlineAllowed: boolean;
 }
 
 const formatIsoTime = (iso?: string): string => {
@@ -52,6 +54,7 @@ const TopBar = ({
   showMobileActions,
   onOpenHistory,
   onOpenControls,
+  onlineAllowed,
 }: TopBarProps) => {
   const inputId = useId();
 
@@ -63,6 +66,12 @@ const TopBar = ({
     icon: Sparkles,
     label: "Документов",
     value: knowledgeStatus ? `${knowledgeStatus.documents}` : "—",
+  };
+
+  const onlineBadge = {
+    icon: Globe2,
+    label: "Режим",
+    value: onlineAllowed ? "ONLINE" : "OFFLINE",
   };
 
   const activityBadge = {
@@ -93,6 +102,7 @@ const TopBar = ({
           <div className="hidden flex-1 flex-wrap items-center justify-end gap-3 lg:flex">
             <StatusBadge {...connectionBadge} />
             <StatusBadge {...knowledgeBadge} />
+            <StatusBadge {...onlineBadge} />
             <StatusBadge {...activityBadge} />
             <button
               type="button"
@@ -109,6 +119,7 @@ const TopBar = ({
           <div className="flex flex-wrap items-center gap-3">
             <StatusBadge {...connectionBadge} />
             <StatusBadge {...knowledgeBadge} />
+            <StatusBadge {...onlineBadge} />
             <StatusBadge {...activityBadge} />
           </div>
           <div className="flex flex-wrap items-center gap-2 text-sm text-text-secondary">

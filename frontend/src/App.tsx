@@ -3,6 +3,7 @@ import AppShell from "./components/AppShell";
 import AnalyticsView from "./components/AnalyticsView";
 import ChatInput from "./components/ChatInput";
 import ChatView from "./components/ChatView";
+import ConversationPreferencesBar from "./components/ConversationPreferencesBar";
 import MobileDock from "./components/MobileDock";
 import InspectorPanel from "./components/InspectorPanel";
 import KernelControlsPanel from "./components/KernelControlsPanel";
@@ -39,6 +40,8 @@ const App = () => {
     kernelControls,
     kernelCapabilities,
     updateKernelControls,
+    preferences,
+    updatePreferences,
     renameConversation,
     attachFiles,
     removeAttachment,
@@ -138,6 +141,7 @@ const App = () => {
             ) : null}
             <div className="flex flex-1 flex-col gap-6">
               <div className="flex-1">{chatContent}</div>
+              <ConversationPreferencesBar preferences={preferences} onChange={updatePreferences} />
               <ChatInput
                 value={draft}
                 mode={mode}
@@ -221,6 +225,7 @@ const App = () => {
             showMobileActions={!isDesktop}
             onOpenHistory={() => setHistoryOpen(true)}
             onOpenControls={() => setInspectorOpen(true)}
+            onlineAllowed={preferences.allowOnline}
           />
         }
         inspector={
