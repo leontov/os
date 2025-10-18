@@ -256,6 +256,10 @@ const createKolibriWasmExports = (rawExports: WebAssembly.Exports, wasi: WasiAda
       rawExports,
       ["_kolibri_bridge_has_simd", "kolibri_bridge_has_simd"],
     ) as () => number,
+    _kolibri_bridge_lane_width: resolveFunction(
+      rawExports,
+      ["_kolibri_bridge_lane_width", "kolibri_bridge_lane_width"],
+    ) as () => number,
   };
 };
 
