@@ -8,6 +8,7 @@
 #include <strings.h>
 #include <ctype.h>
 #include <signal.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -2048,6 +2049,13 @@ static void handle_client(int client_fd, const KolibriKnowledgeIndex *index) {
     response[sizeof(response) - 1U] = '\0';
 
     send_response(client_fd, 200, "application/json", response);
+
+    if (kolibri_swarm_ready) {
+        double normalized = result_count > 0U
+                                 ? 0.6 + fmin((double)result_count, (double)limit) / ((double)limit + 1.0) * 0.4
+                                 : -0.35;
+        kolibri_swarm_record_local_activity(&kolibri_swarm, query, normalized);
+    }
 
     if (kolibri_genome_ready) {
         char ask_payload[512];
