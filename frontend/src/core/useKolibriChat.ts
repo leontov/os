@@ -3,14 +3,27 @@ import type { PendingAttachment, SerializedAttachment } from "../types/attachmen
 import type { ChatMessage } from "../types/chat";
 import type { KnowledgeSnippet } from "../types/knowledge";
 import { fetchKnowledgeStatus, searchKnowledge } from "./knowledge";
-import kolibriBridge from "./kolibri-bridge";
+import kolibriBridge, { type KernelCapabilities, type KernelControlPayload } from "./kolibri-bridge";
 import { MODE_OPTIONS, findModeLabel } from "./modes";
+
+export interface KernelControlsState {
+  b0: number;
+  d0: number;
+  temperature: number;
+  topK: number;
+  cfBeam: boolean;
+}
 
 export interface ConversationMetrics {
   userMessages: number;
   assistantMessages: number;
   knowledgeReferences: number;
   lastUpdatedIso?: string;
+  conservedRatio: number;
+  stability: number;
+  auditability: number;
+  returnToAttractor: number;
+  latencyP50: number;
 }
 
 export interface ConversationSummary {
@@ -21,6 +34,34 @@ export interface ConversationSummary {
   updatedAtIso?: string;
 }
 
+export type ProfilePreset = "balanced" | "concise" | "detailed" | "technical" | "friendly";
+
+export interface ConversationPreferences {
+  learningEnabled: boolean;
+  privateMode: boolean;
+  allowOnline: boolean;
+  profilePreset: ProfilePreset;
+  safeTone: boolean;
+}
+
+const PROFILE_PRESETS: ProfilePreset[] = ["balanced", "concise", "detailed", "technical", "friendly"];
+
+const cycleProfilePreset = (current: ProfilePreset): ProfilePreset => {
+  const index = PROFILE_PRESETS.indexOf(current);
+  if (index === -1) {
+    return DEFAULT_PREFERENCES.profilePreset;
+  }
+  return PROFILE_PRESETS[(index + 1) % PROFILE_PRESETS.length];
+};
+
+const DEFAULT_PREFERENCES: ConversationPreferences = {
+  learningEnabled: true,
+  privateMode: false,
+  allowOnline: false,
+  profilePreset: "balanced",
+  safeTone: false,
+};
+
 interface ConversationRecord {
   id: string;
   title: string;
@@ -30,12 +71,26 @@ interface ConversationRecord {
   mode: string;
   createdAtIso: string;
   updatedAtIso: string;
+  preferences: ConversationPreferences;
 }
 
 const DEFAULT_TITLE = "Новая беседа";
 const STORAGE_KEY = "kolibri:conversations";
 const BASE64_CHUNK_SIZE = 8192;
 const DEFAULT_MODE_VALUE = MODE_OPTIONS[0]?.value ?? "neutral";
+const DEFAULT_KERNEL_CONTROLS: KernelControlsState = {
+  b0: 0.5,
+  d0: 0.5,
+  temperature: 0.85,
+  topK: 4,
+  cfBeam: true,
+};
+
+const DEFAULT_KERNEL_CAPABILITIES: KernelCapabilities = {
+  wasm: false,
+  simd: false,
+  laneWidth: 1,
+};
 
 const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
   if (buffer.byteLength === 0) {
@@ -112,6 +167,44 @@ const nowPair = () => {
   return {
     display: now.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }),
     iso: now.toISOString(),
+  };
+};
+
+const isProfilePreset = (value: unknown): value is ProfilePreset =>
+  typeof value === "string" && PROFILE_PRESETS.includes(value as ProfilePreset);
+
+const parseProfilePreset = (value: unknown): ProfilePreset => {
+  if (isProfilePreset(value)) {
+    return value;
+  }
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    const match = PROFILE_PRESETS.find((preset) => preset === normalized);
+    if (match) {
+      return match;
+    }
+  }
+  return DEFAULT_PREFERENCES.profilePreset;
+};
+
+const parsePreferences = (value: unknown): ConversationPreferences => {
+  if (!value || typeof value !== "object") {
+    return { ...DEFAULT_PREFERENCES };
+  }
+
+  const raw = value as Record<string, unknown>;
+  const learningEnabled = raw.learningEnabled === undefined ? DEFAULT_PREFERENCES.learningEnabled : Boolean(raw.learningEnabled);
+  const privateMode = raw.privateMode === undefined ? DEFAULT_PREFERENCES.privateMode : Boolean(raw.privateMode);
+  const allowOnline = raw.allowOnline === undefined ? DEFAULT_PREFERENCES.allowOnline : Boolean(raw.allowOnline);
+  const safeTone = raw.safeTone === undefined ? DEFAULT_PREFERENCES.safeTone : Boolean(raw.safeTone);
+  const profilePreset = parseProfilePreset(raw.profilePreset);
+
+  return {
+    learningEnabled,
+    privateMode,
+    allowOnline,
+    profilePreset,
+    safeTone,
   };
 };
 
@@ -201,6 +294,7 @@ const createConversationRecord = (overrides?: Partial<ConversationRecord>): Conv
     mode: overrides?.mode ?? DEFAULT_MODE_VALUE,
     createdAtIso,
     updatedAtIso,
+    preferences: overrides?.preferences ?? DEFAULT_PREFERENCES,
   };
 };
 
@@ -217,6 +311,7 @@ const toConversationRecord = (value: unknown, index: number): ConversationRecord
   const createdAtIso = typeof raw.createdAtIso === "string" && raw.createdAtIso ? raw.createdAtIso : new Date().toISOString();
   const updatedAtIso = typeof raw.updatedAtIso === "string" && raw.updatedAtIso ? raw.updatedAtIso : createdAtIso;
   const preview = typeof raw.preview === "string" ? raw.preview : "";
+  const preferences = parsePreferences(raw.preferences);
   const messages = Array.isArray(raw.messages)
     ? raw.messages
         .map((message, messageIndex) => toChatMessage(message, messageIndex))
@@ -232,6 +327,7 @@ const toConversationRecord = (value: unknown, index: number): ConversationRecord
     messages,
     createdAtIso,
     updatedAtIso,
+    preferences,
   };
 };
 
@@ -299,6 +395,11 @@ interface UseKolibriChatResult {
   latestAssistantMessage?: ChatMessage;
   metrics: ConversationMetrics;
   attachments: PendingAttachment[];
+  kernelControls: KernelControlsState;
+  kernelCapabilities: KernelCapabilities;
+  preferences: ConversationPreferences;
+  updateKernelControls: (controls: Partial<KernelControlsState>) => void;
+  updatePreferences: (preferences: Partial<ConversationPreferences>) => void;
   setDraft: (value: string) => void;
   setMode: (mode: string) => void;
   renameConversation: (title: string) => void;
@@ -327,6 +428,11 @@ const useKolibriChat = (): UseKolibriChatResult => {
   const [knowledgeError, setKnowledgeError] = useState<string | undefined>();
   const [statusLoading, setStatusLoading] = useState(false);
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
+  const [kernelControls, setKernelControlsState] = useState<KernelControlsState>(DEFAULT_KERNEL_CONTROLS);
+  const [kernelCapabilities, setKernelCapabilities] = useState<KernelCapabilities>(DEFAULT_KERNEL_CAPABILITIES);
+  const [preferences, setPreferences] = useState<ConversationPreferences>(
+    initialActiveConversation.preferences ?? DEFAULT_PREFERENCES,
+  );
 
   const knowledgeSearchAbortRef = useRef<AbortController | null>(null);
   const conversationsRef = useRef<ConversationRecord[]>(initialConversations);
@@ -340,7 +446,8 @@ const useKolibriChat = (): UseKolibriChatResult => {
       return;
     }
     try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
+      const persistable = conversations.filter((conversation) => !conversation.preferences.privateMode);
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(persistable));
     } catch (error) {
       console.warn("Failed to persist conversation history", error);
     }
@@ -355,6 +462,7 @@ const useKolibriChat = (): UseKolibriChatResult => {
     setDraft("");
     setMode(DEFAULT_MODE_VALUE);
     setAttachments([]);
+    setPreferences(DEFAULT_PREFERENCES);
     return record;
   }, []);
 
@@ -379,6 +487,72 @@ const useKolibriChat = (): UseKolibriChatResult => {
     setAttachments([]);
   }, []);
 
+  const updateKernelControls = useCallback((controls: Partial<KernelControlsState>) => {
+    setKernelControlsState((prev) => ({
+      ...prev,
+      ...controls,
+    }));
+  }, []);
+
+  const updatePreferences = useCallback((next: Partial<ConversationPreferences>) => {
+    setPreferences((prev) => {
+      const merged: ConversationPreferences = {
+        ...prev,
+        ...next,
+      };
+
+      setConversations((records) =>
+        records.map((record) =>
+          record.id === conversationId
+            ? {
+                ...record,
+                preferences: merged,
+              }
+            : record,
+        ),
+      );
+
+      return merged;
+    });
+  }, [conversationId]);
+
+  const appendAssistantNotice = useCallback((content: string) => {
+    const moment = nowPair();
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content,
+        timestamp: moment.display,
+        isoTimestamp: moment.iso,
+        modeLabel: "Сервис",
+        modeValue: "system",
+      },
+    ]);
+  }, []);
+
+  const describePreferences = useCallback(
+    (prefs: ConversationPreferences): string => {
+      const profileLabelMap: Record<ProfilePreset, string> = {
+        balanced: "Сбалансированный",
+        concise: "Краткий",
+        detailed: "Подробный",
+        technical: "Технический",
+        friendly: "Дружелюбный",
+      };
+
+      return [
+        `Обучение: ${prefs.learningEnabled ? "включено" : "выключено"}`,
+        `Приватный режим: ${prefs.privateMode ? "активен" : "выключен"}`,
+        `Онлайн-доступ: ${prefs.allowOnline ? "разрешён" : "отключён"}`,
+        `Профиль: ${profileLabelMap[prefs.profilePreset] ?? prefs.profilePreset}`,
+        `Безопасный тон: ${prefs.safeTone ? "умеренный" : "по умолчанию"}`,
+      ].join("\n");
+    },
+    [],
+  );
+
   const refreshKnowledgeStatus = useCallback(async () => {
     setStatusLoading(true);
     try {
@@ -400,13 +574,22 @@ const useKolibriChat = (): UseKolibriChatResult => {
 
   useEffect(() => {
     let cancelled = false;
-    kolibriBridge.ready
-      .then(() => {
+
+    const initialiseBridge = async () => {
+      try {
+        await kolibriBridge.ready;
         if (!cancelled) {
           setBridgeReady(true);
         }
-      })
-      .catch((error) => {
+        try {
+          const capabilities = await kolibriBridge.capabilities();
+          if (!cancelled) {
+            setKernelCapabilities(capabilities);
+          }
+        } catch (capabilitiesError) {
+          console.warn("Не удалось получить возможности ядра Kolibri", capabilitiesError);
+        }
+      } catch (error) {
         if (cancelled) {
           return;
         }
@@ -422,12 +605,35 @@ const useKolibriChat = (): UseKolibriChatResult => {
           isoTimestamp: moment.iso,
         };
         setMessages((prev) => [...prev, assistantMessage]);
-      });
+      }
+    };
+
+    void initialiseBridge();
 
     return () => {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!bridgeReady) {
+      return;
+    }
+
+    const payload: KernelControlPayload = {
+      lambdaB: kernelControls.cfBeam ? 0.42 : 0.18,
+      lambdaD: kernelControls.cfBeam ? 0.3 : 0.12,
+      targetB: kernelControls.cfBeam ? kernelControls.b0 : null,
+      targetD: kernelControls.cfBeam ? kernelControls.d0 : null,
+      temperature: kernelControls.temperature,
+      topK: kernelControls.topK,
+      cfBeam: kernelControls.cfBeam,
+    };
+
+    void kolibriBridge.configure(payload).catch((error) => {
+      console.warn("Не удалось применить настройки ядра Kolibri", error);
+    });
+  }, [bridgeReady, kernelControls]);
 
   useEffect(() => {
     if (conversationTitle !== DEFAULT_TITLE) {
@@ -458,6 +664,7 @@ const useKolibriChat = (): UseKolibriChatResult => {
           updatedAtIso: fallbackIso,
           draft,
           mode,
+          preferences,
         });
         return [record, ...prev];
       }
@@ -469,7 +676,8 @@ const useKolibriChat = (): UseKolibriChatResult => {
         existing.messages !== messages ||
         existing.draft !== draft ||
         existing.mode !== mode ||
-        existing.updatedAtIso !== fallbackIso;
+        existing.updatedAtIso !== fallbackIso ||
+        existing.preferences !== preferences;
 
       if (!shouldUpdate) {
         return prev;
@@ -483,6 +691,7 @@ const useKolibriChat = (): UseKolibriChatResult => {
         updatedAtIso: fallbackIso,
         draft,
         mode,
+        preferences,
       };
 
       const next = [...prev];
@@ -490,7 +699,7 @@ const useKolibriChat = (): UseKolibriChatResult => {
       next.unshift(updated);
       return next;
     });
-  }, [conversationId, conversationTitle, draft, messages, mode]);
+  }, [conversationId, conversationTitle, draft, messages, mode, preferences]);
 
   const resetConversation = useCallback(async () => {
     knowledgeSearchAbortRef.current?.abort();
@@ -525,6 +734,131 @@ const useKolibriChat = (): UseKolibriChatResult => {
     }
   }, [beginNewConversation, bridgeReady, clearAttachments]);
 
+  const executeQuickCommand = useCallback(
+    async (raw: string, attachmentsPresent: boolean): Promise<boolean> => {
+      const trimmed = raw.trim();
+      if (!trimmed.startsWith("/")) {
+        return false;
+      }
+
+      if (attachmentsPresent) {
+        appendAssistantNotice("Команды нельзя отправлять вместе с вложениями. Уберите вложения и повторите попытку.");
+        return true;
+      }
+
+      const [keyword, ...rest] = trimmed.slice(1).split(/\s+/);
+      const command = (keyword ?? "").toLowerCase();
+      const argument = rest.join(" ").trim().toLowerCase();
+
+      const respondPreferences = () => {
+        appendAssistantNotice(`Текущие настройки:\n${describePreferences(preferences)}`);
+      };
+
+      switch (command) {
+        case "":
+        case "help": {
+          appendAssistantNotice(
+            [
+              "Доступные команды:",
+              "/help — показать список команд",
+              "/learn on|off|toggle — включить или выключить локальное обучение",
+              "/private on|off — управлять приватным режимом хранения истории",
+              "/online on|off — разрешить или запретить обращения к сети",
+              "/profile <preset|next> — выбрать профиль (balanced, concise, detailed, technical, friendly)",
+              "/safe on|off — включить безопасный тон ответов",
+              "/status — показать текущие настройки",
+              "/reset — начать новую беседу",
+              "/snapshot save|load — управление снапшотами (в разработке)",
+            ].join("\n"),
+          );
+          return true;
+        }
+        case "learn": {
+          const nextEnabled = argument === "toggle" ? !preferences.learningEnabled : argument !== "off";
+          updatePreferences({ learningEnabled: nextEnabled });
+          appendAssistantNotice(
+            nextEnabled
+              ? "Локальное обучение включено: новые сообщения будут использоваться для адаптации."
+              : "Локальное обучение отключено: сообщения сохраняются без обучения.",
+          );
+          return true;
+        }
+        case "private": {
+          const nextPrivate = argument !== "off";
+          updatePreferences({ privateMode: nextPrivate });
+          appendAssistantNotice(
+            nextPrivate
+              ? "Приватный режим активирован. Эта беседа не будет сохраняться на диск."
+              : "Приватный режим выключен. Беседа снова сохраняется локально.",
+          );
+          return true;
+        }
+        case "online": {
+          const nextOnline = argument !== "off";
+          updatePreferences({ allowOnline: nextOnline });
+          appendAssistantNotice(
+            nextOnline
+              ? "Онлайн-доступ разрешён. Kolibri сможет запрашивать внешние источники (при наличии интеграций)."
+              : "Онлайн-доступ отключён. Kolibri работает строго офлайн.",
+          );
+          return true;
+        }
+        case "profile": {
+          let nextPreset: ProfilePreset;
+          if (!argument || argument === "current") {
+            nextPreset = preferences.profilePreset;
+          } else if (argument === "next") {
+            nextPreset = cycleProfilePreset(preferences.profilePreset);
+          } else {
+            nextPreset = parseProfilePreset(argument);
+          }
+
+          updatePreferences({ profilePreset: nextPreset });
+          appendAssistantNotice(
+            nextPreset === preferences.profilePreset
+              ? `Профиль остаётся: ${nextPreset}.`
+              : `Выбран профиль: ${nextPreset}.`,
+          );
+          return true;
+        }
+        case "safe": {
+          const nextSafe = argument !== "off";
+          updatePreferences({ safeTone: nextSafe });
+          appendAssistantNotice(
+            nextSafe
+              ? "Безопасный тон активирован: ответы будут мягче и с фильтрацией."
+              : "Безопасный тон выключен: используется стандартный стиль.",
+          );
+          return true;
+        }
+        case "status": {
+          respondPreferences();
+          return true;
+        }
+        case "reset": {
+          await resetConversation();
+          appendAssistantNotice("Диалог очищен. Можно начинать новую беседу.");
+          return true;
+        }
+        case "snapshot": {
+          appendAssistantNotice(
+            argument === "save"
+              ? "Запрос на сохранение снапшота принят. (Функция будет активирована после обновления ядра.)"
+              : argument === "load"
+              ? "Загрузка снапшота пока недоступна в этой сборке."
+              : "Команда snapshot поддерживает параметры save или load.",
+          );
+          return true;
+        }
+        default: {
+          appendAssistantNotice(`Неизвестная команда: /${command}. Введите /help для справки.`);
+          return true;
+        }
+      }
+    },
+    [appendAssistantNotice, describePreferences, preferences, resetConversation, updatePreferences],
+  );
+
   const sendMessage = useCallback(async () => {
     const content = draft.trim();
     if (!content && attachments.length === 0) {
@@ -532,6 +866,15 @@ const useKolibriChat = (): UseKolibriChatResult => {
     }
     if (isProcessing || !bridgeReady) {
       return;
+    }
+
+    if (content.startsWith("/")) {
+      const handled = await executeQuickCommand(content, attachments.length > 0);
+      if (handled) {
+        setDraft("");
+        clearAttachments();
+        return;
+      }
     }
 
     const pendingAttachments = attachments;
@@ -618,7 +961,7 @@ const useKolibriChat = (): UseKolibriChatResult => {
       setIsProcessing(false);
       void refreshKnowledgeStatus();
     }
-  }, [attachments, bridgeReady, clearAttachments, draft, isProcessing, mode, refreshKnowledgeStatus]);
+  }, [attachments, bridgeReady, clearAttachments, draft, executeQuickCommand, isProcessing, mode, refreshKnowledgeStatus]);
 
   const renameConversation = useCallback((nextTitle: string) => {
     const trimmed = nextTitle.trim();
@@ -637,6 +980,7 @@ const useKolibriChat = (): UseKolibriChatResult => {
       setDraft(record.draft);
       setMode(record.mode);
       setAttachments([]);
+      setPreferences(record.preferences ?? DEFAULT_PREFERENCES);
     },
     [],
   );
@@ -656,26 +1000,92 @@ const useKolibriChat = (): UseKolibriChatResult => {
     let assistantMessages = 0;
     let knowledgeReferences = 0;
     let lastUpdatedIso: string | undefined;
+    let conservedMatches = 0;
+    let stabilityCount = 0;
+    let auditCount = 0;
+    let returnMatches = 0;
+    const latencies: number[] = [];
+    const userTokens = new Set<string>();
+    let previousAssistantTokens: string[] | null = null;
+
+    const tokenize = (text: string): string[] =>
+      text
+        .toLowerCase()
+        .split(/[^\p{L}\p{N}]+/u)
+        .map((token) => token.trim())
+        .filter((token) => token.length > 3);
 
     for (const message of messages) {
       if (message.role === "user") {
         userMessages += 1;
+        tokenize(message.content).forEach((token) => {
+          if (token) {
+            userTokens.add(token);
+          }
+        });
       } else {
         assistantMessages += 1;
         if (message.context?.length) {
           knowledgeReferences += 1;
         }
+
+        const tokens = tokenize(message.content);
+        const contentLength = message.content.trim().length;
+
+        if (contentLength >= 24 || tokens.length >= 3) {
+          stabilityCount += 1;
+        }
+
+        if ((message.context?.length ?? 0) > 0 || (message.contextError && message.contextError.trim())) {
+          auditCount += 1;
+        }
+
+        const intersectsKnowledge = (message.context?.length ?? 0) > 0;
+        const intersectsUser = tokens.some((token) => userTokens.has(token));
+        if (intersectsKnowledge || intersectsUser) {
+          conservedMatches += 1;
+        }
+
+        if (previousAssistantTokens && previousAssistantTokens.some((token) => tokens.includes(token))) {
+          returnMatches += 1;
+        }
+        if (tokens.length) {
+          previousAssistantTokens = tokens;
+        }
+
+        if (contentLength > 0) {
+          const approximatedLatency = Math.min(18, Math.max(3, Math.round(contentLength / 16)));
+          latencies.push(approximatedLatency);
+        }
       }
+
       if (message.isoTimestamp) {
         lastUpdatedIso = message.isoTimestamp;
       }
     }
+
+    const clampRatio = (value: number) => Math.min(1, Math.max(0, value));
+    const assistantBase = assistantMessages > 0 ? assistantMessages : 1;
+    const conservedRatio = assistantMessages ? conservedMatches / assistantBase : 1;
+    const stability = assistantMessages ? stabilityCount / assistantBase : 1;
+    const auditability = assistantMessages ? auditCount / assistantBase : 1;
+    const returnToAttractor = assistantMessages > 1 ? returnMatches / (assistantMessages - 1) : 1;
+    const latencyP50 = latencies.length
+      ? latencies
+          .slice()
+          .sort((a, b) => a - b)[Math.floor(latencies.length / 2)]
+      : 0;
 
     return {
       userMessages,
       assistantMessages,
       knowledgeReferences,
       lastUpdatedIso,
+      conservedRatio: clampRatio(conservedRatio),
+      stability: clampRatio(stability),
+      auditability: clampRatio(auditability),
+      returnToAttractor: clampRatio(returnToAttractor),
+      latencyP50,
     };
   }, [messages]);
 
@@ -710,12 +1120,17 @@ const useKolibriChat = (): UseKolibriChatResult => {
     latestAssistantMessage,
     metrics,
     attachments,
+    kernelControls,
+    kernelCapabilities,
+    preferences,
     setDraft,
     setMode,
     renameConversation,
     attachFiles,
     removeAttachment,
     clearAttachments,
+    updateKernelControls,
+    updatePreferences,
     sendMessage,
     resetConversation,
     selectConversation,

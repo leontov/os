@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MockInstance } from "vitest";
 import App from "./App";
 import { MODE_OPTIONS } from "./core/modes";
+import type { KernelControlPayload } from "./core/kolibri-bridge";
 
 type AskFunction = (prompt: string, mode?: string) => Promise<string>;
 
@@ -13,10 +14,12 @@ type SearchFunction = (
   options?: { topK?: number; signal?: AbortSignal }
 ) => Promise<Array<{ id: string; title: string; content: string; score: number }>>;
 
-const { askMock, resetMock, searchMock } = vi.hoisted(() => ({
+const { askMock, resetMock, searchMock, configureMock, capabilitiesMock } = vi.hoisted(() => ({
   askMock: vi.fn<Parameters<AskFunction>, ReturnType<AskFunction>>(),
   resetMock: vi.fn<Parameters<ResetFunction>, ReturnType<ResetFunction>>(),
   searchMock: vi.fn<Parameters<SearchFunction>, ReturnType<SearchFunction>>(),
+  configureMock: vi.fn<[KernelControlPayload], Promise<void>>(),
+  capabilitiesMock: vi.fn<[], Promise<{ wasm: boolean; simd: boolean; laneWidth: number }>>(),
 }));
 
 vi.mock("./core/kolibri-bridge", () => ({
@@ -24,6 +27,8 @@ vi.mock("./core/kolibri-bridge", () => ({
     ready: Promise.resolve(),
     ask: askMock,
     reset: resetMock,
+    configure: configureMock,
+    capabilities: capabilitiesMock,
   },
 }));
 
@@ -38,7 +43,11 @@ describe("App contextual retrieval", () => {
     askMock.mockReset();
     resetMock.mockReset();
     searchMock.mockReset();
+    configureMock.mockReset();
+    capabilitiesMock.mockReset();
     resetMock.mockResolvedValue();
+    configureMock.mockResolvedValue();
+    capabilitiesMock.mockResolvedValue({ wasm: true, simd: false, laneWidth: 1 });
     consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
   });
 

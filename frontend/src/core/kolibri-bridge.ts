@@ -20,6 +20,22 @@ import {
   wasmError as wasmBundleError,
 } from "virtual:kolibri-wasm";
 
+export interface KernelControlPayload {
+  lambdaB: number;
+  lambdaD: number;
+  targetB: number | null;
+  targetD: number | null;
+  temperature: number;
+  topK: number;
+  cfBeam: boolean;
+}
+
+export interface KernelCapabilities {
+  wasm: boolean;
+  simd: boolean;
+  laneWidth: number;
+}
+
 export interface KolibriBridge {
   readonly ready: Promise<void>;
   ask(
@@ -29,6 +45,8 @@ export interface KolibriBridge {
     attachments?: SerializedAttachment[],
   ): Promise<string>;
   reset(): Promise<void>;
+  configure(controls: KernelControlPayload): Promise<void>;
+  capabilities(): Promise<KernelCapabilities>;
 }
 
 interface KolibriWasmExports {
@@ -38,6 +56,17 @@ interface KolibriWasmExports {
   _kolibri_bridge_init(): number;
   _kolibri_bridge_reset(): number;
   _kolibri_bridge_execute(programPtr: number, outputPtr: number, outputCapacity: number): number;
+  _kolibri_bridge_configure(
+    lambdaB: number,
+    lambdaD: number,
+    targetB: number,
+    targetD: number,
+    temperature: number,
+    topK: number,
+    cfBeam: number,
+  ): number;
+  _kolibri_bridge_has_simd(): number;
+  _kolibri_bridge_lane_width(): number;
 }
 
 const OUTPUT_CAPACITY = 8192;
@@ -47,7 +76,6 @@ const WASM_INFO_URL = importedWasmInfoUrl ?? "/kolibri.wasm.txt";
 const WASM_BUNDLE_AVAILABLE = wasmBundleAvailable;
 const WASM_BUNDLE_IS_STUB = wasmBundleIsStub;
 const WASM_BUNDLE_ERROR = wasmBundleError?.trim() ?? "";
-const DEFAULT_MODE = "Быстрый ответ";
 const DEFAULT_API_BASE = "/api";
 const RESPONSE_MODE = (import.meta.env.VITE_KOLIBRI_RESPONSE_MODE ?? "script").toLowerCase();
 const RAW_API_BASE = import.meta.env.VITE_KOLIBRI_API_BASE ?? DEFAULT_API_BASE;
@@ -71,7 +99,6 @@ const textDecoder = new TextDecoder("utf-8");
 const textEncoder = new TextEncoder();
 
 const WASI_ERRNO_SUCCESS = 0;
-const WASI_ERRNO_BADF = 8;
 const WASI_ERRNO_INVAL = 28;
 const WASI_ERRNO_IO = 29;
 const WASI_FILETYPE_CHARACTER_DEVICE = 2;
@@ -213,6 +240,22 @@ const createKolibriWasmExports = (rawExports: WebAssembly.Exports, wasi: WasiAda
       outputPtr: number,
       outputCapacity: number,
     ) => number,
+    _kolibri_bridge_configure: resolveFunction(
+      rawExports,
+      ["_kolibri_bridge_configure", "kolibri_bridge_configure"],
+    ) as (
+      lambdaB: number,
+      lambdaD: number,
+      targetB: number,
+      targetD: number,
+      temperature: number,
+      topK: number,
+      cfBeam: number,
+    ) => number,
+    _kolibri_bridge_has_simd: resolveFunction(
+      rawExports,
+      ["_kolibri_bridge_has_simd", "kolibri_bridge_has_simd"],
+    ) as () => number,
   };
 };
 
@@ -297,6 +340,7 @@ async function describeWasmFailure(error: unknown): Promise<string> {
 class KolibriWasmRuntime {
   private exports: KolibriWasmExports | null = null;
   private readonly wasi = new WasiAdapter();
+  private capabilitiesSnapshot: KernelCapabilities = { wasm: true, simd: false, laneWidth: 1 };
 
   async initialise(): Promise<void> {
     const instance = await this.instantiate();
@@ -306,6 +350,16 @@ class KolibriWasmRuntime {
       throw new Error(`Не удалось инициализировать KolibriScript (код ${initResult})`);
     }
     this.exports = exports;
+    try {
+      const hasSimd = exports._kolibri_bridge_has_simd() === 1;
+      const rawLaneWidth = exports._kolibri_bridge_lane_width();
+      const laneWidth =
+        Number.isFinite(rawLaneWidth) && rawLaneWidth > 0 ? Math.floor(rawLaneWidth) : 1;
+      this.capabilitiesSnapshot = { wasm: true, simd: hasSimd, laneWidth };
+    } catch (error) {
+      console.warn("[kolibri-bridge] Не удалось определить поддержку SIMD", error);
+      this.capabilitiesSnapshot = { wasm: true, simd: false, laneWidth: 1 };
+    }
   }
 
   private async instantiate(): Promise<WebAssembly.Instance> {
@@ -327,6 +381,10 @@ class KolibriWasmRuntime {
     const bytes = await response.arrayBuffer();
     const { instance } = await WebAssembly.instantiate(bytes, importObject);
     return instance;
+  }
+
+  getCapabilities(): KernelCapabilities {
+    return this.capabilitiesSnapshot;
   }
 
   async execute(prompt: string, mode: string, context: KnowledgeSnippet[]): Promise<string> {
@@ -371,6 +429,36 @@ class KolibriWasmRuntime {
     } finally {
       exports._free(programPtr);
       exports._free(outputPtr);
+    }
+  }
+
+  async configure(controls: KernelControlPayload): Promise<void> {
+    if (!this.exports) {
+      throw new Error("Kolibri WASM мост не инициализирован");
+    }
+
+    const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+    const lambdaB = Math.max(0, Math.round(clamp(controls.lambdaB, 0, 2) * 1000));
+    const lambdaD = Math.max(0, Math.round(clamp(controls.lambdaD, 0, 2) * 1000));
+    const targetB =
+      controls.targetB === null ? -1 : Math.round(clamp(controls.targetB, -10, 10) * 1000);
+    const targetD =
+      controls.targetD === null ? -1 : Math.round(clamp(controls.targetD, 0, 1) * 1000);
+    const temperature = Math.max(1, Math.round(clamp(controls.temperature, 0.1, 2.5) * 100));
+    const topK = Math.max(1, Math.round(clamp(controls.topK, 1, 64)));
+    const cfBeam = controls.cfBeam ? 1 : 0;
+
+    const result = this.exports._kolibri_bridge_configure(
+      lambdaB,
+      lambdaD,
+      targetB,
+      targetD,
+      temperature,
+      topK,
+      cfBeam,
+    );
+    if (result !== 0) {
+      throw new Error(`Не удалось обновить настройки KolibriScript (код ${result})`);
     }
   }
 
@@ -424,10 +512,20 @@ class KolibriScriptBridge implements KolibriBridge {
   async reset(): Promise<void> {
     await this.runtime.reset();
   }
+
+  async configure(controls: KernelControlPayload): Promise<void> {
+    await this.runtime.configure(controls);
+  }
+
+  capabilities(): Promise<KernelCapabilities> {
+    return Promise.resolve(this.runtime.getCapabilities());
+  }
 }
 
 class KolibriFallbackBridge implements KolibriBridge {
   readonly ready = Promise.resolve();
+
+  private readonly capability: KernelCapabilities = { wasm: false, simd: false, laneWidth: 1 };
 
   constructor(private readonly reason: string) {}
 
@@ -453,6 +551,15 @@ class KolibriFallbackBridge implements KolibriBridge {
 
   async reset(): Promise<void> {
     // Нет состояния для сброса.
+  }
+
+  async configure(controls: KernelControlPayload): Promise<void> {
+    void controls;
+    // Настройки недоступны в деградированном режиме.
+  }
+
+  capabilities(): Promise<KernelCapabilities> {
+    return Promise.resolve(this.capability);
   }
 }
 
@@ -496,6 +603,14 @@ class KolibriLLMBridge implements KolibriBridge {
 
   async reset(): Promise<void> {
     await this.fallback.reset();
+  }
+
+  async configure(controls: KernelControlPayload): Promise<void> {
+    await this.fallback.configure(controls);
+  }
+
+  capabilities(): Promise<KernelCapabilities> {
+    return this.fallback.capabilities();
   }
 }
 
@@ -548,6 +663,14 @@ const kolibriBridge: KolibriBridge = {
   async reset(): Promise<void> {
     const bridge = await bridgePromise;
     await bridge.reset();
+  },
+  async configure(controls: KernelControlPayload): Promise<void> {
+    const bridge = await bridgePromise;
+    await bridge.configure(controls);
+  },
+  async capabilities(): Promise<KernelCapabilities> {
+    const bridge = await bridgePromise;
+    return bridge.capabilities();
   },
 };
 

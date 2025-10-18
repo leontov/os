@@ -36,9 +36,18 @@ typedef struct {
     KolibriGene gene;
     double fitness;
     double feedback;
+    double invariant_drift_b;
+    double invariant_drift_d;
+    double phase;
     KolibriAssociation associations[KOLIBRI_FORMULA_MAX_ASSOCIATIONS];
     size_t association_count;
 } KolibriFormula;
+
+typedef struct {
+    uint64_t generation_steps;
+    uint64_t evaluation_calls;
+    double last_generation_ms;
+} KolibriPoolProfile;
 
 typedef struct {
     KolibriFormula formulas[24];
@@ -49,6 +58,16 @@ typedef struct {
     size_t examples;
     KolibriAssociation associations[KOLIBRI_POOL_MAX_ASSOCIATIONS];
     size_t association_count;
+    double lambda_b;
+    double lambda_d;
+    double target_b;
+    double target_d;
+    int use_custom_target_b;
+    int use_custom_target_d;
+    double coherence_gain;
+    double temperature;
+    size_t top_k;
+    KolibriPoolProfile profile;
 } KolibriFormulaPool;
 
 void kf_pool_init(KolibriFormulaPool *pool, uint64_t seed);
@@ -69,6 +88,11 @@ int kf_pool_feedback(KolibriFormulaPool *pool, const KolibriGene *gene, double d
 int kf_formula_lookup_answer(const KolibriFormula *formula, int input,
                              char *buffer, size_t buffer_len);
 int kf_hash_from_text(const char *text);
+void kf_pool_set_penalties(KolibriFormulaPool *pool, double lambda_b, double lambda_d);
+void kf_pool_set_targets(KolibriFormulaPool *pool, double target_b, double target_d);
+void kf_pool_set_coherence_gain(KolibriFormulaPool *pool, double gain);
+void kf_pool_set_sampling(KolibriFormulaPool *pool, double temperature, size_t top_k);
+const KolibriPoolProfile *kf_pool_profile(const KolibriFormulaPool *pool);
 
 
 #endif /* KOLIBRI_FORMULA_H */

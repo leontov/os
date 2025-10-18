@@ -1016,6 +1016,94 @@ static void kolibri_apply_mode(KolibriScript *script, char *answer) {
     answer[511] = '\0';
 }
 
+static void kolibri_script_apply_controls(KolibriScript *script) {
+    if (!script || !script->pool) {
+        return;
+    }
+
+    const double lambda_b = script->controls.cf_beam ? script->controls.lambda_b : 0.0;
+    const double lambda_d = script->controls.cf_beam ? script->controls.lambda_d : 0.0;
+    kf_pool_set_penalties(script->pool, lambda_b, lambda_d);
+
+    double target_b = script->controls.cf_beam ? script->controls.target_b : NAN;
+    double target_d = script->controls.cf_beam ? script->controls.target_d : NAN;
+    kf_pool_set_targets(script->pool, target_b, target_d);
+
+    double coherence = 0.0;
+    if (script->controls.cf_beam) {
+        double base = script->controls.temperature;
+        if (!isfinite(base) || base < 0.0) {
+            base = 0.0;
+        }
+        coherence = base * 0.05;
+        if (script->controls.top_k > 0.0 && isfinite(script->controls.top_k)) {
+            coherence += fmax(0.0, 10.0 - script->controls.top_k) * 0.01;
+        }
+    }
+    kf_pool_set_coherence_gain(script->pool, coherence);
+
+    double effective_temperature = script->controls.cf_beam ? script->controls.temperature : 1.0;
+    if (!isfinite(effective_temperature) || effective_temperature <= 0.0) {
+        effective_temperature = 1.0;
+    }
+    size_t effective_top_k = script->pool->count;
+    if (script->controls.cf_beam && isfinite(script->controls.top_k) && script->controls.top_k > 0.0) {
+        long long rounded = llround(script->controls.top_k);
+        if (rounded < 1) {
+            rounded = 1;
+        }
+        effective_top_k = (size_t)rounded;
+    }
+    kf_pool_set_sampling(script->pool, effective_temperature, effective_top_k);
+}
+
+int ks_set_controls(KolibriScript *skript, const KolibriScriptControls *controls) {
+    if (!skript || !controls) {
+        return -1;
+    }
+
+    KolibriScriptControls next = *controls;
+    if (!isfinite(next.lambda_b) || next.lambda_b < 0.0) {
+        next.lambda_b = 0.0;
+    }
+    if (!isfinite(next.lambda_d) || next.lambda_d < 0.0) {
+        next.lambda_d = 0.0;
+    }
+    if (!isfinite(next.temperature) || next.temperature <= 0.0) {
+        next.temperature = 0.85;
+    }
+    if (!isfinite(next.top_k) || next.top_k < 1.0) {
+        next.top_k = 1.0;
+    } else if (next.top_k > 32.0) {
+        next.top_k = 32.0;
+    }
+    if (isfinite(next.target_d)) {
+        if (next.target_d < 0.0) {
+            next.target_d = 0.0;
+        }
+        if (next.target_d > 1.0) {
+            next.target_d = 1.0;
+        }
+    } else {
+        next.target_d = NAN;
+    }
+    if (isfinite(next.target_b)) {
+        if (next.target_b < -10.0) {
+            next.target_b = -10.0;
+        }
+        if (next.target_b > 10.0) {
+            next.target_b = 10.0;
+        }
+    } else {
+        next.target_b = NAN;
+    }
+    next.cf_beam = next.cf_beam ? 1 : 0;
+
+    skript->controls = next;
+    kolibri_script_apply_controls(skript);
+    return 0;
+}
+
 static void kolibri_to_lower_ascii(const char *src, char *dst, size_t dst_len) {
     if (!src || !dst || dst_len == 0) {
         return;
@@ -2512,6 +2600,7 @@ static void kolibri_script_reset(KolibriScript *script) {
     kolibri_script_clear_formulas(script);
     if (script) {
         kolibri_script_set_mode(script, "neutral");
+        kolibri_script_apply_controls(script);
     }
 }
 
@@ -2530,6 +2619,16 @@ int ks_init(KolibriScript *skript, KolibriFormulaPool *pool, KolibriGenome *geno
     kolibri_symbol_table_load(&skript->symbol_table);
     kolibri_symbol_table_seed_defaults(&skript->symbol_table);
     kolibri_script_set_mode(skript, "neutral");
+    KolibriScriptControls defaults = {
+        .lambda_b = 0.25,
+        .lambda_d = 0.2,
+        .target_b = NAN,
+        .target_d = NAN,
+        .temperature = 0.85,
+        .top_k = 4.0,
+        .cf_beam = 1,
+    };
+    (void)ks_set_controls(skript, &defaults);
     return 0;
 }
 
