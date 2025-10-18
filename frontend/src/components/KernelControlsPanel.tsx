@@ -12,7 +12,6 @@ interface KernelControlsPanelProps {
 const formatPercent = (value: number): string => `${Math.round(value * 100)}%`;
 
 const KernelControlsPanel = ({ controls, capabilities, onChange }: KernelControlsPanelProps) => {
-const KernelControlsPanel = ({ controls, onChange }: KernelControlsPanelProps) => {
   const handleRangeChange = (key: keyof KernelControlsState) => (event: ChangeEvent<HTMLInputElement>) => {
     const raw = event.target.value;
     if (key === "topK") {

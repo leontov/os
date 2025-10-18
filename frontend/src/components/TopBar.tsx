@@ -1,5 +1,4 @@
 import { CheckCircle2, CircleDashed, Globe2, History, MessageSquare, RefreshCcw, Sparkles } from "lucide-react";
-import { CheckCircle2, CircleDashed, History, MessageSquare, RefreshCcw, Sparkles } from "lucide-react";
 import { useId } from "react";
 import type { ConversationMetrics } from "../core/useKolibriChat";
 import type { KnowledgeStatus } from "../core/knowledge";
