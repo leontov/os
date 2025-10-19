@@ -86,38 +86,27 @@ const ChatMessage = ({ message, latestUserMessage }: ChatMessageProps) => {
 
   const avatar = (
     <span
-      className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold shadow-xl ring-1 ring-black/5 ${
-      className={`flex h-11 w-11 items-center justify-center rounded-full text-sm font-semibold shadow-lg ${
-        isUser ? "bg-gradient-to-br from-primary to-primary/70 text-white" : "bg-background-card/80 text-primary"
+      className={`flex h-11 w-11 items-center justify-center rounded-full text-sm font-semibold shadow-[0_18px_35px_-22px_rgba(79,70,229,0.9)] ${
+        isUser
+          ? "bg-gradient-to-br from-primary/90 via-primary/75 to-primary/60 text-white"
+          : "bg-background-card/80 text-primary"
       }`}
+      aria-hidden="true"
     >
       {avatarLabel}
     </span>
   );
 
   const bubbleClasses = isUser
-    ? "border-primary/40 bg-gradient-to-br from-primary/85 via-primary/70 to-primary/60 text-white"
-    : "border-border-strong/70 bg-background-input/95 text-text-primary";
-
-  return (
-    <article className={`flex w-full gap-3 px-1 ${isUser ? "justify-end" : "justify-start"}`}>
-      {!isUser && avatar}
-      <div
-        className={`flex w-full max-w-[min(100%,56rem)] flex-col gap-2 transition-transform ${
-          isUser ? "items-end text-right" : "items-start"
-        }`}
-      >
-        <div
-          className={`relative w-full rounded-3xl border ${bubbleClasses} p-5 shadow-[0_18px_40px_-28px_rgba(79,70,229,0.65)] backdrop-blur`}
-    ? "border-primary/40 bg-gradient-to-br from-primary/80 via-primary/70 to-primary/60 text-white"
-    : "border-border-strong/70 bg-background-input/90 text-text-primary";
+    ? "border-primary/50 bg-gradient-to-br from-primary/85 via-primary/70 to-primary/60 text-white shadow-[0_28px_60px_-32px_rgba(99,102,241,0.8)]"
+    : "border-border-strong/70 bg-background-input/85 text-text-primary";
 
   return (
     <article className={`flex w-full gap-4 ${isUser ? "justify-end" : "justify-start"}`}>
       {!isUser && avatar}
       <div className={`flex max-w-3xl flex-col gap-2 ${isUser ? "items-end text-right" : "items-start"}`}>
         <div
-          className={`relative w-full rounded-3xl border ${bubbleClasses} p-6 shadow-[0_18px_40px_-28px_rgba(79,70,229,0.7)] backdrop-blur`}
+          className={`relative w-full rounded-3xl border ${bubbleClasses} p-6 backdrop-blur`}
         >
           <header className="mb-4 flex flex-wrap items-center justify-between gap-3 text-[0.7rem] uppercase tracking-[0.35em]">
             <span className={isUser ? "text-white/80" : "text-text-secondary/80"}>{actorLabel}</span>
@@ -141,7 +130,6 @@ const ChatMessage = ({ message, latestUserMessage }: ChatMessageProps) => {
           {message.content && (
             <p
               className={`whitespace-pre-line text-[0.95rem] leading-relaxed ${
-              className={`whitespace-pre-line text-sm leading-relaxed ${
                 isUser ? "text-white/95" : "text-text-primary"
               }`}
             >
@@ -150,14 +138,6 @@ const ChatMessage = ({ message, latestUserMessage }: ChatMessageProps) => {
           )}
 
           {message.attachments?.length ? (
-            <div className="mt-4 grid gap-2">
-              {message.attachments.map((attachment) => (
-                <div
-                  key={attachment.id}
-                  className={`flex items-center gap-3 rounded-2xl border px-3 py-2 text-[0.8rem] shadow-sm transition-colors ${
-                    isUser
-                      ? "border-white/25 bg-white/10 text-white/90"
-                      : "border-border-strong bg-background-card/90 text-text-secondary"
             <div className="mt-4 space-y-2">
               {message.attachments.map((attachment) => (
                 <div
@@ -179,14 +159,12 @@ const ChatMessage = ({ message, latestUserMessage }: ChatMessageProps) => {
           ) : null}
 
           {!isUser && (hasContext || message.contextError) && (
-            <div className="mt-4 space-y-3 rounded-2xl border border-dashed border-border-strong/70 bg-background-card/85 p-4 text-xs text-text-secondary">
             <div className="mt-4 space-y-3 rounded-2xl border border-dashed border-border-strong/70 bg-background-card/80 p-4 text-xs text-text-secondary">
               {hasContext && (
                 <div>
                   <button
                     type="button"
                     onClick={() => setIsContextExpanded((previous) => !previous)}
-                    className="rounded-full border border-primary/40 bg-primary/10 px-4 py-1 text-[0.7rem] font-semibold uppercase tracking-[0.3em] text-primary transition-colors hover:border-primary hover:bg-primary/15"
                     className="rounded-full border border-primary/40 bg-primary/10 px-4 py-1 text-[0.7rem] font-semibold uppercase tracking-[0.3em] text-primary transition-colors hover:border-primary"
                   >
                     {isContextExpanded ? "Скрыть контекст" : "Показать контекст"} ({contextCount})
@@ -196,8 +174,7 @@ const ChatMessage = ({ message, latestUserMessage }: ChatMessageProps) => {
                       {message.context?.map((snippet, index) => (
                         <article
                           key={snippet.id}
-                          className="rounded-2xl border border-border-strong bg-background-input/90 p-3 shadow-sm"
-                          className="rounded-2xl border border-border-strong bg-background-input/80 p-3"
+                          className="glass-panel p-3"
                           aria-label={`Источник ${index + 1}`}
                         >
                           <div className="flex flex-wrap items-center justify-between gap-2 text-[0.7rem] font-semibold text-text-secondary">
@@ -205,7 +182,6 @@ const ChatMessage = ({ message, latestUserMessage }: ChatMessageProps) => {
                             <span className="text-text-secondary">Релевантность: {formatScore(snippet.score)}</span>
                           </div>
                           <p className="mt-1 text-sm font-semibold text-text-primary">{snippet.title}</p>
-                          <p className="mt-2 whitespace-pre-line text-[0.9rem] leading-relaxed text-text-secondary">
                           <p className="mt-2 whitespace-pre-line text-[0.85rem] leading-relaxed text-text-secondary">
                             {snippet.content}
                           </p>
@@ -235,19 +211,17 @@ const ChatMessage = ({ message, latestUserMessage }: ChatMessageProps) => {
           }`}
         >
           {!isUser && message.modeLabel && (
-            <span className="rounded-full border border-border-strong/80 bg-background-card/80 px-3 py-1 uppercase tracking-[0.3em] text-primary">
+            <span className="pill-badge border-primary/40 bg-primary/10 text-primary">
               {message.modeLabel}
             </span>
           )}
           {latestUserMessage && !isUser && (
-            <span className="truncate rounded-full border border-border-strong/60 bg-background-card/75 px-3 py-1 text-text-secondary">
             <span className="truncate rounded-full border border-border-strong/60 bg-background-card/70 px-3 py-1 text-text-secondary">
               ↪ {latestUserMessage.content.slice(0, 80)}
               {latestUserMessage.content.length > 80 ? "…" : ""}
             </span>
           )}
           {hasContext && !isUser && (
-            <span className="rounded-full border border-border-strong/60 bg-background-card/75 px-3 py-1 text-text-secondary">
             <span className="rounded-full border border-border-strong/60 bg-background-card/70 px-3 py-1 text-text-secondary">
               Контекстов: {contextCount}
             </span>
@@ -257,7 +231,6 @@ const ChatMessage = ({ message, latestUserMessage }: ChatMessageProps) => {
           )}
 
           {!isUser && (
-            <div className="ml-auto flex items-center gap-1 rounded-full border border-border-strong/70 bg-background-card/85 px-2 py-1 text-text-secondary shadow-sm">
             <div className="ml-auto flex items-center gap-1 rounded-full border border-border-strong/70 bg-background-card/80 px-2 py-1 text-text-secondary">
               <button
                 type="button"

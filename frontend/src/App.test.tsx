@@ -15,7 +15,6 @@ type SearchFunction = (
 ) => Promise<Array<{ id: string; title: string; content: string; score: number }>>;
 
 const { askMock, resetMock, searchMock, configureMock, capabilitiesMock } = vi.hoisted(() => ({
-const { askMock, resetMock, searchMock, configureMock } = vi.hoisted(() => ({
   askMock: vi.fn<Parameters<AskFunction>, ReturnType<AskFunction>>(),
   resetMock: vi.fn<Parameters<ResetFunction>, ReturnType<ResetFunction>>(),
   searchMock: vi.fn<Parameters<SearchFunction>, ReturnType<SearchFunction>>(),
@@ -49,8 +48,6 @@ describe("App contextual retrieval", () => {
     resetMock.mockResolvedValue();
     configureMock.mockResolvedValue();
     capabilitiesMock.mockResolvedValue({ wasm: true, simd: false, laneWidth: 1 });
-    resetMock.mockResolvedValue();
-    configureMock.mockResolvedValue();
     consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
   });
 

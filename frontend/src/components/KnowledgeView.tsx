@@ -11,7 +11,7 @@ interface KnowledgeViewProps {
 const KnowledgeView = ({ status, error, isLoading, onRefresh }: KnowledgeViewProps) => (
   <div className="flex h-full flex-1 flex-col gap-6">
     <StatusBar status={status} error={error} isLoading={isLoading} onRefresh={onRefresh} />
-    <section className="flex flex-1 flex-col justify-center gap-3 rounded-3xl border border-border-strong bg-background-card/70 p-10 text-text-secondary">
+    <section className="glass-panel flex flex-1 flex-col justify-center gap-3 p-10 text-text-secondary">
       <h2 className="text-2xl font-semibold text-text-primary">Мониторинг знаний</h2>
       <p>
         Здесь появятся метрики загрузки данных, состояние пайплайна и свежие обновления базы знаний. Пока вы

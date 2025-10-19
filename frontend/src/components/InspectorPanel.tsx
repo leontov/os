@@ -41,7 +41,7 @@ const StatCard = ({
   label: string;
   value: string;
 }) => (
-  <article className="flex items-center gap-3 rounded-2xl border border-border-strong bg-background-input/80 px-4 py-3">
+  <article className="glass-panel flex items-center gap-3 px-4 py-3">
     <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-background-card/70 text-primary">
       <Icon className="h-4 w-4" />
     </span>
@@ -75,7 +75,7 @@ const InspectorPanel = ({
   ];
 
   return (
-    <section className="flex h-full flex-col gap-4 rounded-3xl border border-border-strong bg-background-card/80 p-6 backdrop-blur">
+    <section className="glass-panel flex h-full flex-col gap-4 p-6">
       <header className="flex items-center justify-between">
         <div>
           <p className="text-xs uppercase tracking-[0.35em] text-text-secondary">Мониторинг</p>
@@ -109,7 +109,7 @@ const InspectorPanel = ({
         {context && context.length ? (
           <div className="space-y-3">
             {context.map((snippet, index) => (
-              <article key={snippet.id} className="rounded-2xl border border-border-strong bg-background-input/80 p-3">
+              <article key={snippet.id} className="glass-panel p-3">
                 <p className="flex items-center justify-between text-[0.7rem] font-semibold text-text-secondary">
                   <span className="uppercase tracking-wide text-text-primary">Источник {index + 1}</span>
                   <span>Релевантность: {snippet.score.toFixed(2)}</span>
@@ -123,7 +123,7 @@ const InspectorPanel = ({
             ))}
           </div>
         ) : (
-          <p className="rounded-2xl border border-dashed border-border-strong px-3 py-4 text-xs text-text-secondary">
+          <p className="rounded-2xl border border-dashed border-border-strong/70 px-3 py-4 text-xs text-text-secondary">
             Колибри ещё не использовал внешние знания в этой беседе.
           </p>
         )}
@@ -131,7 +131,7 @@ const InspectorPanel = ({
 
       <div className="space-y-3">
         <h3 className="text-xs uppercase tracking-[0.35em] text-text-secondary">Метрики ядра</h3>
-        <div className="overflow-hidden rounded-2xl border border-border-strong bg-background-input/80">
+        <div className="overflow-hidden rounded-2xl border border-border-strong/70 bg-background-input/80">
           <table className="w-full border-collapse text-[0.7rem] text-text-secondary">
             <tbody>
               {kernelMetrics.map((entry) => (
@@ -149,7 +149,7 @@ const InspectorPanel = ({
 
       <div className="mt-auto space-y-3">
         <h3 className="text-xs uppercase tracking-[0.35em] text-text-secondary">Диагностика</h3>
-        <article className="rounded-2xl border border-border-strong bg-background-input/80 p-3 text-xs text-text-secondary">
+        <article className="glass-panel p-3 text-xs text-text-secondary">
           <p>
             Статус сервиса: <span className="font-semibold text-text-primary">{status ? status.status : "unknown"}</span>
           </p>

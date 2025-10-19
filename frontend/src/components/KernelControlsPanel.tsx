@@ -12,7 +12,6 @@ interface KernelControlsPanelProps {
 const formatPercent = (value: number): string => `${Math.round(value * 100)}%`;
 
 const KernelControlsPanel = ({ controls, capabilities, onChange }: KernelControlsPanelProps) => {
-const KernelControlsPanel = ({ controls, onChange }: KernelControlsPanelProps) => {
   const handleRangeChange = (key: keyof KernelControlsState) => (event: ChangeEvent<HTMLInputElement>) => {
     const raw = event.target.value;
     if (key === "topK") {
@@ -30,7 +29,7 @@ const KernelControlsPanel = ({ controls, onChange }: KernelControlsPanelProps) =
   const laneWidthClass = laneWidth > 1 ? "text-primary" : "text-text-primary";
 
   return (
-    <section className="flex flex-col gap-5 rounded-3xl border border-border-strong bg-background-card/80 p-6 backdrop-blur">
+    <section className="glass-panel flex flex-col gap-5 p-6">
       <header className="flex items-center justify-between gap-3">
         <div>
           <p className="text-xs uppercase tracking-[0.35em] text-text-secondary">Ядро</p>
@@ -64,7 +63,7 @@ const KernelControlsPanel = ({ controls, onChange }: KernelControlsPanelProps) =
       </header>
 
       <div className="grid gap-4">
-        <label className="space-y-2">
+        <label className="glass-panel space-y-2 px-4 py-3">
           <span className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-text-secondary">
             B₀
             <span className="text-text-primary">{formatPercent(controls.b0)}</span>
@@ -83,7 +82,7 @@ const KernelControlsPanel = ({ controls, onChange }: KernelControlsPanelProps) =
           </div>
         </label>
 
-        <label className="space-y-2">
+        <label className="glass-panel space-y-2 px-4 py-3">
           <span className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-text-secondary">
             D₀
             <span className="text-text-primary">{formatPercent(controls.d0)}</span>
@@ -102,7 +101,7 @@ const KernelControlsPanel = ({ controls, onChange }: KernelControlsPanelProps) =
           </div>
         </label>
 
-        <label className="space-y-2">
+        <label className="glass-panel space-y-2 px-4 py-3">
           <span className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-text-secondary">
             Температура
             <span className="text-text-primary">{controls.temperature.toFixed(2)}</span>
@@ -121,7 +120,7 @@ const KernelControlsPanel = ({ controls, onChange }: KernelControlsPanelProps) =
           </div>
         </label>
 
-        <label className="space-y-2">
+        <label className="glass-panel space-y-2 px-4 py-3">
           <span className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-text-secondary">
             Top-k
             <span className="text-text-primary">{controls.topK}</span>

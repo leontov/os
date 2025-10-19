@@ -37,9 +37,9 @@ const ConversationPreferencesBar = ({ preferences, onChange }: ConversationPrefe
   };
 
   return (
-    <section className="rounded-3xl border border-border-strong bg-background-card/80 p-4 backdrop-blur md:flex md:items-center md:justify-between">
+    <section className="glass-panel flex flex-col gap-4 p-4 md:flex-row md:items-center md:justify-between">
       <div className="flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.3em] text-text-secondary">
-        <span className="rounded-xl border border-border-strong bg-background-input/70 px-3 py-1 text-[0.65rem] font-semibold">
+        <span className="pill-badge">
           Параметры беседы
         </span>
         <button
@@ -91,7 +91,7 @@ const ConversationPreferencesBar = ({ preferences, onChange }: ConversationPrefe
           Тон {preferences.safeTone ? "safe" : "std"}
         </button>
       </div>
-      <div className="mt-3 flex flex-wrap items-center gap-3 md:mt-0">
+      <div className="mt-2 flex flex-wrap items-center gap-3 md:mt-0">
         <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-text-secondary">
           <SwitchCamera className="h-4 w-4 text-primary" />
           Профиль

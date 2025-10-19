@@ -1,5 +1,4 @@
 import { CheckCircle2, CircleDashed, Globe2, History, MessageSquare, RefreshCcw, Sparkles } from "lucide-react";
-import { CheckCircle2, CircleDashed, History, MessageSquare, RefreshCcw, Sparkles } from "lucide-react";
 import { useId } from "react";
 import type { ConversationMetrics } from "../core/useKolibriChat";
 import type { KnowledgeStatus } from "../core/knowledge";
@@ -31,8 +30,8 @@ const formatIsoTime = (iso?: string): string => {
 };
 
 const StatusBadge = ({ icon: Icon, label, value }: { icon: typeof MessageSquare; label: string; value: string }) => (
-  <div className="flex items-center gap-2 rounded-2xl border border-border-strong bg-background-card/80 px-4 py-2">
-    <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-background-input/60 text-primary">
+  <div className="glass-panel flex items-center gap-2 px-4 py-2">
+    <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/15 text-primary">
       <Icon className="h-4 w-4" />
     </span>
     <div className="flex flex-col text-left">
@@ -81,19 +80,20 @@ const TopBar = ({
   };
 
   return (
-    <header className="rounded-3xl border border-border-strong bg-background-card/80 p-6 backdrop-blur">
+    <header className="glass-panel flex flex-col gap-6 p-6">
       <div className="flex flex-col gap-6">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
           <div className="flex flex-1 flex-col gap-3">
-            <label htmlFor={inputId} className="text-xs uppercase tracking-[0.35em] text-text-secondary">
-              Название беседы
-            </label>
+            <div className="flex items-center gap-3 text-xs uppercase tracking-[0.35em] text-text-secondary">
+              <span className="pill-badge !tracking-[0.35em]">Текущая беседа</span>
+              <span className="hidden lg:inline text-text-secondary/70">Колибри Σ</span>
+            </div>
             <input
               id={inputId}
               value={title}
               onChange={(event) => onTitleChange(event.target.value)}
               placeholder="Назови беседу"
-              className="w-full rounded-2xl border border-border-strong bg-background-input/80 px-4 py-3 text-lg font-semibold text-text-primary shadow-inner focus:border-primary focus:outline-none"
+              className="w-full rounded-2xl border border-border-strong/70 bg-background-input/80 px-4 py-3 text-lg font-semibold text-text-primary shadow-inner focus:border-primary focus:outline-none"
             />
             <p className="text-xs text-text-secondary">
               Последнее обновление: {formatIsoTime(metrics.lastUpdatedIso)}
@@ -103,17 +103,17 @@ const TopBar = ({
             <StatusBadge {...connectionBadge} />
             <StatusBadge {...knowledgeBadge} />
             <StatusBadge {...onlineBadge} />
-            <StatusBadge {...activityBadge} />
-            <button
-              type="button"
-              onClick={onRefreshKnowledge}
-              disabled={isKnowledgeLoading || isProcessing}
-              className="flex items-center gap-2 rounded-2xl border border-border-strong bg-background-input/80 px-4 py-2 text-sm font-semibold text-text-secondary transition-colors hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <RefreshCcw className="h-4 w-4" />
-              Обновить память
-            </button>
-          </div>
+          <StatusBadge {...activityBadge} />
+          <button
+            type="button"
+            onClick={onRefreshKnowledge}
+            disabled={isKnowledgeLoading || isProcessing}
+            className="ghost-button disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <RefreshCcw className="h-4 w-4" />
+            Обновить память
+          </button>
+        </div>
         </div>
         <div className="grid gap-3 lg:hidden">
           <div className="flex flex-wrap items-center gap-3">
@@ -127,7 +127,7 @@ const TopBar = ({
               type="button"
               onClick={onRefreshKnowledge}
               disabled={isKnowledgeLoading || isProcessing}
-              className="flex flex-1 items-center justify-center gap-2 rounded-2xl border border-border-strong bg-background-input/80 px-3 py-2 font-semibold transition-colors hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-60"
+              className="glass-panel flex flex-1 items-center justify-center gap-2 px-3 py-2 font-semibold transition-colors hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-60"
             >
               <RefreshCcw className="h-4 w-4" />
               Обновить память
@@ -137,7 +137,7 @@ const TopBar = ({
                 <button
                   type="button"
                   onClick={() => onOpenHistory?.()}
-                  className="flex items-center gap-2 rounded-2xl border border-border-strong bg-background-input/80 px-3 py-2 font-semibold transition-colors hover:text-text-primary"
+                  className="glass-panel flex items-center gap-2 px-3 py-2 font-semibold transition-colors hover:text-text-primary"
                 >
                   <History className="h-4 w-4" />
                   История
@@ -145,7 +145,7 @@ const TopBar = ({
                 <button
                   type="button"
                   onClick={() => onOpenControls?.()}
-                  className="flex items-center gap-2 rounded-2xl border border-border-strong bg-background-input/80 px-3 py-2 font-semibold transition-colors hover:text-text-primary"
+                  className="glass-panel flex items-center gap-2 px-3 py-2 font-semibold transition-colors hover:text-text-primary"
                 >
                   <Sparkles className="h-4 w-4" />
                   Настройки

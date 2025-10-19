@@ -52,8 +52,75 @@
 }
 
 body {
+  position: relative;
   min-height: 100vh;
   color: rgb(var(--color-text-primary));
-  background-color: rgb(var(--color-background-main));
-  transition: color 150ms ease, background-color 150ms ease;
+  background: radial-gradient(circle at 20% 20%, rgba(79, 70, 229, 0.35), transparent 55%),
+    radial-gradient(circle at 80% 10%, rgba(14, 165, 233, 0.2), transparent 55%),
+    linear-gradient(135deg, rgb(var(--color-background-main)), rgb(var(--color-background-accent)));
+  overflow-x: hidden;
+  transition: color 200ms ease, background-color 200ms ease;
+}
+
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+}
+
+body::before {
+  background: radial-gradient(circle at 15% 80%, rgba(56, 189, 248, 0.18), transparent 55%),
+    radial-gradient(circle at 70% 75%, rgba(99, 102, 241, 0.22), transparent 60%);
+  filter: blur(20px);
+}
+
+body::after {
+  background-image: linear-gradient(
+      to right,
+      rgba(148, 163, 184, 0.08) 1px,
+      transparent 1px
+    ),
+    linear-gradient(to bottom, rgba(148, 163, 184, 0.06) 1px, transparent 1px);
+  background-size: 64px 64px;
+  opacity: 0.65;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0));
+}
+
+@layer utilities {
+  .glass-panel {
+    @apply rounded-3xl border border-border-strong/70 bg-background-card/75 backdrop-blur shadow-card;
+  }
+
+  .glass-panel-strong {
+    @apply rounded-[2.5rem] border border-border-strong/80 bg-background-panel/80 backdrop-blur-md shadow-card;
+  }
+
+  .pill-badge {
+    @apply rounded-full border border-border-strong/60 bg-background-input/70 px-3 py-1 text-[0.7rem] font-semibold uppercase tracking-[0.3em] text-text-secondary;
+  }
+
+  .ghost-button {
+    @apply inline-flex items-center gap-2 rounded-2xl border border-border-strong/70 bg-background-input/70 px-4 py-2 text-sm font-semibold text-text-secondary transition-colors hover:text-text-primary;
+  }
+
+  .soft-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
+  }
+
+  .soft-scroll::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .soft-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .soft-scroll::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, rgba(99, 102, 241, 0.6), rgba(14, 165, 233, 0.6));
+    border-radius: 9999px;
+  }
 }

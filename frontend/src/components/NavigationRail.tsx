@@ -136,9 +136,9 @@ const NavigationRail = ({
 
   return (
     <>
-      <div className="flex h-full w-20 flex-col items-center justify-between rounded-[2.5rem] border border-border-strong bg-background-panel/70 p-4 backdrop-blur">
+      <div className="glass-panel-strong flex h-full w-20 flex-col items-center justify-between p-4">
         <div className="flex flex-col items-center gap-5">
-          <div className="flex h-12 w-12 items-center justify-center rounded-3xl bg-primary/15 text-lg font-semibold text-primary">
+          <div className="flex h-12 w-12 items-center justify-center rounded-3xl bg-gradient-to-br from-primary/80 to-primary/60 text-lg font-semibold text-white shadow-lg">
             К
           </div>
           <button
@@ -174,7 +174,7 @@ const NavigationRail = ({
           </nav>
         </div>
         <div className="space-y-3 text-center text-[0.65rem] text-text-secondary">
-          <div className="rounded-2xl border border-border-strong bg-background-card/70 px-2 py-2">
+          <div className="glass-panel px-2 py-2">
             <p className="font-semibold text-text-primary">{totalMessages}</p>
             <p>сообщений</p>
           </div>

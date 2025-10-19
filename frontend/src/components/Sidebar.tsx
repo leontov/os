@@ -50,22 +50,25 @@ const Sidebar = ({
   onConversationSelect,
   onCreateConversation,
 }: SidebarProps) => (
-  <div className="flex h-full w-full flex-col rounded-3xl border border-border-strong bg-background-panel/80 p-6 backdrop-blur">
+  <div className="glass-panel-strong flex h-full w-full flex-col gap-5 p-6">
     <div className="flex items-start justify-between gap-4">
-      <div>
-        <p className="text-xs uppercase tracking-widest text-text-secondary">Беседы</p>
-        <h2 className="mt-2 text-xl font-semibold text-text-primary">История</h2>
+      <div className="space-y-3">
+        <span className="pill-badge">Беседы</span>
+        <div>
+          <h2 className="text-xl font-semibold text-text-primary">История</h2>
+          <p className="mt-1 text-xs text-text-secondary">Последние диалоги и черновики — всё под рукой.</p>
+        </div>
       </div>
       <button
         type="button"
         onClick={() => onCreateConversation?.()}
-        className="flex h-9 w-9 items-center justify-center rounded-xl border border-border-strong bg-background-card/80 text-text-secondary transition-colors hover:text-text-primary"
+        className="glass-panel flex h-11 w-11 items-center justify-center text-text-secondary transition-colors hover:text-text-primary"
         aria-label="Новая беседа"
       >
         <Plus className="h-4 w-4" />
       </button>
     </div>
-    <ul className="mt-6 space-y-2">
+    <ul className="soft-scroll -mr-2 flex-1 space-y-2 overflow-y-auto pr-2">
       {conversations.length ? (
         conversations.map((item) => {
           const isActive = item.id === activeConversationId;
@@ -76,10 +79,10 @@ const Sidebar = ({
               <button
                 type="button"
                 onClick={() => onConversationSelect(item.id)}
-                className={`w-full rounded-2xl px-4 py-3 text-left transition-colors ${
+                className={`w-full rounded-2xl border px-4 py-3 text-left transition-colors ${
                   isActive
-                    ? "bg-primary/15 text-text-primary"
-                    : "bg-background-card/60 text-text-secondary hover:bg-background-card"
+                    ? "border-primary/50 bg-primary/15 text-text-primary shadow-[0_18px_40px_-32px_rgba(99,102,241,0.65)]"
+                    : "border-transparent bg-background-card/50 text-text-secondary hover:border-border-strong/50 hover:bg-background-card/70"
                 }`}
               >
                 <p className="text-sm font-semibold text-text-primary">{item.title}</p>
@@ -92,14 +95,14 @@ const Sidebar = ({
           );
         })
       ) : (
-        <li className="rounded-2xl bg-background-card/60 px-4 py-3 text-xs text-text-secondary">
+        <li className="rounded-2xl border border-dashed border-border-strong/60 bg-background-card/50 px-4 py-3 text-xs text-text-secondary">
           Беседы появятся после отправки первых сообщений.
         </li>
       )}
     </ul>
-    <div className="mt-6 rounded-2xl border border-border-strong bg-background-card/80 p-4">
+    <div className="glass-panel mt-auto space-y-2 p-4 text-sm text-text-secondary">
       <p className="text-sm font-semibold text-text-primary">Kolibri</p>
-      <p className="mt-1 text-xs text-text-secondary">Колибри может делать ошибки. Проверяйте факты.</p>
+      <p className="text-xs text-text-secondary">Колибри может делать ошибки. Проверяйте факты.</p>
     </div>
   </div>
 );
