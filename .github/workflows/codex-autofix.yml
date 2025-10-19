@@ -1,0 +1,111 @@
+name: Codex Autofix
+
+on:
+  workflow_run:
+    workflows:
+      - Kolibri CI
+    types:
+      - completed
+
+jobs:
+  codex-autofix:
+    if: ${{ github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.head_repository.full_name == github.repository && github.event.workflow_run.event == 'pull_request' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.workflow_run.head_repository.full_name }}
+          ref: ${{ github.event.workflow_run.head_branch }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install ruff pyright pytest coverage openai
+
+      - name: Run Codex autofix
+        env:
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          RUN_NAME: ${{ github.event.workflow_run.name }}
+        run: |
+          if [ -z "${OPENAI_API_KEY}" ]; then
+            echo "OPENAI_API_KEY is not configured. Skipping Codex autofix." >&2
+            exit 0
+          fi
+          python - <<'PY'
+import os
+import subprocess
+import textwrap
+
+try:
+    from openai import OpenAI
+except ImportError:
+    print("openai package is not available; skipping Codex autofix.")
+    raise SystemExit(0)
+
+client = OpenAI()
+prompt = textwrap.dedent(
+    f"""
+    The GitHub Actions workflow '{os.environ.get('RUN_NAME')}' failed. Review the failure logs at
+    {os.environ.get('RUN_URL')} and propose code changes to fix the issue. Reply with a unified diff
+    that can be applied with `git apply`.
+    """
+)
+response = client.responses.create(
+    model=os.environ.get("CODEX_MODEL", "gpt-4o-mini"),
+    input=prompt,
+    temperature=0
+)
+patch = getattr(response, "output_text", "").strip()
+if not patch:
+    print("Codex did not return a patch. Nothing to apply.")
+    raise SystemExit(0)
+with open("codex-autofix.patch", "w", encoding="utf-8") as handle:
+    handle.write(patch)
+try:
+    subprocess.run(["git", "apply", "codex-autofix.patch"], check=True)
+except subprocess.CalledProcessError as exc:
+    print("Failed to apply Codex patch:", exc)
+    raise SystemExit(exc.returncode)
+PY
+
+      - name: Check for changes
+        id: codex_changes
+        run: |
+          if git diff --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run tests
+        if: ${{ steps.codex_changes.outputs.changed == 'true' }}
+        run: pytest -q
+
+      - name: Create pull request
+        if: ${{ steps.codex_changes.outputs.changed == 'true' }}
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: codex/autofix-${{ github.run_id }}
+          delete-branch: true
+          commit-message: '[codex autofix] Apply automated fixes'
+          title: 'Codex autofix for Kolibri CI failure'
+          body: |
+            Automated Codex fix triggered by [workflow run](${{ github.event.workflow_run.html_url }}).
+            This PR includes the generated changes and reruns tests to confirm the fix.
+
