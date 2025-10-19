@@ -658,6 +658,50 @@ static KBridgeControls g_controls = {
     .cf_beam = 1,
 };
 
+static KBridgeControls k_bridge_effective_controls(void) {
+    if (!isfinite(g_controls.lambda_b) || g_controls.lambda_b < 0.0) {
+        g_controls.lambda_b = 0.0;
+    }
+    if (!isfinite(g_controls.lambda_d) || g_controls.lambda_d < 0.0) {
+        g_controls.lambda_d = 0.0;
+    }
+    if (isfinite(g_controls.target_b)) {
+        if (g_controls.target_b < -10.0) {
+            g_controls.target_b = -10.0;
+        }
+        if (g_controls.target_b > 10.0) {
+            g_controls.target_b = 10.0;
+        }
+    } else {
+        g_controls.target_b = NAN;
+    }
+    if (isfinite(g_controls.target_d)) {
+        if (g_controls.target_d < 0.0) {
+            g_controls.target_d = 0.0;
+        }
+        if (g_controls.target_d > 1.0) {
+            g_controls.target_d = 1.0;
+        }
+    } else {
+        g_controls.target_d = NAN;
+    }
+    if (!isfinite(g_controls.temperature) || g_controls.temperature <= 0.0) {
+        g_controls.temperature = 0.85;
+    }
+    if (g_controls.temperature < 0.1) {
+        g_controls.temperature = 0.1;
+    }
+    if (g_controls.temperature > 2.5) {
+        g_controls.temperature = 2.5;
+    }
+    if (g_controls.top_k < K_MIN_TOPK) {
+        g_controls.top_k = K_MIN_TOPK;
+    }
+    if (g_controls.top_k > K_MAX_TOPK) {
+        g_controls.top_k = K_MAX_TOPK;
+    }
+    g_controls.cf_beam = g_controls.cf_beam ? 1 : 0;
+    return g_controls;
 static void k_bridge_normalize_controls(KBridgeControls *controls) {
     if (!controls) {
         return;
@@ -1290,6 +1334,7 @@ int kolibri_bridge_configure(int lambda_b_milli,
     g_controls.top_k = top_k > 0 ? top_k : 1;
     g_controls.cf_beam = enable_cf_beam ? 1 : 0;
 
+    k_bridge_effective_controls();
     k_bridge_normalize_controls(&g_controls);
 
     if (g_state) {
@@ -1309,6 +1354,27 @@ int kolibri_bridge_execute(const uint8_t *program, uint8_t *buffer, size_t capac
             return -1;
         }
     }
+    KBridgeControls controls = k_bridge_effective_controls();
+    float requested_temperature = controls.cf_beam ? (float)controls.temperature : 1.0f;
+    if (requested_temperature < 0.1f) {
+        requested_temperature = 0.1f;
+    }
+    if (requested_temperature > 2.5f) {
+        requested_temperature = 2.5f;
+    }
+    int temp_q8 = (int)lroundf(requested_temperature * 256.0f);
+    if (temp_q8 < 1) {
+        temp_q8 = 1;
+    }
+    int topk = controls.cf_beam ? controls.top_k : K_MIN_TOPK;
+    if (topk < K_MIN_TOPK) {
+        topk = K_MIN_TOPK;
+    }
+    if (topk > K_MAX_TOPK) {
+        topk = K_MAX_TOPK;
+    }
+    size_t produced =
+        k_decode(program, strlen((const char *)program), buffer, capacity, temp_q8, topk);
     int temp_q8 = 256;
     int topk = 3;
     k_bridge_sampling_params(&temp_q8, &topk);
