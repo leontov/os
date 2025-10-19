@@ -29,7 +29,14 @@ class _TorchCacheEntry(TypedDict):
     device: str
 
 
-_TORCH_CACHE: Dict[str, _TorchCacheEntry] = {}
+_TORCH_CACHE: Dict[tuple[str, str], _TorchCacheEntry] = {}
+
+
+def _normalize_device(device: str) -> str:
+    """Collapse empty or whitespace-only values to the canonical 'cpu' label."""
+
+    normalized = device.strip()
+    return normalized if normalized else "cpu"
 
 
 class TorchModelNameError(ValueError):
@@ -90,17 +97,19 @@ def call_llm_torch(model_name: str,
 
     _validate_torch_model_name(model_name)
 
-    state = _TORCH_CACHE.get(model_name)
+    normalized_device = _normalize_device(device)
+    cache_key = (model_name, normalized_device)
+    state = _TORCH_CACHE.get(cache_key)
     if state is None:
         tokenizer = AutoTokenizer.from_pretrained(model_name)
         if tokenizer.pad_token is None and tokenizer.eos_token is not None:
             tokenizer.pad_token = tokenizer.eos_token
         model_any: Any = AutoModelForCausalLM.from_pretrained(model_name)
-        if device:
-            model_any = model_any.to(device)
+        if normalized_device:
+            model_any = model_any.to(normalized_device)
         model_any.eval()
-        state = _TorchCacheEntry(tokenizer=tokenizer, model=model_any, device=device)
-        _TORCH_CACHE[model_name] = state
+        state = _TorchCacheEntry(tokenizer=tokenizer, model=model_any, device=normalized_device)
+        _TORCH_CACHE[cache_key] = state
 
     tokenizer_obj: Any = state["tokenizer"]
     model_obj: Any = state["model"]
