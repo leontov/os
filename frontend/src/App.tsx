@@ -34,6 +34,8 @@ const App = () => {
     statusLoading,
     latestAssistantMessage,
     metrics,
+    analytics,
+    knowledgeUsage,
     attachments,
     setDraft,
     setMode,
@@ -165,12 +167,23 @@ const App = () => {
             onRefresh={() => {
               void refreshKnowledgeStatus();
             }}
+            usage={knowledgeUsage}
           />
         );
       case "swarm":
-        return <SwarmView />;
+        return (
+          <SwarmView
+            kernelControls={kernelControls}
+            kernelCapabilities={kernelCapabilities}
+            onApplyControls={updateKernelControls}
+            onModeChange={setMode}
+            activeMode={mode}
+            metrics={metrics}
+            isBusy={isProcessing}
+          />
+        );
       case "analytics":
-        return <AnalyticsView />;
+        return <AnalyticsView analytics={analytics} />;
       default:
         return null;
     }
