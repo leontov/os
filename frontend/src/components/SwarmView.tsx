@@ -1,6 +1,7 @@
 import { BrainCircuit, CheckCircle2, Flame, Gauge, Loader2, Save, Sparkles, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import type { KernelCapabilities, KernelControlsState } from "../core/kolibri-bridge";
+import type { KernelCapabilities } from "../core/kolibri-bridge";
+import type { KernelControlsState } from "../core/useKolibriChat";
 import type { ConversationMetrics } from "../core/useKolibriChat";
 import { MODE_OPTIONS, findModeLabel } from "../core/modes";
 
