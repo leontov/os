@@ -114,18 +114,15 @@ const ChatInput = ({
   };
 
   return (
-    <div className="glass-panel flex flex-col gap-5 p-4 md:p-6">
-      <div className="flex flex-col gap-3 text-sm text-text-secondary md:flex-row md:items-center md:justify-between">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary/80 to-primary/60 text-white shadow-md">
-            К
-          </div>
-          <label htmlFor={textAreaId} className="text-xs uppercase tracking-[0.3em]">
+    <div className="rounded-2xl border border-border/70 bg-surface shadow-sm">
+      <div className="flex flex-col gap-3 border-b border-border/60 px-4 py-3 text-xs text-text-muted md:flex-row md:items-center md:justify-between">
+        <div className="flex flex-wrap items-center gap-3">
+          <label htmlFor={textAreaId} className="text-[0.65rem] uppercase tracking-[0.3em]">
             Режим ядра
           </label>
           <select
             id={textAreaId}
-            className="rounded-xl border border-border-strong/70 bg-background-card/80 px-3 py-2 text-xs font-semibold text-text-primary focus:border-primary focus:outline-none"
+            className="rounded-lg border border-border/70 bg-surface-muted px-3 py-2 text-xs font-semibold text-text focus:border-brand focus:outline-none"
             value={mode}
             onChange={(event) => onModeChange(event.target.value)}
             disabled={isBusy}
@@ -136,21 +133,21 @@ const ChatInput = ({
               </option>
             ))}
           </select>
-          <span className="pill-badge !px-2 !py-1">
+          <span className="rounded-full border border-border/70 bg-surface px-2 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.25em]">
             {findModeLabel(mode)}
           </span>
           {onOpenControls ? (
             <button
               type="button"
               onClick={onOpenControls}
-              className="ghost-button text-xs"
+              className="inline-flex items-center gap-2 rounded-lg border border-border/70 bg-surface px-3 py-2 text-xs font-semibold text-text-muted transition-colors hover:text-text"
             >
               <SlidersHorizontal className="h-4 w-4" />
-              Настроить ядро
+              Настроить
             </button>
           ) : null}
         </div>
-        <div className="flex flex-wrap items-center gap-3 text-xs text-text-secondary">
+        <div className="flex flex-wrap items-center gap-3">
           <span>
             Символов: {trimmedLength} / {MAX_LENGTH}
           </span>
@@ -161,7 +158,7 @@ const ChatInput = ({
                 void onReset();
               }
             }}
-            className="ghost-button text-xs disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex items-center gap-2 rounded-lg border border-border/70 bg-surface px-3 py-2 text-xs font-semibold text-text-muted transition-colors hover:text-text disabled:cursor-not-allowed disabled:opacity-60"
             disabled={isBusy}
           >
             <Plus className="h-4 w-4" />
@@ -169,96 +166,98 @@ const ChatInput = ({
           </button>
         </div>
       </div>
-      <textarea
-        ref={textAreaRef}
-        id={`${textAreaId}-textarea`}
-        value={value}
-        onChange={(event) => {
-          if (event.target.value.length <= MAX_LENGTH) {
-            onChange(event.target.value);
-          }
-        }}
-        onKeyDown={handleKeyDown}
-        placeholder="Сообщение для Колибри"
-        className="max-h-[320px] w-full resize-none rounded-2xl border border-border-strong/70 bg-background-card/85 px-4 py-3 text-[0.95rem] text-text-primary placeholder:text-text-secondary focus:border-primary focus:outline-none"
-      />
-      {attachments.length > 0 && (
-        <div className="glass-panel space-y-3 border-dashed border-border-strong p-4 text-sm text-text-secondary">
-          <p className="mb-2 font-semibold text-text-primary">Прикреплённые файлы</p>
-          <ul className="soft-scroll max-h-60 space-y-3 overflow-y-auto pr-1">
-            {attachments.map((attachment) => (
-              <li key={attachment.id} className="flex items-center justify-between gap-3">
-                <div className="truncate">
-                  <p className="truncate text-text-primary">{attachment.file.name}</p>
-                  <p className="text-xs">{formatFileSize(attachment.file.size)}</p>
-                </div>
-                {onRemoveAttachment && (
-                  <button
-                    type="button"
-                    onClick={() => onRemoveAttachment(attachment.id)}
-                    className="flex h-7 w-7 items-center justify-center rounded-full border border-border-strong/70 bg-background-card/70 text-text-secondary transition-colors hover:text-text-primary"
-                    disabled={isBusy}
-                  >
-                    <X className="h-4 w-4" />
-                    <span className="sr-only">Удалить вложение</span>
-                  </button>
-                )}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      <p className="text-[0.7rem] text-text-secondary">
-        Быстрые команды: <code className="font-mono text-xs text-text-primary">/help</code>,
-        <code className="font-mono text-xs text-text-primary">/learn on|off</code>,
-        <code className="font-mono text-xs text-text-primary">/profile next</code>, <code className="font-mono text-xs text-text-primary">/status</code>.
-      </p>
-      <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-text-secondary">
-        <div className="flex flex-wrap items-center gap-2">
-          <input
-            ref={fileInputRef}
-            type="file"
-            className="hidden"
-            multiple
-            onChange={handleFileInputChange}
-            tabIndex={-1}
-          />
-          <button
-            type="button"
-            onClick={handleAttachClick}
-            className="ghost-button transition-colors hover:text-text-primary"
-            disabled={isBusy}
-          >
-            <Paperclip className="h-4 w-4" />
-            Вложить
-          </button>
-          <button
-            type="button"
-            onClick={handleClearDraft}
-            className="ghost-button transition-colors hover:text-text-primary"
-            disabled={isBusy}
-          >
-            <RefreshCw className="h-4 w-4" />
-            Сбросить
-          </button>
-          <div className="glass-panel flex items-center gap-2 px-3 py-2">
-            <Keyboard className="h-4 w-4" />
-            <span>Enter — отправить, Shift + Enter — перенос строки</span>
+      <div className="flex flex-col gap-4 px-4 py-4">
+        <textarea
+          ref={textAreaRef}
+          id={`${textAreaId}-textarea`}
+          value={value}
+          onChange={(event) => {
+            if (event.target.value.length <= MAX_LENGTH) {
+              onChange(event.target.value);
+            }
+          }}
+          onKeyDown={handleKeyDown}
+          placeholder="Сообщение для Колибри"
+          className="max-h-[320px] w-full resize-none rounded-xl border border-border/60 bg-surface-muted px-4 py-3 text-sm text-text placeholder:text-text-muted focus:border-brand focus:outline-none"
+        />
+        {attachments.length > 0 ? (
+          <div className="space-y-3 rounded-xl border border-dashed border-border/70 bg-surface px-4 py-3 text-sm text-text-muted">
+            <p className="font-semibold text-text">Прикреплённые файлы</p>
+            <ul className="soft-scroll max-h-52 space-y-3 overflow-y-auto pr-1">
+              {attachments.map((attachment) => (
+                <li key={attachment.id} className="flex items-center justify-between gap-3">
+                  <div className="truncate">
+                    <p className="truncate text-text">{attachment.file.name}</p>
+                    <p className="text-xs">{formatFileSize(attachment.file.size)}</p>
+                  </div>
+                  {onRemoveAttachment ? (
+                    <button
+                      type="button"
+                      onClick={() => onRemoveAttachment(attachment.id)}
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border/70 text-text-muted transition-colors hover:text-text"
+                      disabled={isBusy}
+                    >
+                      <X className="h-4 w-4" />
+                      <span className="sr-only">Удалить вложение</span>
+                    </button>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
           </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="pill-badge !px-3 !py-1">
-            Осталось: {remaining}
-          </span>
-          <button
-            type="button"
-            onClick={handleSubmitClick}
-            className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={isBusy || (!value.trim() && attachments.length === 0)}
-          >
-            <SendHorizontal className="h-4 w-4" />
-            Отправить
-          </button>
+        ) : null}
+        <p className="text-[0.7rem] text-text-muted">
+          Быстрые команды: <code className="font-mono text-xs text-text">/help</code>,
+          <code className="font-mono text-xs text-text">/learn on|off</code>,
+          <code className="font-mono text-xs text-text">/profile next</code>, <code className="font-mono text-xs text-text">/status</code>.
+        </p>
+        <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-text-muted">
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              multiple
+              onChange={handleFileInputChange}
+              tabIndex={-1}
+            />
+            <button
+              type="button"
+              onClick={handleAttachClick}
+              className="inline-flex items-center gap-2 rounded-lg border border-border/70 bg-surface px-3 py-2 transition-colors hover:text-text"
+              disabled={isBusy}
+            >
+              <Paperclip className="h-4 w-4" />
+              Вложить
+            </button>
+            <button
+              type="button"
+              onClick={handleClearDraft}
+              className="inline-flex items-center gap-2 rounded-lg border border-border/70 bg-surface px-3 py-2 transition-colors hover:text-text"
+              disabled={isBusy}
+            >
+              <RefreshCw className="h-4 w-4" />
+              Сбросить
+            </button>
+            <span className="inline-flex items-center gap-2 rounded-lg border border-border/70 bg-surface px-3 py-2">
+              <Keyboard className="h-4 w-4" />
+              Enter — отправить, Shift + Enter — перенос строки
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="rounded-full border border-border/70 bg-surface px-3 py-1 text-[0.7rem] font-semibold uppercase tracking-[0.25em]">
+              Осталось: {remaining}
+            </span>
+            <button
+              type="button"
+              onClick={handleSubmitClick}
+              className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-brand-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isBusy || (!value.trim() && attachments.length === 0)}
+            >
+              <SendHorizontal className="h-4 w-4" />
+              Отправить
+            </button>
+          </div>
         </div>
       </div>
     </div>
