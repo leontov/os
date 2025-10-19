@@ -658,6 +658,82 @@ static KBridgeControls g_controls = {
     .cf_beam = 1,
 };
 
+static void k_bridge_normalize_controls(KBridgeControls *controls) {
+    if (!controls) {
+        return;
+    }
+    if (!isfinite(controls->lambda_b) || controls->lambda_b < 0.0) {
+        controls->lambda_b = 0.0;
+    }
+    if (!isfinite(controls->lambda_d) || controls->lambda_d < 0.0) {
+        controls->lambda_d = 0.0;
+    }
+    if (!isfinite(controls->temperature) || controls->temperature <= 0.0) {
+        controls->temperature = 0.85;
+    }
+    if (!isfinite(controls->target_b)) {
+        controls->target_b = NAN;
+    } else {
+        if (controls->target_b < -10.0) {
+            controls->target_b = -10.0;
+        }
+        if (controls->target_b > 10.0) {
+            controls->target_b = 10.0;
+        }
+    }
+    if (!isfinite(controls->target_d)) {
+        controls->target_d = NAN;
+    } else {
+        if (controls->target_d < 0.0) {
+            controls->target_d = 0.0;
+        }
+        if (controls->target_d > 1.0) {
+            controls->target_d = 1.0;
+        }
+    }
+    if (controls->top_k < K_MIN_TOPK) {
+        controls->top_k = K_MIN_TOPK;
+    }
+    if (controls->top_k > K_MAX_TOPK) {
+        controls->top_k = K_MAX_TOPK;
+    }
+    controls->cf_beam = controls->cf_beam ? 1 : 0;
+}
+
+static void k_bridge_sampling_params(int *temp_q8, int *topk) {
+    if (!temp_q8 || !topk) {
+        return;
+    }
+    double temperature = g_controls.cf_beam ? g_controls.temperature : 1.0;
+    if (!isfinite(temperature) || temperature <= 0.0) {
+        temperature = 1.0;
+    }
+    if (temperature < 0.1) {
+        temperature = 0.1;
+    }
+    if (temperature > 4.0) {
+        temperature = 4.0;
+    }
+    long q8 = lround(temperature * 256.0);
+    if (q8 < (long)lround(0.1 * 256.0)) {
+        q8 = (long)lround(0.1 * 256.0);
+    }
+    if (q8 > (long)lround(4.0 * 256.0)) {
+        q8 = (long)lround(4.0 * 256.0);
+    }
+
+    int limit = g_controls.cf_beam ? g_controls.top_k : 1;
+    if (limit < K_MIN_TOPK) {
+        limit = K_MIN_TOPK;
+    }
+    if (limit > K_MAX_TOPK) {
+        limit = K_MAX_TOPK;
+    }
+
+    *temp_q8 = (int)q8;
+    *topk = limit;
+}
+
 static void k_digit_init(KDigit *digit, uint32_t seed) {
     k_daawg_init(&digit->graph);
     for (size_t i = 0; i < K_MAX_LEVELS; ++i) {
@@ -1214,6 +1290,12 @@ int kolibri_bridge_configure(int lambda_b_milli,
     g_controls.top_k = top_k > 0 ? top_k : 1;
     g_controls.cf_beam = enable_cf_beam ? 1 : 0;
 
+    k_bridge_normalize_controls(&g_controls);
+
+    if (g_state) {
+        k_state_recompute_budgets(g_state);
+    }
+
     return 0;
 }
 
@@ -1227,7 +1309,11 @@ int kolibri_bridge_execute(const uint8_t *program, uint8_t *buffer, size_t capac
             return -1;
         }
     }
-    size_t produced = k_decode(program, strlen((const char *)program), buffer, capacity, 256, 3);
+    int temp_q8 = 256;
+    int topk = 3;
+    k_bridge_sampling_params(&temp_q8, &topk);
+
+    size_t produced = k_decode(program, strlen((const char *)program), buffer, capacity, temp_q8, topk);
     return produced > 0u ? (int)produced : -1;
 }
 
