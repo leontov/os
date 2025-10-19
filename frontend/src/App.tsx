@@ -130,7 +130,7 @@ const App = () => {
                 </div>
               </aside>
             ) : null}
-            <div className="flex min-h-0 flex-col gap-6">
+            <div className="flex min-h-0 flex-1 flex-col gap-6">
               <div className="flex min-h-0 flex-1">
                 <div className="min-h-0 flex-1">{chatContent}</div>
               </div>
