@@ -637,7 +637,26 @@ typedef struct {
     KSketch summary_sketch;
 } KState;
 
+typedef struct {
+    double lambda_b;
+    double lambda_d;
+    double target_b;
+    double target_d;
+    double temperature;
+    int top_k;
+    int cf_beam;
+} KBridgeControls;
+
 static KState *g_state = NULL;
+static KBridgeControls g_controls = {
+    .lambda_b = 0.25,
+    .lambda_d = 0.2,
+    .target_b = NAN,
+    .target_d = NAN,
+    .temperature = 0.85,
+    .top_k = 4,
+    .cf_beam = 1,
+};
 
 static void k_digit_init(KDigit *digit, uint32_t seed) {
     k_daawg_init(&digit->graph);
@@ -1171,6 +1190,31 @@ EMSCRIPTEN_KEEPALIVE
 int kolibri_bridge_reset(void) {
     k_state_free();
     return k_state_new() ? 0 : -1;
+}
+
+EMSCRIPTEN_KEEPALIVE
+int kolibri_bridge_configure(int lambda_b_milli,
+                             int lambda_d_milli,
+                             int target_b_milli,
+                             int target_d_milli,
+                             int temperature_milli,
+                             int top_k,
+                             int enable_cf_beam) {
+    if (!g_state) {
+        if (!k_state_new()) {
+            return -1;
+        }
+    }
+
+    g_controls.lambda_b = (double)lambda_b_milli / 1000.0;
+    g_controls.lambda_d = (double)lambda_d_milli / 1000.0;
+    g_controls.target_b = target_b_milli < 0 ? NAN : (double)target_b_milli / 1000.0;
+    g_controls.target_d = target_d_milli < 0 ? NAN : (double)target_d_milli / 1000.0;
+    g_controls.temperature = (double)temperature_milli / 100.0;
+    g_controls.top_k = top_k > 0 ? top_k : 1;
+    g_controls.cf_beam = enable_cf_beam ? 1 : 0;
+
+    return 0;
 }
 
 EMSCRIPTEN_KEEPALIVE
