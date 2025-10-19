@@ -1,0 +1,146 @@
+name: Codex Autofix
+
+on:
+  workflow_run:
+    workflows:
+      - Kolibri CI
+    types:
+      - completed
+
+permissions:
+  actions: read
+  contents: write
+  pull-requests: write
+
+jobs:
+  autofix:
+    name: Attempt Codex autofix
+    if: >
+      ${{ github.event.workflow_run.conclusion == 'failure' &&
+          github.event.workflow_run.head_repository.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout failed revision
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.workflow_run.head_repository.full_name }}
+          ref: ${{ github.event.workflow_run.head_sha }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Configure Git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Bootstrap Python tooling
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          ./scripts/ci_bootstrap.sh
+          python -m pip install openai
+
+      - name: Record failure context
+        id: failure_context
+        run: |
+          cat <<'PROMPT' > codex_prompt.txt
+          A previous run of the "${{ github.event.workflow_run.name }}" workflow has failed.
+          Repository: ${{ github.event.workflow_run.head_repository.full_name }}
+          Branch: ${{ github.event.workflow_run.head_branch }}
+          Event: ${{ github.event.workflow_run.event }}
+          Commit: ${{ github.event.workflow_run.head_sha }}
+          Logs: ${{ github.event.workflow_run.html_url }}
+
+          Please analyze the linked logs and craft a minimal patch that resolves the failure while preserving existing behaviour.
+          Reply only with a unified diff that can be applied with `git apply`.
+          PROMPT
+          echo "prompt=codex_prompt.txt" >> "$GITHUB_OUTPUT"
+
+      - name: Run Codex autofix
+        env:
+          OPENAI_API_KEY: ${{ secrets.CODEX_AUTOFIX_API_KEY }}
+          PROMPT_FILE: ${{ steps.failure_context.outputs.prompt }}
+        run: |
+          if [ -z "${OPENAI_API_KEY:-}" ]; then
+            echo "Codex API key not provided; skipping autofix invocation."
+            exit 0
+          fi
+
+          python - <<'PY'
+import json
+import os
+import subprocess
+import urllib.request
+
+prompt_path = os.environ.get('PROMPT_FILE', 'codex_prompt.txt')
+with open(prompt_path, 'r', encoding='utf-8') as handle:
+    prompt = handle.read()
+
+payload = {
+    "model": "gpt-5-codex",
+    "input": prompt,
+    "temperature": 0.2,
+}
+
+req = urllib.request.Request(
+    "https://api.openai.com/v1/responses",
+    data=json.dumps(payload).encode('utf-8'),
+    headers={
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {os.environ['OPENAI_API_KEY']}",
+    },
+    method="POST",
+)
+
+with urllib.request.urlopen(req) as response:
+    body = response.read().decode('utf-8')
+
+data = json.loads(body)
+output = data.get("output", "")
+if isinstance(output, list):
+    content = "".join(part.get("text", "") for part in output)
+else:
+    content = str(output)
+
+if not content.strip():
+    print("Codex response empty; nothing to apply.")
+    raise SystemExit(0)
+
+patch_path = "codex_autofix.patch"
+with open(patch_path, "w", encoding="utf-8") as handle:
+    handle.write(content)
+
+print("Codex response written to", patch_path)
+
+try:
+    subprocess.run(["git", "apply", patch_path], check=True)
+except subprocess.CalledProcessError as exc:
+    print("Failed to apply patch:", exc)
+    raise SystemExit(0)
+PY
+
+      - name: Re-run Python quality gates
+        run: |
+          ruff check .
+          pyright
+          pytest -q
+
+      - name: Create Codex autofix pull request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "fix: apply Codex autofix"
+          committer: GitHub <noreply@github.com>
+          author: GitHub <noreply@github.com>
+          title: "Codex autofix for Kolibri CI failure"
+          body: |
+            Automated Codex attempt to fix failures in the Kolibri CI pipeline.
+
+            - Source workflow: ${{ github.event.workflow_run.name }}
+            - Run URL: ${{ github.event.workflow_run.html_url }}
+          branch: codex/autofix-${{ github.run_id }}
+          base: ${{ github.event.workflow_run.head_branch }}
+          draft: true
