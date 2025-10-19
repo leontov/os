@@ -150,6 +150,11 @@ PY
 EMCC="${EMCC:-emcc}"
 sozdat_zaglushku=0
 sobranov_docker=0
+allow_stub_success=0
+
+if [[ "${KOLIBRI_WASM_ALLOW_STUB_SUCCESS:-0}" =~ ^(1|true|TRUE|on|ON|yes|YES)$ ]]; then
+    allow_stub_success=1
+fi
 
 vychislit_sha256_stroku() {
     local file="$1"
@@ -392,6 +397,14 @@ ensure_emcc() {
         return 1
     fi
 
+    if (( allow_stub_success )); then
+        sozdat_zaglushku=1
+        if [[ -z "$stub_prichina" ]]; then
+            stub_prichina="emcc не найден, заглушка разрешена (KOLIBRI_WASM_ALLOW_STUB_SUCCESS)"
+        fi
+        return 0
+    fi
+
     if command -v docker >/dev/null 2>&1; then
         docker_dostupen=1
         docker_image="${KOLIBRI_WASM_DOCKER_IMAGE:-emscripten/emsdk:3.1.61}"
@@ -409,6 +422,11 @@ ensure_emcc() {
             sobranov_docker=1
         else
             echo "[ОШИБКА] Сборка kolibri.wasm внутри Docker завершилась с ошибкой." >&2
+            if (( allow_stub_success )); then
+                sozdat_zaglushku=1
+                stub_prichina="Сборка через Docker не удалась, заглушка разрешена (KOLIBRI_WASM_ALLOW_STUB_SUCCESS)"
+                return 0
+            fi
         fi
         return $docker_status
     fi
@@ -427,7 +445,7 @@ if (( sozdat_zaglushku )); then
     sozdat_stub_wasm
     razmer_stub=$(opredelit_razmer "$vyhod_wasm")
     zapisat_otchet "stub" "${stub_prichina:-kolibri.wasm собран как заглушка}" "$razmer_stub" "$stub_flag"
-    if [[ "${KOLIBRI_WASM_ALLOW_STUB_SUCCESS:-0}" =~ ^(1|true|TRUE|on|ON)$ ]]; then
+    if [[ "${KOLIBRI_WASM_ALLOW_STUB_SUCCESS:-0}" =~ ^(1|true|TRUE|on|ON|yes|YES)$ ]]; then
         exit 0
     fi
     exit 2

@@ -44,31 +44,23 @@ const formatConversationDate = (iso: string): string => {
   return formatter.format(parsed);
 };
 
-const Sidebar = ({
-  conversations,
-  activeConversationId,
-  onConversationSelect,
-  onCreateConversation,
-}: SidebarProps) => (
-  <div className="glass-panel-strong flex h-full w-full flex-col gap-5 p-6">
-    <div className="flex items-start justify-between gap-4">
-      <div className="space-y-3">
-        <span className="pill-badge">Беседы</span>
-        <div>
-          <h2 className="text-xl font-semibold text-text-primary">История</h2>
-          <p className="mt-1 text-xs text-text-secondary">Последние диалоги и черновики — всё под рукой.</p>
-        </div>
+const Sidebar = ({ conversations, activeConversationId, onConversationSelect, onCreateConversation }: SidebarProps) => (
+  <div className="flex h-full w-full flex-col gap-6 bg-sidebar px-5 pb-6 pt-8">
+    <div className="flex items-center justify-between">
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-text-muted">Беседы</p>
+        <h2 className="mt-1 text-lg font-semibold text-text">История</h2>
       </div>
       <button
         type="button"
         onClick={() => onCreateConversation?.()}
-        className="glass-panel flex h-11 w-11 items-center justify-center text-text-secondary transition-colors hover:text-text-primary"
+        className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border/70 bg-surface text-text-muted transition-colors hover:text-text"
         aria-label="Новая беседа"
       >
         <Plus className="h-4 w-4" />
       </button>
     </div>
-    <ul className="soft-scroll -mr-2 flex-1 space-y-2 overflow-y-auto pr-2">
+    <ul className="soft-scroll -mr-2 flex-1 space-y-2 overflow-y-auto pr-1">
       {conversations.length ? (
         conversations.map((item) => {
           const isActive = item.id === activeConversationId;
@@ -79,30 +71,30 @@ const Sidebar = ({
               <button
                 type="button"
                 onClick={() => onConversationSelect(item.id)}
-                className={`w-full rounded-2xl border px-4 py-3 text-left transition-colors ${
+                className={`flex w-full flex-col rounded-xl border px-4 py-3 text-left transition-colors ${
                   isActive
-                    ? "border-primary/50 bg-primary/15 text-text-primary shadow-[0_18px_40px_-32px_rgba(99,102,241,0.65)]"
-                    : "border-transparent bg-background-card/50 text-text-secondary hover:border-border-strong/50 hover:bg-background-card/70"
+                    ? "border-brand/40 bg-brand/10 text-text"
+                    : "border-transparent bg-surface text-text-muted hover:border-border/70 hover:text-text"
                 }`}
               >
-                <p className="text-sm font-semibold text-text-primary">{item.title}</p>
-                <p className="mt-1 text-xs text-text-secondary">
+                <span className="text-sm font-semibold text-text">{item.title}</span>
+                <span className="mt-1 text-xs text-text-muted">
                   {dateLabel ? `${dateLabel} • ` : ""}
                   {preview}
-                </p>
+                </span>
               </button>
             </li>
           );
         })
       ) : (
-        <li className="rounded-2xl border border-dashed border-border-strong/60 bg-background-card/50 px-4 py-3 text-xs text-text-secondary">
+        <li className="rounded-xl border border-dashed border-border/70 bg-surface px-4 py-3 text-xs text-text-muted">
           Беседы появятся после отправки первых сообщений.
         </li>
       )}
     </ul>
-    <div className="glass-panel mt-auto space-y-2 p-4 text-sm text-text-secondary">
-      <p className="text-sm font-semibold text-text-primary">Kolibri</p>
-      <p className="text-xs text-text-secondary">Колибри может делать ошибки. Проверяйте факты.</p>
+    <div className="rounded-xl border border-border/70 bg-surface px-4 py-3 text-sm text-text-muted">
+      <p className="text-sm font-semibold text-text">Kolibri</p>
+      <p className="mt-1 text-xs leading-relaxed">Колибри может делать ошибки. Проверяйте факты.</p>
     </div>
   </div>
 );
