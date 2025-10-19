@@ -14,16 +14,20 @@ const ChatLayout = ({ sidebar, isSidebarOpen, onSidebarOpenChange, footer, child
       return undefined;
     }
 
+    const previousOverflow = document.body.style.overflow;
+
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         onSidebarOpenChange(false);
       }
     };
 
+    document.body.style.overflow = "hidden";
     window.addEventListener("keydown", handleKeyDown);
 
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = previousOverflow;
     };
   }, [isSidebarOpen, onSidebarOpenChange]);
 

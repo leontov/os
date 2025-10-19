@@ -1,5 +1,5 @@
-import { Sparkles, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Sparkles } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import AnalyticsView from "./components/AnalyticsView";
 import ChatInput from "./components/ChatInput";
 import ChatView from "./components/ChatView";
@@ -11,77 +11,12 @@ import Sidebar from "./components/Sidebar";
 import SwarmView from "./components/SwarmView";
 import WelcomeScreen from "./components/WelcomeScreen";
 import ChatLayout from "./components/layout/ChatLayout";
+import PanelDialog from "./components/layout/PanelDialog";
 import useKolibriChat from "./core/useKolibriChat";
 import { findModeLabel } from "./core/modes";
 import useMediaQuery from "./core/useMediaQuery";
 
 type PanelKey = "knowledge" | "swarm" | "analytics" | "controls" | "preferences" | null;
-
-interface PanelDialogProps {
-  title: string;
-  description?: string;
-  isOpen: boolean;
-  onClose: () => void;
-  children: ReactNode;
-}
-
-const PanelDialog = ({ title, description, isOpen, onClose, children }: PanelDialogProps) => {
-  useEffect(() => {
-    if (!isOpen) {
-      return undefined;
-    }
-
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [isOpen, onClose]);
-
-  if (!isOpen) {
-    return null;
-  }
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-6"
-      role="dialog"
-      aria-modal="true"
-      onClick={onClose}
-    >
-      <div
-        className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-border/70 bg-surface shadow-card"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <header className="flex items-start justify-between gap-4 border-b border-border/60 px-6 py-5">
-          <div>
-            <h2 className="text-lg font-semibold text-text">{title}</h2>
-            {description ? <p className="mt-1 text-sm text-text-muted">{description}</p> : null}
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border/70 text-text-muted transition-colors hover:text-text"
-            aria-label="Закрыть"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </header>
-        <div className="soft-scroll flex-1 overflow-y-auto px-6 py-5">{children}</div>
-      </div>
-    </div>
-  );
-};
 
 const DEFAULT_SUGGESTIONS = [
   "Сформулируй краткое резюме беседы",
