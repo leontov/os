@@ -456,54 +456,6 @@ static double clamp_score(double value) {
     if (value < 0.0) {
         return 0.0;
     }
-        return 0.0;
-    }
-    int seen[10] = {0};
-    size_t unique = 0U;
-    for (size_t i = 0; i < gene->length; ++i) {
-        uint8_t digit = gene->digits[i] % 10U;
-        if (!seen[digit]) {
-            seen[digit] = 1;
-            unique += 1U;
-        }
-    }
-    return (double)unique / 10.0;
-}
-
-static double compute_gene_phase(const KolibriGene *gene) {
-    if (!gene) {
-        return 0.0;
-    }
-    uint32_t hash = 2166136261u;
-    for (size_t i = 0; i < gene->length; ++i) {
-        hash ^= (uint32_t)(gene->digits[i] + 1U);
-        hash *= 16777619u;
-    }
-    double angle_deg = (double)(hash % 360U);
-    return angle_deg * 0.017453292519943295; /* pi / 180 */
-}
-
-static double topo_coherence(const KolibriGene *lhs, const KolibriGene *rhs) {
-    if (!lhs || !rhs || lhs->length == 0 || rhs->length == 0) {
-        return 0.0;
-    }
-    size_t limit = lhs->length < rhs->length ? lhs->length : rhs->length;
-    if (limit == 0) {
-        return 0.0;
-    }
-    size_t matches = 0U;
-    for (size_t i = 0; i < limit; ++i) {
-        if (lhs->digits[i] == rhs->digits[i]) {
-            matches += 1U;
-        }
-    }
-    return (double)matches / (double)limit;
-}
-
-static double clamp_score(double value) {
-    if (value < 0.0) {
-        return 0.0;
-    }
     if (value > 1.0) {
         return 1.0;
     }
@@ -582,39 +534,6 @@ typedef struct {
 static void evaluate_beam_group(KolibriFormulaPool *pool, KolibriBeamLane *lanes, size_t lane_count) {
     if (!pool || !lanes || lane_count == 0U) {
         return;
-    }
-
-    for (size_t i = 0; i < lane_count; ++i) {
-    }
-
-    for (size_t i = 0; i < lane_count; ++i) {
-        lanes[i].evaluation = evaluate_formula_metrics(lanes[i].formula, pool);
-        double penalty = pool->lambda_b * fmax(0.0, lanes[i].evaluation.drift_b) +
-                         pool->lambda_d * fmax(0.0, lanes[i].evaluation.drift_d);
-        double score = lanes[i].evaluation.base_score - penalty;
-        if (score < 0.0) {
-            score = 0.0;
-        }
-        apply_feedback_bonus(lanes[i].formula, &score);
-        lanes[i].score = score;
-    }
-
-    if (pool->coherence_gain != 0.0) {
-        for (size_t i = 0; i < lane_count; ++i) {
-            double adjustment = 0.0;
-            for (size_t j = 0; j < lane_count; ++j) {
-                if (i == j) {
-                    continue;
-                }
-                double phase_diff = lanes[j].evaluation.phase - lanes[i].evaluation.phase;
-                double coherence = topo_coherence(&lanes[i].formula->gene, &lanes[j].formula->gene);
-                adjustment += pool->coherence_gain * cos(phase_diff) * coherence;
-            }
-            lanes[i].score += adjustment;
-        }
-    }
-
-    for (size_t i = 0; i < lane_count; ++i) {
     }
 
     for (size_t i = 0; i < lane_count; ++i) {
@@ -889,9 +808,6 @@ void kf_pool_tick(KolibriFormulaPool *pool, size_t generations) {
             KolibriBeamLane lanes[KOLIBRI_BEAM_MAX_LANES];
             size_t lane_count = 0U;
             while (lane_count < KOLIBRI_BEAM_MAX_LANES && index < pool->count) {
-            KolibriBeamLane lanes[4];
-            size_t lane_count = 0U;
-            while (lane_count < 4U && index < pool->count) {
                 lanes[lane_count].formula = &pool->formulas[index];
                 lanes[lane_count].score = 0.0;
                 lanes[lane_count].evaluation.base_score = 0.0;
@@ -910,9 +826,6 @@ void kf_pool_tick(KolibriFormulaPool *pool, size_t generations) {
         KolibriBeamLane lanes[KOLIBRI_BEAM_MAX_LANES];
         size_t lane_count = 0U;
         while (lane_count < KOLIBRI_BEAM_MAX_LANES && index < pool->count) {
-        KolibriBeamLane lanes[4];
-        size_t lane_count = 0U;
-        while (lane_count < 4U && index < pool->count) {
             lanes[lane_count].formula = &pool->formulas[index];
             lanes[lane_count].score = 0.0;
             lanes[lane_count].evaluation.base_score = 0.0;
