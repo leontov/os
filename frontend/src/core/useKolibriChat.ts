@@ -26,6 +26,68 @@ export interface ConversationMetrics {
   latencyP50: number;
 }
 
+export interface KnowledgeUsageEntry {
+  conversationId: string;
+  conversationTitle: string;
+  messageId: string;
+  snippetCount: number;
+  sources: string[];
+  excerpt: string;
+  isoTimestamp?: string;
+}
+
+export interface KnowledgeUsageOverview {
+  totalReferences: number;
+  uniqueSources: number;
+  conversationsWithKnowledge: number;
+  recentEntries: KnowledgeUsageEntry[];
+}
+
+export interface ActivityPoint {
+  dateKey: string;
+  label: string;
+  totalMessages: number;
+  userMessages: number;
+  assistantMessages: number;
+}
+
+export interface ModeUsageEntry {
+  mode: string;
+  label: string;
+  count: number;
+  percentage: number;
+}
+
+export interface ConversationLeaderboardEntry {
+  id: string;
+  title: string;
+  messages: number;
+  knowledgeReferences: number;
+  updatedAtIso?: string;
+}
+
+export interface ConversationAnalyticsOverview {
+  totals: {
+    conversations: number;
+    activeToday: number;
+    messages: number;
+    userMessages: number;
+    assistantMessages: number;
+    knowledgeReferences: number;
+    averageMessagesPerConversation: number;
+  };
+  timeline: ActivityPoint[];
+  modeUsage: ModeUsageEntry[];
+  preferenceBreakdown: {
+    learningEnabled: number;
+    privateMode: number;
+    allowOnline: number;
+    safeTone: number;
+    total: number;
+  };
+  leaderboard: ConversationLeaderboardEntry[];
+}
+
 export interface ConversationSummary {
   id: string;
   title: string;
@@ -380,6 +442,293 @@ const loadInitialConversationState = (): { conversations: ConversationRecord[]; 
   return { conversations: [fallback], active: fallback };
 };
 
+const tokenizeForMetrics = (text: string): string[] =>
+  text
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .map((token) => token.trim())
+    .filter((token) => token.length > 3);
+
+const computeConversationMetrics = (messages: ChatMessage[]): ConversationMetrics => {
+  let userMessages = 0;
+  let assistantMessages = 0;
+  let knowledgeReferences = 0;
+  let lastUpdatedIso: string | undefined;
+  let conservedMatches = 0;
+  let stabilityCount = 0;
+  let auditCount = 0;
+  let returnMatches = 0;
+  const latencies: number[] = [];
+  const userTokens = new Set<string>();
+  let previousAssistantTokens: string[] | null = null;
+
+  for (const message of messages) {
+    if (message.role === "user") {
+      userMessages += 1;
+      tokenizeForMetrics(message.content).forEach((token) => {
+        if (token) {
+          userTokens.add(token);
+        }
+      });
+    } else {
+      assistantMessages += 1;
+      if (message.context?.length) {
+        knowledgeReferences += 1;
+      }
+
+      const tokens = tokenizeForMetrics(message.content);
+      const contentLength = message.content.trim().length;
+
+      if (contentLength >= 24 || tokens.length >= 3) {
+        stabilityCount += 1;
+      }
+
+      if ((message.context?.length ?? 0) > 0 || (message.contextError && message.contextError.trim())) {
+        auditCount += 1;
+      }
+
+      const intersectsKnowledge = (message.context?.length ?? 0) > 0;
+      const intersectsUser = tokens.some((token) => userTokens.has(token));
+      if (intersectsKnowledge || intersectsUser) {
+        conservedMatches += 1;
+      }
+
+      if (previousAssistantTokens && previousAssistantTokens.some((token) => tokens.includes(token))) {
+        returnMatches += 1;
+      }
+      if (tokens.length) {
+        previousAssistantTokens = tokens;
+      }
+
+      if (contentLength > 0) {
+        const approximatedLatency = Math.min(18, Math.max(3, Math.round(contentLength / 16)));
+        latencies.push(approximatedLatency);
+      }
+    }
+
+    if (message.isoTimestamp) {
+      lastUpdatedIso = message.isoTimestamp;
+    }
+  }
+
+  const clampRatio = (value: number) => Math.min(1, Math.max(0, value));
+  const assistantBase = assistantMessages > 0 ? assistantMessages : 1;
+  const conservedRatio = assistantMessages ? conservedMatches / assistantBase : 1;
+  const stability = assistantMessages ? stabilityCount / assistantBase : 1;
+  const auditability = assistantMessages ? auditCount / assistantBase : 1;
+  const returnToAttractor = assistantMessages > 1 ? returnMatches / (assistantMessages - 1) : 1;
+  const latencyP50 = latencies.length
+    ? latencies
+        .slice()
+        .sort((a, b) => a - b)[Math.floor(latencies.length / 2)]
+    : 0;
+
+  return {
+    userMessages,
+    assistantMessages,
+    knowledgeReferences,
+    lastUpdatedIso,
+    conservedRatio: clampRatio(conservedRatio),
+    stability: clampRatio(stability),
+    auditability: clampRatio(auditability),
+    returnToAttractor: clampRatio(returnToAttractor),
+    latencyP50,
+  };
+};
+
+const toDayKey = (iso: string | undefined): string | null => {
+  if (!iso) {
+    return null;
+  }
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const formatDayLabel = (isoKey: string): string => {
+  const [year, month, day] = isoKey.split("-");
+  const date = new Date(Number(year), Number(month) - 1, Number(day));
+  return date.toLocaleDateString("ru-RU", { weekday: "short", day: "2-digit" });
+};
+
+const buildKnowledgeOverview = (conversations: ConversationRecord[]): KnowledgeUsageOverview => {
+  const entries: KnowledgeUsageEntry[] = [];
+  const sources = new Set<string>();
+  const conversationsWithKnowledge = new Set<string>();
+  let totalReferences = 0;
+
+  for (const conversation of conversations) {
+    for (const message of conversation.messages) {
+      if (message.role !== "assistant" || !message.context?.length) {
+        continue;
+      }
+
+      totalReferences += 1;
+      conversationsWithKnowledge.add(conversation.id);
+      const entrySources = message.context
+        .map((snippet) => snippet.source?.trim())
+        .filter((source): source is string => Boolean(source));
+      entrySources.forEach((source) => sources.add(source));
+      const excerpt = message.content.trim();
+      entries.push({
+        conversationId: conversation.id,
+        conversationTitle: conversation.title,
+        messageId: message.id,
+        snippetCount: message.context.length,
+        sources: entrySources,
+        excerpt: excerpt.length > 220 ? `${excerpt.slice(0, 217)}…` : excerpt,
+        isoTimestamp: message.isoTimestamp ?? conversation.updatedAtIso,
+      });
+    }
+  }
+
+  const recentEntries = entries
+    .sort((a, b) => {
+      const aTime = a.isoTimestamp ? new Date(a.isoTimestamp).getTime() : 0;
+      const bTime = b.isoTimestamp ? new Date(b.isoTimestamp).getTime() : 0;
+      return bTime - aTime;
+    })
+    .slice(0, 6);
+
+  return {
+    totalReferences,
+    uniqueSources: sources.size,
+    conversationsWithKnowledge: conversationsWithKnowledge.size,
+    recentEntries,
+  };
+};
+
+const buildAnalyticsOverview = (conversations: ConversationRecord[]): ConversationAnalyticsOverview => {
+  const totals = {
+    messages: 0,
+    userMessages: 0,
+    assistantMessages: 0,
+    knowledgeReferences: 0,
+  };
+  const timelineMap = new Map<string, { total: number; user: number; assistant: number }>();
+  const modeMap = new Map<string, number>();
+  const leaderboard: ConversationLeaderboardEntry[] = [];
+  let activeToday = 0;
+  let learningEnabled = 0;
+  let privateMode = 0;
+  let allowOnline = 0;
+  let safeTone = 0;
+
+  const todayKey = toDayKey(new Date().toISOString());
+
+  for (const conversation of conversations) {
+    const metrics = computeConversationMetrics(conversation.messages);
+    totals.messages += conversation.messages.length;
+    totals.userMessages += metrics.userMessages;
+    totals.assistantMessages += metrics.assistantMessages;
+    totals.knowledgeReferences += metrics.knowledgeReferences;
+
+    if (conversation.updatedAtIso && toDayKey(conversation.updatedAtIso) === todayKey) {
+      activeToday += 1;
+    }
+
+    if (conversation.preferences.learningEnabled) {
+      learningEnabled += 1;
+    }
+    if (conversation.preferences.privateMode) {
+      privateMode += 1;
+    }
+    if (conversation.preferences.allowOnline) {
+      allowOnline += 1;
+    }
+    if (conversation.preferences.safeTone) {
+      safeTone += 1;
+    }
+
+    const mode = conversation.mode ?? DEFAULT_MODE_VALUE;
+    modeMap.set(mode, (modeMap.get(mode) ?? 0) + 1);
+
+    leaderboard.push({
+      id: conversation.id,
+      title: conversation.title,
+      messages: conversation.messages.length,
+      knowledgeReferences: metrics.knowledgeReferences,
+      updatedAtIso: conversation.updatedAtIso,
+    });
+
+    for (const message of conversation.messages) {
+      const key = toDayKey(message.isoTimestamp);
+      if (!key) {
+        continue;
+      }
+      const bucket = timelineMap.get(key) ?? { total: 0, user: 0, assistant: 0 };
+      bucket.total += 1;
+      if (message.role === "user") {
+        bucket.user += 1;
+      } else {
+        bucket.assistant += 1;
+      }
+      timelineMap.set(key, bucket);
+    }
+  }
+
+  const conversationCount = conversations.length;
+  const averageMessagesPerConversation = conversationCount ? totals.messages / conversationCount : 0;
+
+  const timeline = Array.from(timelineMap.entries())
+    .sort(([a], [b]) => (a > b ? 1 : -1))
+    .map(([dateKey, entry]) => ({
+      dateKey,
+      label: formatDayLabel(dateKey),
+      totalMessages: entry.total,
+      userMessages: entry.user,
+      assistantMessages: entry.assistant,
+    }))
+    .slice(-10);
+
+  const modeUsage: ModeUsageEntry[] = Array.from(modeMap.entries())
+    .map(([mode, count]) => ({
+      mode,
+      label: findModeLabel(mode) ?? mode,
+      count,
+      percentage: conversationCount ? Math.round((count / conversationCount) * 1000) / 10 : 0,
+    }))
+    .sort((a, b) => b.count - a.count);
+
+  const sortedLeaderboard = leaderboard
+    .sort((a, b) => {
+      if (b.messages !== a.messages) {
+        return b.messages - a.messages;
+      }
+      return (b.knowledgeReferences ?? 0) - (a.knowledgeReferences ?? 0);
+    })
+    .slice(0, 6);
+
+  return {
+    totals: {
+      conversations: conversationCount,
+      activeToday,
+      messages: totals.messages,
+      userMessages: totals.userMessages,
+      assistantMessages: totals.assistantMessages,
+      knowledgeReferences: totals.knowledgeReferences,
+      averageMessagesPerConversation: conversationCount
+        ? Math.round(averageMessagesPerConversation * 10) / 10
+        : 0,
+    },
+    timeline,
+    modeUsage,
+    preferenceBreakdown: {
+      learningEnabled,
+      privateMode,
+      allowOnline,
+      safeTone,
+      total: conversationCount,
+    },
+    leaderboard: sortedLeaderboard,
+  };
+};
+
 interface UseKolibriChatResult {
   messages: ChatMessage[];
   draft: string;
@@ -394,6 +743,8 @@ interface UseKolibriChatResult {
   statusLoading: boolean;
   latestAssistantMessage?: ChatMessage;
   metrics: ConversationMetrics;
+  analytics: ConversationAnalyticsOverview;
+  knowledgeUsage: KnowledgeUsageOverview;
   attachments: PendingAttachment[];
   kernelControls: KernelControlsState;
   kernelCapabilities: KernelCapabilities;
@@ -995,99 +1346,17 @@ const useKolibriChat = (): UseKolibriChatResult => {
     return undefined;
   }, [messages]);
 
-  const metrics = useMemo<ConversationMetrics>(() => {
-    let userMessages = 0;
-    let assistantMessages = 0;
-    let knowledgeReferences = 0;
-    let lastUpdatedIso: string | undefined;
-    let conservedMatches = 0;
-    let stabilityCount = 0;
-    let auditCount = 0;
-    let returnMatches = 0;
-    const latencies: number[] = [];
-    const userTokens = new Set<string>();
-    let previousAssistantTokens: string[] | null = null;
+  const metrics = useMemo<ConversationMetrics>(() => computeConversationMetrics(messages), [messages]);
 
-    const tokenize = (text: string): string[] =>
-      text
-        .toLowerCase()
-        .split(/[^\p{L}\p{N}]+/u)
-        .map((token) => token.trim())
-        .filter((token) => token.length > 3);
+  const analytics = useMemo(
+    () => buildAnalyticsOverview(conversations),
+    [conversations],
+  );
 
-    for (const message of messages) {
-      if (message.role === "user") {
-        userMessages += 1;
-        tokenize(message.content).forEach((token) => {
-          if (token) {
-            userTokens.add(token);
-          }
-        });
-      } else {
-        assistantMessages += 1;
-        if (message.context?.length) {
-          knowledgeReferences += 1;
-        }
-
-        const tokens = tokenize(message.content);
-        const contentLength = message.content.trim().length;
-
-        if (contentLength >= 24 || tokens.length >= 3) {
-          stabilityCount += 1;
-        }
-
-        if ((message.context?.length ?? 0) > 0 || (message.contextError && message.contextError.trim())) {
-          auditCount += 1;
-        }
-
-        const intersectsKnowledge = (message.context?.length ?? 0) > 0;
-        const intersectsUser = tokens.some((token) => userTokens.has(token));
-        if (intersectsKnowledge || intersectsUser) {
-          conservedMatches += 1;
-        }
-
-        if (previousAssistantTokens && previousAssistantTokens.some((token) => tokens.includes(token))) {
-          returnMatches += 1;
-        }
-        if (tokens.length) {
-          previousAssistantTokens = tokens;
-        }
-
-        if (contentLength > 0) {
-          const approximatedLatency = Math.min(18, Math.max(3, Math.round(contentLength / 16)));
-          latencies.push(approximatedLatency);
-        }
-      }
-
-      if (message.isoTimestamp) {
-        lastUpdatedIso = message.isoTimestamp;
-      }
-    }
-
-    const clampRatio = (value: number) => Math.min(1, Math.max(0, value));
-    const assistantBase = assistantMessages > 0 ? assistantMessages : 1;
-    const conservedRatio = assistantMessages ? conservedMatches / assistantBase : 1;
-    const stability = assistantMessages ? stabilityCount / assistantBase : 1;
-    const auditability = assistantMessages ? auditCount / assistantBase : 1;
-    const returnToAttractor = assistantMessages > 1 ? returnMatches / (assistantMessages - 1) : 1;
-    const latencyP50 = latencies.length
-      ? latencies
-          .slice()
-          .sort((a, b) => a - b)[Math.floor(latencies.length / 2)]
-      : 0;
-
-    return {
-      userMessages,
-      assistantMessages,
-      knowledgeReferences,
-      lastUpdatedIso,
-      conservedRatio: clampRatio(conservedRatio),
-      stability: clampRatio(stability),
-      auditability: clampRatio(auditability),
-      returnToAttractor: clampRatio(returnToAttractor),
-      latencyP50,
-    };
-  }, [messages]);
+  const knowledgeUsage = useMemo(
+    () => buildKnowledgeOverview(conversations),
+    [conversations],
+  );
 
   const conversationSummaries = useMemo<ConversationSummary[]>(
     () =>
@@ -1119,6 +1388,8 @@ const useKolibriChat = (): UseKolibriChatResult => {
     statusLoading,
     latestAssistantMessage,
     metrics,
+    analytics,
+    knowledgeUsage,
     attachments,
     kernelControls,
     kernelCapabilities,
