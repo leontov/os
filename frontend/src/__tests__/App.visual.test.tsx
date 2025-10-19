@@ -73,7 +73,7 @@ const baseState = {
   knowledgeStatus: null,
   knowledgeError: undefined,
   statusLoading: false,
-  latestAssistantMessage: null,
+  latestAssistantMessage: undefined,
   metrics: baseMetrics,
   analytics: {
     totals: {
