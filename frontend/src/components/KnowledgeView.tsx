@@ -1,5 +1,6 @@
 import type { KnowledgeStatus } from "../core/knowledge";
 import StatusBar from "./StatusBar";
+import WorkspacePlaceholder from "./WorkspacePlaceholder";
 
 interface KnowledgeViewProps {
   status: KnowledgeStatus | null;
@@ -9,15 +10,39 @@ interface KnowledgeViewProps {
 }
 
 const KnowledgeView = ({ status, error, isLoading, onRefresh }: KnowledgeViewProps) => (
-  <div className="flex h-full flex-1 flex-col gap-6">
+  <div className="flex min-h-0 flex-1 flex-col gap-6">
     <StatusBar status={status} error={error} isLoading={isLoading} onRefresh={onRefresh} />
-    <section className="glass-panel flex flex-1 flex-col justify-center gap-3 p-10 text-text-secondary">
-      <h2 className="text-2xl font-semibold text-text-primary">Мониторинг знаний</h2>
-      <p>
-        Здесь появятся метрики загрузки данных, состояние пайплайна и свежие обновления базы знаний. Пока вы
-        можете использовать кнопку «Обновить», чтобы получить актуальную информацию.
-      </p>
-    </section>
+    <WorkspacePlaceholder
+      badge="Контур памяти"
+      title="Мониторинг знаний"
+      description="Мы строим панель, которая покажет загрузку документов, состояние пайплайна и свежие события в базе знаний Kolibri."
+      hint="До релиза вы можете обновлять статус вручную и отслеживать количество документов с помощью верхней панели."
+      actions={
+        <>
+          <button type="button" className="ghost-button text-xs">
+            Запросить отчёт
+          </button>
+          <button type="button" className="ghost-button text-xs">
+            Настроить интеграции
+          </button>
+        </>
+      }
+    >
+      <ul className="grid gap-4 sm:grid-cols-2">
+        <li className="glass-panel p-4">
+          <p className="text-xs uppercase tracking-[0.3em] text-primary/80">Слои данных</p>
+          <p className="mt-2 text-sm text-text-secondary">
+            Поддержка Confluence, Google Drive и внутренних хранилищ появится здесь, чтобы вы контролировали, что уже подключено.
+          </p>
+        </li>
+        <li className="glass-panel p-4">
+          <p className="text-xs uppercase tracking-[0.3em] text-primary/80">Контроль качества</p>
+          <p className="mt-2 text-sm text-text-secondary">
+            Вы увидите автоматические проверки полноты, свежести и точности с рекомендациями по исправлению.
+          </p>
+        </li>
+      </ul>
+    </WorkspacePlaceholder>
   </div>
 );
 

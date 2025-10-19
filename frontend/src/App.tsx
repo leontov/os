@@ -117,19 +117,23 @@ const App = () => {
     switch (activeSection) {
       case "dialog":
         return (
-          <div className="flex flex-1 flex-col gap-6 lg:flex-row">
+          <div className="grid min-h-0 flex-1 gap-6 lg:grid-cols-[18rem_minmax(0,1fr)] xl:grid-cols-[22rem_minmax(0,1fr)]">
             {isDesktop ? (
-              <div className="w-full flex-none lg:max-w-xs xl:max-w-sm">
-                <Sidebar
-                  conversations={conversationSummaries}
-                  activeConversationId={conversationId}
-                  onConversationSelect={handleSelectConversation}
-                  onCreateConversation={handleCreateConversation}
-                />
-              </div>
+              <aside className="hidden lg:block">
+                <div className="sticky top-32 h-[calc(100vh-14rem)]">
+                  <Sidebar
+                    conversations={conversationSummaries}
+                    activeConversationId={conversationId}
+                    onConversationSelect={handleSelectConversation}
+                    onCreateConversation={handleCreateConversation}
+                  />
+                </div>
+              </aside>
             ) : null}
-            <div className="flex flex-1 flex-col gap-6">
-              <div className="flex-1">{chatContent}</div>
+            <div className="flex min-h-0 flex-col gap-6">
+              <div className="flex min-h-0 flex-1">
+                <div className="min-h-0 flex-1">{chatContent}</div>
+              </div>
               <ConversationPreferencesBar preferences={preferences} onChange={updatePreferences} />
               <ChatInput
                 value={draft}
