@@ -27,13 +27,13 @@ const MobileDock = ({
       <button
         type="button"
         onClick={onOpenHistory}
-        className="flex flex-1 items-center justify-center gap-2 rounded-2xl border border-border-strong bg-background-card/80 px-3 py-2 text-sm font-semibold text-text-secondary transition-colors hover:text-text-primary"
+        className="glass-panel flex flex-1 items-center justify-center gap-2 px-3 py-2 text-sm font-semibold text-text-secondary transition-colors hover:text-text-primary"
         aria-label="История бесед"
       >
         <Clock3 className="h-4 w-4" />
         История
       </button>
-      <div className="flex flex-[2] items-center justify-around gap-1 rounded-2xl border border-border-strong bg-background-card/80 px-2 py-1 text-[0.7rem]">
+      <div className="glass-panel flex flex-[2] items-center justify-around gap-1 px-2 py-1 text-[0.7rem]">
         {NAVIGATION_ITEMS.map((item) => {
           const isActive = item.value === activeSection;
           return (
@@ -60,7 +60,7 @@ const MobileDock = ({
         <button
           type="button"
           onClick={onOpenControls}
-          className="flex h-11 w-11 items-center justify-center rounded-2xl border border-border-strong bg-background-card/80 text-text-secondary transition-colors hover:text-text-primary"
+          className="glass-panel flex h-11 w-11 items-center justify-center text-text-secondary transition-colors hover:text-text-primary"
           aria-label="Настроить ядро"
         >
           <SlidersHorizontal className="h-4 w-4" />

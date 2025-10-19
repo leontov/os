@@ -114,16 +114,18 @@ const ChatInput = ({
   };
 
   return (
-    <div className="flex flex-col gap-5 rounded-3xl border border-border-strong bg-background-input/95 p-4 backdrop-blur md:p-6">
+    <div className="glass-panel flex flex-col gap-5 p-4 md:p-6">
       <div className="flex flex-col gap-3 text-sm text-text-secondary md:flex-row md:items-center md:justify-between">
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15 text-primary">К</div>
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary/80 to-primary/60 text-white shadow-md">
+            К
+          </div>
           <label htmlFor={textAreaId} className="text-xs uppercase tracking-[0.3em]">
             Режим ядра
           </label>
           <select
             id={textAreaId}
-            className="rounded-xl border border-border-strong bg-background-card/80 px-3 py-2 text-xs font-semibold text-text-primary focus:border-primary focus:outline-none"
+            className="rounded-xl border border-border-strong/70 bg-background-card/80 px-3 py-2 text-xs font-semibold text-text-primary focus:border-primary focus:outline-none"
             value={mode}
             onChange={(event) => onModeChange(event.target.value)}
             disabled={isBusy}
@@ -134,14 +136,14 @@ const ChatInput = ({
               </option>
             ))}
           </select>
-          <span className="rounded-lg border border-border-strong bg-background-card/70 px-2 py-1 text-[0.7rem] uppercase tracking-wide text-text-secondary">
+          <span className="pill-badge !px-2 !py-1">
             {findModeLabel(mode)}
           </span>
           {onOpenControls ? (
             <button
               type="button"
               onClick={onOpenControls}
-              className="flex items-center gap-2 rounded-xl border border-border-strong bg-background-card/80 px-3 py-2 text-xs font-semibold transition-colors hover:border-primary hover:text-primary"
+              className="ghost-button text-xs"
             >
               <SlidersHorizontal className="h-4 w-4" />
               Настроить ядро
@@ -159,7 +161,7 @@ const ChatInput = ({
                 void onReset();
               }
             }}
-            className="flex items-center gap-2 rounded-xl border border-border-strong bg-background-card/80 px-3 py-2 text-xs font-semibold transition-colors hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-60"
+            className="ghost-button text-xs disabled:cursor-not-allowed disabled:opacity-60"
             disabled={isBusy}
           >
             <Plus className="h-4 w-4" />
@@ -178,12 +180,12 @@ const ChatInput = ({
         }}
         onKeyDown={handleKeyDown}
         placeholder="Сообщение для Колибри"
-        className="max-h-[320px] w-full resize-none rounded-2xl border border-border-strong bg-background-card/85 px-4 py-3 text-[0.95rem] text-text-primary placeholder:text-text-secondary focus:border-primary focus:outline-none"
+        className="max-h-[320px] w-full resize-none rounded-2xl border border-border-strong/70 bg-background-card/85 px-4 py-3 text-[0.95rem] text-text-primary placeholder:text-text-secondary focus:border-primary focus:outline-none"
       />
       {attachments.length > 0 && (
-        <div className="rounded-2xl border border-dashed border-border-strong bg-background-card/75 p-4 text-sm text-text-secondary">
+        <div className="glass-panel space-y-3 border-dashed border-border-strong p-4 text-sm text-text-secondary">
           <p className="mb-2 font-semibold text-text-primary">Прикреплённые файлы</p>
-          <ul className="flex flex-col gap-3">
+          <ul className="soft-scroll max-h-60 space-y-3 overflow-y-auto pr-1">
             {attachments.map((attachment) => (
               <li key={attachment.id} className="flex items-center justify-between gap-3">
                 <div className="truncate">
@@ -194,7 +196,7 @@ const ChatInput = ({
                   <button
                     type="button"
                     onClick={() => onRemoveAttachment(attachment.id)}
-                    className="flex h-7 w-7 items-center justify-center rounded-full border border-border-strong text-text-secondary transition-colors hover:text-text-primary"
+                    className="flex h-7 w-7 items-center justify-center rounded-full border border-border-strong/70 bg-background-card/70 text-text-secondary transition-colors hover:text-text-primary"
                     disabled={isBusy}
                   >
                     <X className="h-4 w-4" />
@@ -224,7 +226,7 @@ const ChatInput = ({
           <button
             type="button"
             onClick={handleAttachClick}
-            className="flex items-center gap-2 rounded-xl border border-border-strong bg-background-card/80 px-3 py-2 transition-colors hover:text-text-primary"
+            className="ghost-button transition-colors hover:text-text-primary"
             disabled={isBusy}
           >
             <Paperclip className="h-4 w-4" />
@@ -233,19 +235,19 @@ const ChatInput = ({
           <button
             type="button"
             onClick={handleClearDraft}
-            className="flex items-center gap-2 rounded-xl border border-border-strong bg-background-card/80 px-3 py-2 transition-colors hover:text-text-primary"
+            className="ghost-button transition-colors hover:text-text-primary"
             disabled={isBusy}
           >
             <RefreshCw className="h-4 w-4" />
             Сбросить
           </button>
-          <div className="flex items-center gap-2 rounded-xl border border-border-strong bg-background-card/80 px-3 py-2">
+          <div className="glass-panel flex items-center gap-2 px-3 py-2">
             <Keyboard className="h-4 w-4" />
             <span>Enter — отправить, Shift + Enter — перенос строки</span>
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <span className="rounded-lg border border-border-strong bg-background-card/70 px-3 py-1 text-[0.7rem] uppercase tracking-wide text-text-secondary">
+          <span className="pill-badge !px-3 !py-1">
             Осталось: {remaining}
           </span>
           <button
