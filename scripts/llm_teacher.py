@@ -16,10 +16,20 @@ import json
 import sys
 import urllib.parse
 import urllib.request
-from typing import Any, Dict
+from typing import Any, Dict, TypedDict
 
 
-_TORCH_CACHE: Dict[str, Dict[str, Any]] = {}
+
+
+class _TorchCacheEntry(TypedDict):
+    """Cache entry storing tokenizer/model pairs for torch backend."""
+
+    tokenizer: Any
+    model: Any
+    device: str
+
+
+_TORCH_CACHE: Dict[str, _TorchCacheEntry] = {}
 
 
 class TorchModelNameError(ValueError):
@@ -85,37 +95,38 @@ def call_llm_torch(model_name: str,
         tokenizer = AutoTokenizer.from_pretrained(model_name)
         if tokenizer.pad_token is None and tokenizer.eos_token is not None:
             tokenizer.pad_token = tokenizer.eos_token
-        model = AutoModelForCausalLM.from_pretrained(model_name)
+        model_any: Any = AutoModelForCausalLM.from_pretrained(model_name)
         if device:
-            model = model.to(device)
-        model.eval()
-        state = {"tokenizer": tokenizer, "model": model, "device": device}
+            model_any = model_any.to(device)
+        model_any.eval()
+        state = _TorchCacheEntry(tokenizer=tokenizer, model=model_any, device=device)
         _TORCH_CACHE[model_name] = state
 
-    tokenizer = state["tokenizer"]
-    model = state["model"]
+    tokenizer_obj: Any = state["tokenizer"]
+    model_obj: Any = state["model"]
+    cached_device = state["device"]
     full_prompt = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt
-    encoded = tokenizer(full_prompt, return_tensors="pt")
+    encoded = tokenizer_obj(full_prompt, return_tensors="pt")
     input_ids = encoded["input_ids"]
     attention_mask = encoded.get("attention_mask")
-    if state["device"]:
-        input_ids = input_ids.to(state["device"])
+    if cached_device:
+        input_ids = input_ids.to(cached_device)
         if attention_mask is not None:
-            attention_mask = attention_mask.to(state["device"])
+            attention_mask = attention_mask.to(cached_device)
 
     generate_kwargs = {
         "max_new_tokens": max_new_tokens,
         "do_sample": temperature > 0,
         "temperature": max(temperature, 1e-5),
-        "pad_token_id": tokenizer.eos_token_id,
+        "pad_token_id": tokenizer_obj.eos_token_id,
     }
     if attention_mask is not None:
         generate_kwargs["attention_mask"] = attention_mask
     with torch.no_grad():  # type: ignore[attr-defined]
-        output = model.generate(input_ids, **generate_kwargs)
+        output = model_obj.generate(input_ids, **generate_kwargs)
 
     generated = output[0][input_ids.shape[1]:]
-    text = tokenizer.decode(generated, skip_special_tokens=True)
+    text = tokenizer_obj.decode(generated, skip_special_tokens=True)
     return text.strip()
 
 
