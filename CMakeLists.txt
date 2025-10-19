@@ -15,21 +15,21 @@ set(KOLIBRI_WASM_EMCC "" CACHE STRING "Override emcc executable for kolibri.wasm
 set(KOLIBRI_WASM_OUTPUT_DIR "${CMAKE_SOURCE_DIR}/build/wasm" CACHE PATH "Output directory for kolibri.wasm artifact")
 
 add_library(kolibri_core_objects OBJECT
-    backend/src/decimal.c
-    backend/src/digits.c
-    backend/src/genome.c
-    backend/src/random.c
-    backend/src/formula.c
-    backend/src/roy.c
-    backend/src/script.c
-    backend/src/symbol_table.c
-    backend/src/net.c
-    backend/src/knowledge.c
-    backend/src/knowledge_index.c
-    backend/src/knowledge_queue.c
-    backend/src/sim.c
-    backend/src/sigma.c
-    backend/src/swarm.c
+    backend/src/core/decimal.c
+    backend/src/core/digits.c
+    backend/src/core/genome.c
+    backend/src/core/random.c
+    backend/src/core/formula.c
+    backend/src/core/roy.c
+    backend/src/core/script.c
+    backend/src/core/symbol_table.c
+    backend/src/core/net.c
+    backend/src/core/knowledge.c
+    backend/src/core/knowledge_index.c
+    backend/src/core/knowledge_queue.c
+    backend/src/core/sim.c
+    backend/src/core/sigma.c
+    backend/src/core/swarm.c
 )
 
 target_include_directories(kolibri_core_objects
@@ -104,34 +104,36 @@ endif()
 target_link_libraries(kolibri_core_objects PUBLIC ${KOLIBRI_OPENSSL_TARGET} m)
 target_link_libraries(kolibri_core PUBLIC ${KOLIBRI_OPENSSL_TARGET} SQLite::SQLite3 m)
 
-add_library(kolibri_wasm STATIC
-    backend/src/wasm_bridge.c
-    backend/src/wasm_genome_stub.c
+add_library(kolibri_experimental STATIC
+    backend/src/experimental/wasm_bridge.c
+    backend/src/experimental/wasm_genome_stub.c
 )
 
-target_include_directories(kolibri_wasm
+target_include_directories(kolibri_experimental
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/backend/include>
         $<INSTALL_INTERFACE:include>
 )
 
-target_link_libraries(kolibri_wasm PUBLIC kolibri_core)
+target_link_libraries(kolibri_experimental PUBLIC kolibri_core)
+
+add_library(kolibri_wasm ALIAS kolibri_experimental)
 
 if(KOLIBRI_ENABLE_WASM_TARGET)
     set(KOLIBRI_WASM_SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/wasm/kolibri_core.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/scripts/build_wasm.sh
-        ${CMAKE_CURRENT_SOURCE_DIR}/backend/src/decimal.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/backend/src/digits.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/backend/src/formula.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/backend/src/genome.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/backend/src/random.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/backend/src/symbol_table.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/backend/src/script.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/backend/src/sim.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/backend/src/sigma.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/backend/src/wasm_bridge.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/backend/src/wasm_genome_stub.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/scripts/build/build_wasm.sh
+        ${CMAKE_CURRENT_SOURCE_DIR}/backend/src/core/decimal.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/backend/src/core/digits.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/backend/src/core/formula.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/backend/src/core/genome.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/backend/src/core/random.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/backend/src/core/symbol_table.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/backend/src/core/script.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/backend/src/core/sim.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/backend/src/core/sigma.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/backend/src/experimental/wasm_bridge.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/backend/src/experimental/wasm_genome_stub.c
         ${CMAKE_CURRENT_SOURCE_DIR}/wasm/kolibri_sim_wasm.c
     )
 
@@ -152,9 +154,9 @@ if(KOLIBRI_ENABLE_WASM_TARGET)
 
     add_custom_command(
         OUTPUT ${KOLIBRI_WASM_MODULE} ${KOLIBRI_WASM_INFO}
-        COMMAND ${CMAKE_COMMAND} -E env ${_kolibri_wasm_env} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/build_wasm.sh
+        COMMAND ${CMAKE_COMMAND} -E env ${_kolibri_wasm_env} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/build/build_wasm.sh
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        DEPENDS ${KOLIBRI_WASM_SOURCES} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/build_wasm.sh
+        DEPENDS ${KOLIBRI_WASM_SOURCES} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/build/build_wasm.sh
         BYPRODUCTS
             ${KOLIBRI_WASM_OUTPUT_DIR}/kolibri.wasm.sha256
             ${KOLIBRI_WASM_OUTPUT_DIR}/kolibri.wasm.report.json
@@ -167,7 +169,7 @@ endif()
 
 add_executable(kolibri_node apps/kolibri_node.c)
 add_executable(ks_compiler apps/ks_compiler.c)
-add_executable(kolibri_knowledge_server backend/src/knowledge_server.c)
+add_executable(kolibri_knowledge_server backend/src/core/knowledge_server.c)
 add_executable(kolibri_indexer apps/kolibri_indexer.c)
 add_executable(kolibri_queue apps/kolibri_queue.c)
 add_executable(kolibri_sim apps/kolibri_sim_cli.c)

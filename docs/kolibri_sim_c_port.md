@@ -88,7 +88,7 @@ typedef struct {
 ### 5.1 Сборка
 - `CMake` цель `kolibri_sim_core` + `kolibri_sim_cli` + `kolibri_sim_wasm`.
 - Добавить флаг `-s EXPORTED_FUNCTIONS` для wasm.
-- Обновить `scripts/build_wasm.sh` для сборки `kolibri_sim.wasm`.
+- Обновить `scripts/build/build_wasm.sh` для сборки `kolibri_sim.wasm`.
 
 ### 5.2 Пайплайны
 - `scripts/soak.py` заменяется на вызов `kolibri_sim_cli soak`.

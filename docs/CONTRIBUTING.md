@@ -19,15 +19,15 @@
 ## CI/CD
 - GitHub Actions содержит четыре ключевых workflow:
   - `ci.yml` — линтинг, статический анализ, pytest и покрытие кода.
-  - `conflict-resolver.yml` — автоматическое устранение конфликтов с помощью `scripts/resolve_conflicts.py` и повторный прогон тестов.
+  - `conflict-resolver.yml` — автоматическое устранение конфликтов с помощью `scripts/ops/resolve_conflicts.py` и повторный прогон тестов.
   - `soak.yml` — часовые «соак»-прогоны симуляции с сохранением состояния.
   - `watchdog.yml` — сторож, уведомляющий о сбоях и перезапускающий `soak` при необходимости.
-- Для локальной подготовки окружения используйте `scripts/ci_bootstrap.sh`.
+- Для локальной подготовки окружения используйте `scripts/build/ci_bootstrap.sh`.
 
 ## Скрипты
-- `scripts/resolve_conflicts.py` — авторазрешение конфликтов с генерацией JSON-отчёта.
+- `scripts/ops/resolve_conflicts.py` — авторазрешение конфликтов с генерацией JSON-отчёта.
 - `./build/kolibri_sim soak` — длительные прогоны симуляции Kolibri с накоплением логов (см. `apps/kolibri_sim_cli.c`).
-- `scripts/post_pr_comment.py` — добавление комментариев в PR и формирование сторожевых отчётов.
+- `scripts/ops/post_pr_comment.py` — добавление комментариев в PR и формирование сторожевых отчётов.
 - Все скрипты должны быть исполняемыми (`chmod +x`).
 
 ## Документация

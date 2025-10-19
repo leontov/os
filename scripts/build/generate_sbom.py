@@ -1,17 +1,22 @@
 #!/usr/bin/env python3
-"""Генерация SBOM для kolibri.wasm.
+"""Generate a lightweight SBOM for kolibri.wasm."""
 
-Скрипт создаёт JSON с контрольной суммой, размерами и перечнем экспортов
-ядра KOLIBRI-Σ. Используется в CI и release-пайплайнах.
-"""
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
+import logging
 import os
+import sys
+from hashlib import sha256 as _sha256
 from pathlib import Path
 from typing import Dict, List
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.utils import bootstrap_parser, ensure_project_root  # noqa: E402
 
 DEFAULT_OUTPUT = "build/wasm/kolibri.wasm.sbom.json"
 DEFAULT_MODULE = "build/wasm/kolibri.wasm"
@@ -33,7 +38,7 @@ EXPORTS: List[str] = [
 
 
 def sha256(path: Path) -> str:
-    hasher = hashlib.sha256()
+    hasher = _sha256()
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(8192), b""):
             hasher.update(chunk)
@@ -43,7 +48,8 @@ def sha256(path: Path) -> str:
 def collect_metadata(module: Path) -> Dict[str, object]:
     size = module.stat().st_size if module.exists() else 0
     checksum = sha256(module) if module.exists() else "0" * 64
-    source_hash = sha256(Path("wasm/kolibri_core.c")) if Path("wasm/kolibri_core.c").exists() else "0" * 64
+    source = ensure_project_root() / "wasm" / "kolibri_core.c"
+    source_hash = sha256(source) if source.exists() else "0" * 64
     return {
         "module": str(module),
         "size_bytes": size,
@@ -69,7 +75,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Generate SBOM for kolibri.wasm")
     parser.add_argument("module", nargs="?", default=DEFAULT_MODULE, help="Путь до wasm-модуля")
     parser.add_argument("--output", default=DEFAULT_OUTPUT, help="Файл для записи SBOM")
-    args = parser.parse_args()
+    args = bootstrap_parser(parser)
 
     module_path = Path(args.module)
     metadata = collect_metadata(module_path)
@@ -78,7 +84,7 @@ def main() -> int:
     with output_path.open("w", encoding="utf-8") as handle:
         json.dump(metadata, handle, ensure_ascii=False, indent=2)
         handle.write("\n")
-    print(f"[sbom] saved {output_path} (module: {module_path})")
+    logging.info("[sbom] saved %s (module: %s)", output_path, module_path)
     return 0
 
 

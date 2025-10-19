@@ -108,5 +108,5 @@ struct Digit {
 
 * WebAssembly таргет: `wasm32-unknown-emscripten`, `-msimd128`, без роста памяти по умолчанию (опционально включаемый).
 * Лицензия ядра: MPL-2.0, совместима с закрытыми приложениями при публикации модификаций ядра.
-* Сценарии проверки: `scripts/build_wasm.sh` (сборка), `scripts/generate_sbom.py` (SBOM), `scripts/sign_wasm.sh` (подпись).
+* Сценарии проверки: `scripts/build/build_wasm.sh` (сборка), `scripts/build/generate_sbom.py` (SBOM), `scripts/build/sign_wasm.sh` (подпись).
 

@@ -2,8 +2,8 @@
 
 ## Текущее состояние
 - Ядро Kolibri (Фаза 1) реализовано на C11: десятичная когниция, эволюция формул, цифровой геном, REPL-узел с командами `:teach`, `:ask`, `:tick`, `:evolve`, `:why`, `:canvas`, `:sync`, `:verify`.
-- Сетевой стек и протокол Kolibri Swarm (Фаза 2) активны: имеются UDP-потоки, обмен кадрами HELLO/MIGRATE_RULE, оркестрация кластера `scripts/run_cluster.sh` и тесты `tests/test_roy.c`.
-- Автономная оболочка Kolibri OS (Фаза 3) собрана: загрузчик Multiboot2, микроядро, драйверы прерываний и сборка ISO (`scripts/build_iso.sh`).
+- Сетевой стек и протокол Kolibri Swarm (Фаза 2) активны: имеются UDP-потоки, обмен кадрами HELLO/MIGRATE_RULE, оркестрация кластера `scripts/ops/run_cluster.sh` и тесты `tests/test_roy.c`.
+- Автономная оболочка Kolibri OS (Фаза 3) собрана: загрузчик Multiboot2, микроядро, драйверы прерываний и сборка ISO (`scripts/build/build_iso.sh`).
 - Визуальная кора (Фаза 4) представлена PWA-фронтендом, WASM-сборкой и мостом JS↔WASM, описанными в `docs/web_interface.md` и `docs/master_prompt.md`.
 - Мост экосистемы (Фаза 5) включает CI/CD, плагины, Telegram/GitHub интеграции и документацию по внешнему API (`docs/research_agenda.md`, `docs/CONTRIBUTING.md`).
 
@@ -12,13 +12,13 @@
 - `cmake --build build -j` — компиляция всех целей (ядро, узел, тесты, ks_compiler).
 - `ctest --test-dir build --output-on-failure` — модульные тесты C.
 - `./build/kolibri_sim soak --minutes 5` — длительный прогон симулятора Kolibri и проверка журнала.
-- `./scripts/run_all.sh --skip-cluster --skip-iso --skip-wasm` — оркестрационный прогон.
+- `./scripts/ops/run_all.sh --skip-cluster --skip-iso --skip-wasm` — оркестрационный прогон.
 
 ## Рекомендуемый порядок запуска
-1. `./scripts/run_all.sh` — полный цикл (ядро, wasm, iso, кластер).
-2. `./scripts/build_iso.sh` и `./scripts/run_qemu.sh` — проверка Kolibri OS.
-3. `./scripts/build_wasm.sh` и `npm run dev` в `frontend/kolibri-pwa` — визуальный интерфейс.
-4. `./scripts/run_cluster.sh --nodes 5` — демонстрация роевого обмена.
+1. `./scripts/ops/run_all.sh` — полный цикл (ядро, wasm, iso, кластер).
+2. `./scripts/build/build_iso.sh` и `./scripts/run_qemu.sh` — проверка Kolibri OS.
+3. `./scripts/build/build_wasm.sh` и `npm run dev` в `frontend/kolibri-pwa` — визуальный интерфейс.
+4. `./scripts/ops/run_cluster.sh --nodes 5` — демонстрация роевого обмена.
 
 ## Документация
 - Интегрированный обзор: `docs/kolibri_integrated_prototype.md`.

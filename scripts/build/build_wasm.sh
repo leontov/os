@@ -372,7 +372,7 @@ kolibri.wasm: заглушка (WebAssembly ядро недоступно)
 Эта заглушка экспортирует минимальные функции моста, которые всегда
 возвращают ошибку и не выполняют KolibriScript. Она нужна лишь для
 диагностики и предотвращения сбоев интерфейса.
-Установите Emscripten или Docker и повторно запустите scripts/build_wasm.sh,
+Установите Emscripten или Docker и повторно запустите scripts/build/build_wasm.sh,
 чтобы получить полноценный модуль kolibri.wasm.
 EOF_INFO
     zapisat_sha256 "$vyhod_wasm" "$vyhod_dir/kolibri.wasm.sha256"

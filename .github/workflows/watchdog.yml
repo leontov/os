@@ -27,4 +27,4 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
         run: |
-          python scripts/post_pr_comment.py --watchdog --repository "$REPO"
+          python scripts/ops/post_pr_comment.py --watchdog --repository "$REPO"

@@ -25,7 +25,7 @@
 
 **Q:** Можно ли импортировать собственные документы?  
 **A:** Да, добавьте их в `docs/` либо `data/` и выполните `kolibri_indexer build`
-или `scripts/knowledge_pipeline.sh`.
+или `scripts/ops/knowledge_pipeline.sh`.
 
 ## Безопасность и доступ
 

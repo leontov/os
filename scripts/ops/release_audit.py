@@ -7,9 +7,11 @@ artifacts, and can optionally execute the project's recommended validation
 commands. The script now emits machine-readable reports and enforces stricter
 release hygiene (clean Git state, fresh archives) when requested.
 """
+
 from __future__ import annotations
 
 import argparse
+import logging
 import json
 import shutil
 import subprocess
@@ -18,7 +20,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, List
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.utils import bootstrap_parser
 DEFAULT_TEST_COMMANDS = [
     ["pytest", "-q"],
     ["ruff", "check", "."],
@@ -231,7 +237,7 @@ def check_git_clean(repo_root: Path, strict: bool) -> CheckResult:
 
 def _run_command(cmd: List[str], cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
     display = " ".join(part or "" for part in cmd)
-    print(f"[run] {display}")
+    logging.info("[run] %s", display)
     return subprocess.run([p for p in cmd if p], cwd=cwd, check=True, text=True)
 
 
@@ -243,8 +249,8 @@ def perform_checks(config: AuditConfig, repo_root: Path = REPO_ROOT) -> List[Che
         repo_root / "CHANGELOG.md",
         repo_root / "docs" / "release_notes.md",
         repo_root / "docs" / "release_process.md",
-        repo_root / "scripts" / "package_release.sh",
-        repo_root / "scripts" / "run_all.sh",
+        repo_root / "scripts" / "build" / "package_release.sh",
+        repo_root / "scripts" / "ops" / "run_all.sh",
     ]
 
     for path in required_files:
@@ -255,13 +261,13 @@ def perform_checks(config: AuditConfig, repo_root: Path = REPO_ROOT) -> List[Che
 
     results.append(
         _path_is_executable(
-            repo_root / "scripts" / "package_release.sh",
+            repo_root / "scripts" / "build" / "package_release.sh",
             category="scripts",
         )
     )
     results.append(
         _path_is_executable(
-            repo_root / "scripts" / "run_all.sh",
+            repo_root / "scripts" / "ops" / "run_all.sh",
             category="scripts",
         )
     )
@@ -321,7 +327,7 @@ def summarize(
     for res in results:
         label = res.severity_label()
         category = f"{res.category}: " if res.category else ""
-        print(f"[{label}] {category}{res.name} — {res.message}")
+        logging.info("[%s] %s%s — %s", label, category, res.name, res.message)
         if res.ok:
             ok += 1
         elif res.warning:
@@ -352,7 +358,7 @@ def run_tests(commands: list[list[str]]) -> None:
             continue
         tool = shutil.which(cmd[0])
         if tool is None:
-            print(f"[skip] {cmd[0]} not found in PATH")
+            logging.warning("[skip] %s not found in PATH", cmd[0])
             continue
         try:
             _run_command(cmd, cwd=REPO_ROOT)
@@ -400,7 +406,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         type=Path,
         help="write audit results to the specified JSON file",
     )
-    return parser.parse_args(argv)
+    return bootstrap_parser(parser, argv=argv)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -416,7 +422,7 @@ def main(argv: list[str] | None = None) -> int:
         results,
         fail_on_warning=args.fail_on_warnings,
     )
-    print(f"Summary: {ok} ok, {warn} warnings, {hard_fail} failures")
+    logging.info("Summary: %s ok, %s warnings, %s failures", ok, warn, hard_fail)
 
     if args.json_output:
         payload = {
@@ -448,7 +454,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             run_tests(commands)
         except AuditFailure as exc:
-            print(f"[error] {exc}")
+            logging.error("[error] %s", exc)
             return 1
 
     return 0

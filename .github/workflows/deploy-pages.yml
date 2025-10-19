@@ -46,7 +46,7 @@ jobs:
         run: npm ci
 
       - name: Build Kolibri WebAssembly
-        run: KOLIBRI_WASM_ALLOW_STUB_SUCCESS=1 ./scripts/build_wasm.sh
+        run: KOLIBRI_WASM_ALLOW_STUB_SUCCESS=1 ./scripts/build/build_wasm.sh
 
       - name: Build frontend
         working-directory: frontend

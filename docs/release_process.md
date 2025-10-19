@@ -10,24 +10,24 @@
 
 ## Быстрый сценарий
 ```bash
-./scripts/package_release.sh --skip-cluster
+./scripts/build/package_release.sh --skip-cluster
 ```
 Скрипт выполнит полный цикл `run_all.sh`, соберёт `kolibri.wasm`, `kolibri.iso`, сгенерирует контрольные суммы и сформирует архив `build/release/kolibri-<дата>.tar.gz`. Флаги `--skip-iso`, `--skip-wasm`, `--skip-cluster` позволяют временно исключать шаги при отсутствии соответствующих инструментов.
 
 ## Аудит готовности перед упаковкой
-- Запустите `./scripts/release_audit.py`, чтобы убедиться в наличии ключевых документов, актуальности релизных заметок и артефактов сборки.
+- Запустите `./scripts/ops/release_audit.py`, чтобы убедиться в наличии ключевых документов, актуальности релизных заметок и артефактов сборки.
 - Добавьте `--require-artifacts`, если ожидаете увидеть собранные `build/kolibri.iso` и `build/wasm/kolibri.wasm` (отсутствие файлов в этом режиме приведёт к ошибке).
 - Используйте `--run-tests`, чтобы автоматически прогнать стандартные проверки (`pytest -q`, `ruff check .`, `pyright`, `ctest --test-dir build`). Опция `--tests` принимает собственные команды строками, например `--tests "pytest -q" "ninja -C build"`.
 - Флаги `--require-clean` и `--require-release-archive` заставляют аудит дополнительно проверять чистоту дерева Git и наличие свежего архива в `build/release/`. Опция `--fail-on-warnings` переводит предупреждения в статус ошибки, а `--json-output <путь>` сохраняет машинно-читаемый отчёт.
 
 ## Подробные шаги
-1. Выполнить `./scripts/run_all.sh` и убедиться, что сборка и тесты завершаются без ошибок.
+1. Выполнить `./scripts/ops/run_all.sh` и убедиться, что сборка и тесты завершаются без ошибок.
 2. Проверить размер `build/wasm/kolibri.wasm` — он не должен превышать 1 МБ (гейт из `AGENTS.md`).
 3. При наличии кросс-компилятора собрать `build/kolibri.iso` и протестировать загрузку в `qemu-system-i386`:
    ```bash
    qemu-system-i386 -cdrom build/kolibri.iso -monitor stdio
    ```
-4. Запустить `./scripts/package_release.sh` и дождаться сообщения `[Готово]` с путём к архиву.
+4. Запустить `./scripts/build/package_release.sh` и дождаться сообщения `[Готово]` с путём к архиву.
 5. Содержимое архива:
    - `kolibri.wasm`, `kolibri.wasm.sha256`
    - `kolibri.iso`
@@ -37,8 +37,8 @@
 
 ## Проверка на «зелёный коридор»
 - `cmake`, `ctest` — зелёные.
-- `./scripts/run_all.sh --skip-cluster --skip-iso --skip-wasm` — зелёный минимум.
-- `./scripts/package_release.sh --skip-cluster` — завершился успешно и создал архив.
+- `./scripts/ops/run_all.sh --skip-cluster --skip-iso --skip-wasm` — зелёный минимум.
+- `./scripts/build/package_release.sh --skip-cluster` — завершился успешно и создал архив.
 
 ## Советы
 - Для воспроизводимости фиксируйте `SOURCE_DATE_EPOCH` и используйте одну и ту же версию инструментов.

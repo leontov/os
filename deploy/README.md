@@ -12,7 +12,7 @@
 - `monitoring/` — пример конфигурации Prometheus (`prometheus.yml`) и дашборд Grafana (`grafana_dashboard.json`).
 
 Во всех манифестах оставлены плейсхолдеры `REPLACE_WITH_REGISTRY` и `RELEASE_TAG`.
-Перед применением замените их на значения, которые использует `scripts/package_release.sh`
+Перед применением замените их на значения, которые использует `scripts/build/package_release.sh`
 при публикации Docker-образов (например, `ghcr.io/my-org` и git-тег релиза).
 
 Применение:

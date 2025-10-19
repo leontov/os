@@ -29,6 +29,8 @@ jobs:
         run: pyright
       - name: Pytest
         run: pytest -q
+      - name: Policy block lint
+        run: python scripts/ops/policy_validate.py
 
   core-build:
     name: CMake, тесты и ISO
@@ -40,14 +42,16 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y cmake nasm grub-pc-bin xorriso gcc-multilib
-      - name: Конфигурация CMake
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-      - name: Сборка C-ядра
-        run: cmake --build build -j
+      - name: Установка Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Make pipeline
+        run: BUILD_TYPE=Release make pipeline
       - name: Юнит-тесты C
         run: ctest --test-dir build --output-on-failure
       - name: Сборка ISO
-        run: ./scripts/build_iso.sh
+        run: ./scripts/build/build_iso.sh
       - name: SHA256 ISO
         run: sha256sum build/kolibri.iso > build/kolibri.iso.sha256
       - name: Установка cosign
@@ -81,7 +85,7 @@ jobs:
         with:
           version: latest
       - name: Сборка kolibri.wasm
-        run: ./scripts/build_wasm.sh
+        run: ./scripts/build/build_wasm.sh
       - name: Подготовка wasm для предпросмотра фронтенда
         run: |
           mkdir -p preview-artifacts
@@ -144,7 +148,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
       - name: Сборка wasm (предварительно)
-        run: ./scripts/build_wasm.sh
+        run: ./scripts/build/build_wasm.sh
       - name: Установка зависимостей npm
         run: npm ci
         working-directory: frontend
@@ -225,8 +229,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y cmake nasm grub-pc-bin xorriso gcc-multilib
-      - name: Execute scripts/run_all.sh
-        run: ./scripts/run_all.sh --skip-cluster
+      - name: Execute scripts/ops/run_all.sh
+        run: ./scripts/ops/run_all.sh --skip-cluster
 
   release-bundle:
     name: Assemble release bundle

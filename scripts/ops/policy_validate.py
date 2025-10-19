@@ -1,8 +1,19 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""Проверка блока политики в AGENTS.md."""
+"""Validate the AGENTS.md Kolibri policy block."""
+
+from __future__ import annotations
+
+import argparse
+import logging
 import re
+import sys
 from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.utils import bootstrap_parser  # noqa: E402
 
 RE_BLOCK = re.compile(r"```kolibri-policy\n(.*?)\n```", re.DOTALL | re.MULTILINE)
 REQUIRED_TOP = {"build", "code", "docs"}
@@ -32,7 +43,13 @@ def proverit_shablon(obrazec: str, tekst: str, soobshchenie: str) -> None:
 
 def main() -> None:
     """Запускает проверку всех обязательных ключей политики."""
+    parser = argparse.ArgumentParser(prog="policy-validate")
+    bootstrap_parser(parser)
+
     agent = Path("AGENTS.md")
+    if not agent.exists():
+        raise SystemExit("Файл AGENTS.md не найден в корне репозитория.")
+
     blok = zagruzit_blok(agent)
 
     for klyuch in REQUIRED_TOP:
@@ -58,7 +75,7 @@ def main() -> None:
             f"Бюджет {klyuch} должен быть задан целым числом.",
         )
 
-    print("policy: OK")
+    logging.info("policy: OK")
 
 
 if __name__ == "__main__":

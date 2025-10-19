@@ -12,7 +12,7 @@ COPY backend backend
 COPY scripts scripts
 COPY CMakeLists.txt ./
 
-RUN ./scripts/build_wasm.sh
+RUN ./scripts/build/build_wasm.sh
 
 WORKDIR /app/frontend
 RUN npm run build

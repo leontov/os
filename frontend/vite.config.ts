@@ -71,7 +71,7 @@ function copyKolibriWasm(): Plugin {
   const wasmSource = resolve(projectRoot, "build/wasm/kolibri.wasm");
   const wasmInfoSource = resolve(projectRoot, "build/wasm/kolibri.wasm.txt");
   const wasmReportSource = resolve(projectRoot, "build/wasm/kolibri.wasm.report.json");
-  const wasmBuilder = resolve(projectRoot, "scripts/build_wasm.sh");
+  const wasmBuilder = resolve(projectRoot, "scripts/build/build_wasm.sh");
 
   let wasmBuffer: Buffer | null = null;
   let wasmInfoBuffer: Buffer | null = null;
@@ -173,7 +173,7 @@ function copyKolibriWasm(): Plugin {
         if (!shouldAttemptAutoBuild) {
           const messageParts = [
             `[copy-kolibri-wasm] Не найден ${wasmSource}.`,
-            "Запустите scripts/build_wasm.sh вручную.",
+            "Запустите scripts/build/build_wasm.sh вручную.",
           ];
 
           if (accessError instanceof Error && accessError.message) {
@@ -192,7 +192,7 @@ function copyKolibriWasm(): Plugin {
         } catch (buildError) {
           const messageParts = [
             `[copy-kolibri-wasm] Не удалось автоматически собрать kolibri.wasm через ${wasmBuilder}.`,
-            "Запустите scripts/build_wasm.sh вручную или установите Emscripten.",
+            "Запустите scripts/build/build_wasm.sh вручную или установите Emscripten.",
             "Чтобы отключить автосборку, задайте KOLIBRI_SKIP_WASM_AUTOBUILD=1.",
           ];
 
@@ -209,7 +209,7 @@ function copyKolibriWasm(): Plugin {
       } catch (postBuildError) {
         const messageParts = [
           `[copy-kolibri-wasm] kolibri.wasm не появился по пути ${wasmSource} после сборки.`,
-          "Проверьте вывод scripts/build_wasm.sh.",
+          "Проверьте вывод scripts/build/build_wasm.sh.",
         ];
 
         if (postBuildError instanceof Error && postBuildError.message) {
@@ -240,7 +240,7 @@ function copyKolibriWasm(): Plugin {
         const reportReason = await readReportReason();
         const suffix = reportReason ? ` Причина: ${reportReason}.` : "";
         throw new Error(
-          `kolibri.wasm собран как заглушка. Установите Emscripten или Docker и пересоберите scripts/build_wasm.sh.${suffix}`,
+          `kolibri.wasm собран как заглушка. Установите Emscripten или Docker и пересоберите scripts/build/build_wasm.sh.${suffix}`,
         );
       }
 
@@ -286,7 +286,7 @@ function copyKolibriWasm(): Plugin {
           skippedForServe = true;
           console.warn(`[copy-kolibri-wasm] kolibri.wasm недоступен: ${reason}`);
           console.warn(
-            "[copy-kolibri-wasm] Фронтенд запущен в деградированном режиме без WebAssembly. Запустите scripts/build_wasm.sh, чтобы восстановить полноценную функциональность.",
+            "[copy-kolibri-wasm] Фронтенд запущен в деградированном режиме без WebAssembly. Запустите scripts/build/build_wasm.sh, чтобы восстановить полноценную функциональность.",
           );
         }
         return false;

@@ -47,7 +47,7 @@
 
 - No plaintext secrets in repo. Use `.env.example` templates referencing external
   secret managers (Vault, AWS Secrets Manager, GCP Secret Manager).
-- CI integrates secret scanning (`scripts/policy_validate.py` + gitleaks).
+- CI integrates secret scanning (`scripts/ops/policy_validate.py` + gitleaks).
 - Production secrets stored in HSM-backed vault; access logged and rotated at
   least every 90 days.
 

@@ -1,30 +1,50 @@
 SHELL := /bin/bash
+PYTHON ?= python3
+VENV ?= .venv
+VENV_BIN := $(VENV)/bin
+BUILD_DIR ?= build
+BUILD_TYPE ?= Release
 
-.PHONY: build test wasm frontend iso ci clean
+.PHONY: python-env build-core build-wasm build-frontend pipeline lint test wasm frontend ci clean
 
-build:
-	cmake -S . -B build -G Ninja
-	cmake --build build
+python-env:
+	$(PYTHON) -m venv $(VENV)
+	$(VENV_BIN)/pip install --upgrade pip
+	$(VENV_BIN)/pip install -r requirements.txt
 
-test: build
-	ctest --test-dir build
-	pytest -q
-	ruff check .
-	pyright
-	npm run test --prefix frontend -- --runInBand
+build-core:
+	cmake -S . -B $(BUILD_DIR) -DCMAKE_BUILD_TYPE=$(BUILD_TYPE)
+	cmake --build $(BUILD_DIR)
 
-wasm:
-	./scripts/build_wasm.sh
+build-wasm: build-core
+	./scripts/build/build_wasm.sh
 
-frontend: wasm
+build-frontend: build-wasm
 	npm install --prefix frontend
 	npm run build --prefix frontend
 
-iso:
-	./scripts/build_iso.sh
+pipeline: python-env build-core build-wasm build-frontend
 
-ci: build test frontend iso
-	./scripts/policy_validate.py
+lint: python-env
+	$(VENV_BIN)/ruff check .
+	$(VENV_BIN)/pyright
+
+test: build-core
+	ctest --test-dir $(BUILD_DIR)
+	$(VENV_BIN)/pytest -q
+	npm run test --prefix frontend -- --runInBand
+
+wasm:
+	./scripts/build/build_wasm.sh
+
+frontend: build-wasm
+	npm install --prefix frontend
+	npm run build --prefix frontend
+
+ci: pipeline lint test
+	./scripts/build/build_iso.sh
+	./scripts/build/generate_sbom.py
+	./scripts/ops/policy_validate.py
 
 clean:
-	rm -rf build frontend/dist frontend/node_modules
+	rm -rf $(BUILD_DIR) $(VENV) frontend/dist frontend/node_modules build/wasm

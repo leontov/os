@@ -110,24 +110,24 @@ Run `make`, `make test`, and `./kolibri.sh up` after source changes. Use `cmake 
 - GitHub Actions запускает ступени:
   - `python-quality`: `ruff`, `pyright`, `pytest`.
   - `core-build`: CMake/ctest, сборка ISO и подпись cosign.
-  - `wasm-build`: `scripts/build_wasm.sh`, SHA256 и подпись wasm-модуля.
+  - `wasm-build`: `scripts/build/build_wasm.sh`, SHA256 и подпись wasm-модуля.
   - `frontend-build`: `npm ci`, `npm run build`, `vitest --runInBand`, упаковка `dist/`.
   - `docker-smoke`: `docker build` backend/indexer/frontend и smоke-тест `scripts/deploy_linux.sh --skip-pull`.
   - `release-bundle`: генерация `release-manifest.json` и выгрузка подписанных артефактов.
 - Артефакты и подписи публикуются как release artifacts (ISO, wasm, фронтенд `dist/`, Docker-образы).
 - Проверка подписей выполняется `cosign verify-blob` на скачанных бинарниках.
-- Автоматически генерируйте changelog-выдержку (`scripts/run_all.sh changelog`) и приложите к релизу.
+- Автоматически генерируйте changelog-выдержку (`scripts/ops/run_all.sh changelog`) и приложите к релизу.
 
 ### Manual Validation / Ручная проверка / 手动验证
 1. `make`, `make test`, `./kolibri.sh up` без ошибок на локальном окружении.
 2. `clang-tidy backend/src/*.c apps/kolibri_node.c -- -Ibackend/include`.
 3. `npm run preview --prefix frontend` и ручная проверка UI против контрольного сценария.
-4. Проверка отсутствия секретов и бинарных артефактов в репозитории (`scripts/policy_validate.py`).
+4. Проверка отсутствия секретов и бинарных артефактов в репозитории (`scripts/ops/policy_validate.py`).
 5. Обновите `CHANGELOG.md`, `docs/public_interfaces.md` (если требуется) и `README.md`.
 
 ### Release Publishing / Публикация / 发布
 - Используйте артефакт GitHub Actions `kolibri-release-bundle`
-- Workflow `run-all` выполняет `scripts/run_all.sh --skip-cluster` в CI для smoke-проверки., который содержит `release-manifest.json`, контрольные суммы и подписи. При необходимости синхронизируйте содержимое в `deploy/release-manifests/<version>/`.
+- Workflow `run-all` выполняет `scripts/ops/run_all.sh --skip-cluster` в CI для smoke-проверки., который содержит `release-manifest.json`, контрольные суммы и подписи. При необходимости синхронизируйте содержимое в `deploy/release-manifests/<version>/`.
 - Создайте PR с описанием изменений, ссылками на тикеты и чек-листом релиза.
 - После merge создайте Git tag `vMAJOR.MINOR.PATCH`, прикрепите артефакты и changelog.
 - Распространите уведомление команде поддержки и обновите внутренние трекеры.
@@ -136,9 +136,9 @@ Run `make`, `make test`, and `./kolibri.sh up` after source changes. Use `cmake 
 
 ## 9. Knowledge Pipeline / Конвейер знаний / 知识管线
 
-- **RU:** Для построения актуального снапшота знаний выполните `./scripts/knowledge_pipeline.sh docs data`. Артефакты появятся в `build/knowledge/index.json` и `build/knowledge/manifest.json`.
-- **EN:** Generate a fresh knowledge snapshot with `./scripts/knowledge_pipeline.sh docs data`. The tool writes `build/knowledge/index.json` and `build/knowledge/manifest.json`.
-- **ZH:** 运行 `./scripts/knowledge_pipeline.sh docs data` 可生成最新知识快照，结果保存在 `build/knowledge/index.json` 与 `build/knowledge/manifest.json`。
+- **RU:** Для построения актуального снапшота знаний выполните `./scripts/ops/knowledge_pipeline.sh docs data`. Артефакты появятся в `build/knowledge/index.json` и `build/knowledge/manifest.json`.
+- **EN:** Generate a fresh knowledge snapshot with `./scripts/ops/knowledge_pipeline.sh docs data`. The tool writes `build/knowledge/index.json` and `build/knowledge/manifest.json`.
+- **ZH:** 运行 `./scripts/ops/knowledge_pipeline.sh docs data` 可生成最新知识快照，结果保存在 `build/knowledge/index.json` 与 `build/knowledge/manifest.json`。
 
 - **RU:** Предварительная модерация новых материалов: используйте `./build/kolibri_queue enqueue --db build/knowledge/queue.db --title ... --content ...` для добавления заявок, `list` для просмотра и `moderate` для утверждения или отклонения. Одобренные записи автоматически попадают в снапшот.
 - **EN:** For moderation, run `./build/kolibri_queue enqueue --db build/knowledge/queue.db --title ... --content ...`, then `list` and `moderate` to approve/reject entries. Approved submissions are exported into the snapshot automatically.

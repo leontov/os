@@ -18,7 +18,7 @@ docker build -f frontend/Dockerfile -t ghcr.io/kolibri/kolibri-frontend:dev .
 ## ISO Images / ISO-образы / ISO 镜像
 
 - Supported architectures: x86 (i686), tested on QEMU and VirtualBox.
-- Build with `make iso` or `./scripts/build_iso.sh`.
+- Build with `make iso` or `./scripts/build/build_iso.sh`.
 - CI publishes `build/kolibri.iso` alongside checksums in `deploy/release-manifests/`.
 - Kernel-only artefact `build/kolibri.bin` is available when `--kernel-only` flag is used.
 - GitHub Actions job `release-bundle` generates signed manifests (`kolibri-release-bundle` artifact) and updates `deploy/release-manifests/`.

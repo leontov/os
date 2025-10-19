@@ -83,21 +83,21 @@ ctest --test-dir "$postroika" --output-on-failure
 
 if [ "$propustit_wasm" -eq 0 ]; then
     zapisat_shag "Сборка kolibri.wasm"
-    "$kornevaya/scripts/build_wasm.sh"
+    "$kornevaya/scripts/build/build_wasm.sh"
 else
     zapisat_shag "Пропускаем сборку kolibri.wasm по требованию"
 fi
 
 if [ "$propustit_iso" -eq 0 ]; then
     zapisat_shag "Сборка загрузочного образа kolibri.iso"
-    "$kornevaya/scripts/build_iso.sh"
+    "$kornevaya/scripts/build/build_iso.sh"
 else
     zapisat_shag "Пропускаем сборку kolibri.iso по требованию"
 fi
 
 if [ "$propustit_klaster" -eq 0 ]; then
     zapisat_shag "Запуск локального роя на $uzly узлах"
-    "$kornevaya/scripts/run_cluster.sh" -n "$uzly" -d "$prodolzhitelnost"
+    "$kornevaya/scripts/ops/run_cluster.sh" -n "$uzly" -d "$prodolzhitelnost"
 else
     zapisat_shag "Пропускаем запуск кластера по требованию"
 fi

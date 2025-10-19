@@ -10,9 +10,16 @@ so that a compatible Hugging Face Transformers model can be instantiated.
 import argparse
 import json
 import logging
+import sys
 import math
 from dataclasses import dataclass
 from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.utils import bootstrap_parser
 from typing import Dict, Iterable, List, Optional
 
 import torch
@@ -230,7 +237,7 @@ def parse_args() -> argparse.Namespace:
         default="cuda" if torch.cuda.is_available() else "cpu",
         help="Device to run training on (e.g., 'cuda' or 'cpu')",
     )
-    return parser.parse_args()
+    return bootstrap_parser(parser)
 
 
 def load_label_mapping(path: Optional[Path]) -> Optional[Dict[str, int]]:
@@ -242,7 +249,6 @@ def load_label_mapping(path: Optional[Path]) -> Optional[Dict[str, int]]:
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
     args = parse_args()
 
     torch.manual_seed(args.seed)

@@ -71,9 +71,9 @@ ensure_frontend_wasm() {
     if [ -f "$wasm_path" ]; then
         return
     fi
-    echo "[Kolibri] kolibri.wasm не найден, запускаю scripts/build_wasm.sh"
+    echo "[Kolibri] kolibri.wasm не найден, запускаю scripts/build/build_wasm.sh"
     set +e
-    "$root_dir/scripts/build_wasm.sh"
+    "$root_dir/scripts/build/build_wasm.sh"
     local status=$?
     set -e
     if [ "$status" -eq 0 ]; then
@@ -99,7 +99,7 @@ build_frontend() {
     local wasm_info="$build_dir/wasm/kolibri.wasm.txt"
     if [ -f "$wasm_info" ] && grep -qi 'kolibri\.wasm: заглушка' "$wasm_info"; then
         echo "[Kolibri] kolibri.wasm собран как заглушка — включаю деградированный режим фронтенда."
-        echo "[Kolibri] Установите Emscripten или Docker и пересоберите scripts/build_wasm.sh для полноценного режима."
+        echo "[Kolibri] Установите Emscripten или Docker и пересоберите scripts/build/build_wasm.sh для полноценного режима."
         KOLIBRI_ALLOW_WASM_STUB=1 npm --prefix "$frontend_dir" run build
         return
     fi
@@ -113,7 +113,7 @@ case "${1:-}" in
         zapustit_testy
         build_frontend
         echo "[Kolibri] запускаю локальный рой Kolibri (Ctrl+C для остановки)"
-        KOLIBRI_CLUSTER_SKIP_BUILD=1 exec "$root_dir/scripts/run_cluster.sh" -d 0
+        KOLIBRI_CLUSTER_SKIP_BUILD=1 exec "$root_dir/scripts/ops/run_cluster.sh" -d 0
         ;;
     node)
         cmake -S "$root_dir" -B "$build_dir" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON

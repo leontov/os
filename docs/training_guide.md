@@ -2,7 +2,7 @@
 
 Этот документ описывает минимальные шаги по подготовке текстового датасета для
 обучения модели классификации и запуску процесса обучения с помощью
-`scripts/train_model.py`.
+`scripts/experiments/train_model.py`.
 
 ## Подготовка датасета
 
@@ -71,7 +71,7 @@
 2. Запустите обучение, указав пути к файлам данных и конфигурации:
 
    ```bash
-   python scripts/train_model.py \
+   python scripts/experiments/train_model.py \
      --train-file /path/to/train.jsonl \
      --validation-file /path/to/validation.jsonl \
      --config /path/to/config.json \

@@ -99,7 +99,7 @@ else
 fi
 
 # Запускаем основной конвейер сборки/тестов/артефактов.
-"$kornevaya/scripts/run_all.sh" "${run_all_opts[@]}"
+"$kornevaya/scripts/ops/run_all.sh" "${run_all_opts[@]}"
 
 artifacts=()
 if [ "$propustit_iso" -eq 0 ]; then
@@ -120,7 +120,7 @@ if [ "$propustit_wasm" -eq 0 ]; then
     artifacts+=("$wasm_path" "$postroika/wasm/kolibri.wasm.sha256")
 fi
 
-"$kornevaya/scripts/build_iso.sh" --kernel-only
+"$kornevaya/scripts/build/build_iso.sh" --kernel-only
 
 kernel_bin="$postroika/kolibri.bin"
 if [ ! -f "$kernel_bin" ]; then

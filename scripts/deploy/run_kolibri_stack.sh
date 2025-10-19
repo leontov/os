@@ -75,7 +75,7 @@ echo "[kolibri-stack] Собираю C-компоненты"
 cmake --build "$ROOT_DIR/build"
 
 echo "[kolibri-stack] Собираю kolibri.wasm"
-"$ROOT_DIR/scripts/build_wasm.sh"
+"$ROOT_DIR/scripts/build/build_wasm.sh"
 
 start_knowledge_server
 

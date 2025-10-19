@@ -12,11 +12,19 @@ feedback, чтобы база знаний пополнялась сама.
 from __future__ import annotations
 
 import argparse
+import logging
+from pathlib import Path
 import json
 import sys
 import urllib.parse
 import urllib.request
 from typing import Any, Dict
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.utils import bootstrap_parser
 
 
 _TORCH_CACHE: Dict[str, Dict[str, Any]] = {}
@@ -180,14 +188,14 @@ def main(argv: list[str]) -> int:
         default="http://127.0.0.1:8000",
         help="Базовый URL Kolibri knowledge service",
     )
-    args = parser.parse_args(argv)
+    args = bootstrap_parser(parser, argv=argv)
 
     question = args.question.strip()
     if not question:
-        print("Empty question is not allowed", file=sys.stderr)
+        logging.error("Empty question is not allowed")
         return 1
 
-    print(f"[kolibri-llm-teacher] Asking LLM ({args.backend}:{args.llm_model})...", file=sys.stderr)
+    logging.info("Asking LLM (%s:%s)...", args.backend, args.llm_model)
     try:
         if args.backend == "http":
             answer = call_llm_http(args.llm_url, args.llm_model, question, args.temperature, args.system_prompt)
@@ -201,24 +209,24 @@ def main(argv: list[str]) -> int:
                 args.system_prompt,
             )
     except TorchModelNameError as exc:
-        print(f"[kolibri-llm-teacher] {exc}", file=sys.stderr)
+        logging.error("%s", exc)
         return 1
     except Exception as exc:  # noqa: BLE001
-        print(f"[kolibri-llm-teacher] LLM request failed: {exc}", file=sys.stderr)
+        logging.error("LLM request failed: %s", exc)
         return 1
 
     if not answer:
-        print("[kolibri-llm-teacher] LLM returned empty answer", file=sys.stderr)
+        logging.error("LLM returned empty answer")
         return 1
 
-    print(f"[kolibri-llm-teacher] Teaching Kolibri: {answer}", file=sys.stderr)
+    logging.info("Teaching Kolibri: %s", answer)
     try:
         teach_answer(args.kolibri_url, question, answer)
     except Exception as exc:  # noqa: BLE001
-        print(f"[kolibri-llm-teacher] Failed to send teach/feedback: {exc}", file=sys.stderr)
+        logging.error("Failed to send teach/feedback: %s", exc)
         return 1
 
-    print("[kolibri-llm-teacher] Teach + feedback completed", file=sys.stderr)
+    logging.info("Teach + feedback completed")
     return 0
 
 

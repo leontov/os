@@ -127,11 +127,11 @@ curl http://kolibri-backend:8000/metrics
    cosign verify-blob --signature kolibri.wasm.sig kolibri.wasm
    ```
 3. Остановить узлы по одному, применить обновление, убедиться, что swarm re-join успешен.
-4. Запустить smoke-плейбук `scripts/run_all.sh --skip-cluster`.
+4. Запустить smoke-плейбук `scripts/ops/run_all.sh --skip-cluster`.
 
 ## 8. Резервное копирование
 - Геном: `kolibri_node --export-genome path`.
-- Knowledge snapshot: `scripts/knowledge_pipeline.sh docs data`.
+- Knowledge snapshot: `scripts/ops/knowledge_pipeline.sh docs data`.
 - Конфигурация: `kubectl get secret kolibri-config -o yaml`.
 
 ## 9. Безопасность
@@ -142,14 +142,14 @@ curl http://kolibri-backend:8000/metrics
 ## 10. Troubleshooting
 - Журналы: `logs/kolibri.jsonl`, `build/cluster/node_*.log`.
 - Проверка состояния swarm: `kolibri_node --peer-status`.
-- Скрипт диагностики: `scripts/run_kolibri_stack.sh --smoke`.
+- Скрипт диагностики: `scripts/deploy/run_kolibri_stack.sh --smoke`.
 - Мониторинг: см. `docs/monitoring_setup.md` и примеры в `deploy/monitoring/`.
 - Live loop: архитектура и шаги описаны в `docs/live_learning.md`.
 
 ## 11. Automated Training
-- Скрипт `scripts/auto_train.sh` запускает конвейер знаний, генерирует KolibriScript bootstrap и выполняет пакетное обучение узла.
+- Скрипт `scripts/experiments/auto_train.sh` запускает конвейер знаний, генерирует KolibriScript bootstrap и выполняет пакетное обучение узла.
   ```bash
-  scripts/auto_train.sh --ticks 256 docs data
+  scripts/experiments/auto_train.sh --ticks 256 docs data
   ```
 - Результаты: обновлённый геном (`build/training/auto_genome.dat`) и проверка здоровья `kolibri_node --health`.
 - Параметры: `--seed`, `--genome`, `--bootstrap`, `--skip-build`, дополнительные корни для `knowledge_pipeline`.

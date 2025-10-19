@@ -456,54 +456,6 @@ static double clamp_score(double value) {
     if (value < 0.0) {
         return 0.0;
     }
-        return 0.0;
-    }
-    int seen[10] = {0};
-    size_t unique = 0U;
-    for (size_t i = 0; i < gene->length; ++i) {
-        uint8_t digit = gene->digits[i] % 10U;
-        if (!seen[digit]) {
-            seen[digit] = 1;
-            unique += 1U;
-        }
-    }
-    return (double)unique / 10.0;
-}
-
-static double compute_gene_phase(const KolibriGene *gene) {
-    if (!gene) {
-        return 0.0;
-    }
-    uint32_t hash = 2166136261u;
-    for (size_t i = 0; i < gene->length; ++i) {
-        hash ^= (uint32_t)(gene->digits[i] + 1U);
-        hash *= 16777619u;
-    }
-    double angle_deg = (double)(hash % 360U);
-    return angle_deg * 0.017453292519943295; /* pi / 180 */
-}
-
-static double topo_coherence(const KolibriGene *lhs, const KolibriGene *rhs) {
-    if (!lhs || !rhs || lhs->length == 0 || rhs->length == 0) {
-        return 0.0;
-    }
-    size_t limit = lhs->length < rhs->length ? lhs->length : rhs->length;
-    if (limit == 0) {
-        return 0.0;
-    }
-    size_t matches = 0U;
-    for (size_t i = 0; i < limit; ++i) {
-        if (lhs->digits[i] == rhs->digits[i]) {
-            matches += 1U;
-        }
-    }
-    return (double)matches / (double)limit;
-}
-
-static double clamp_score(double value) {
-    if (value < 0.0) {
-        return 0.0;
-    }
     if (value > 1.0) {
         return 1.0;
     }
@@ -889,9 +841,6 @@ void kf_pool_tick(KolibriFormulaPool *pool, size_t generations) {
             KolibriBeamLane lanes[KOLIBRI_BEAM_MAX_LANES];
             size_t lane_count = 0U;
             while (lane_count < KOLIBRI_BEAM_MAX_LANES && index < pool->count) {
-            KolibriBeamLane lanes[4];
-            size_t lane_count = 0U;
-            while (lane_count < 4U && index < pool->count) {
                 lanes[lane_count].formula = &pool->formulas[index];
                 lanes[lane_count].score = 0.0;
                 lanes[lane_count].evaluation.base_score = 0.0;
@@ -910,9 +859,6 @@ void kf_pool_tick(KolibriFormulaPool *pool, size_t generations) {
         KolibriBeamLane lanes[KOLIBRI_BEAM_MAX_LANES];
         size_t lane_count = 0U;
         while (lane_count < KOLIBRI_BEAM_MAX_LANES && index < pool->count) {
-        KolibriBeamLane lanes[4];
-        size_t lane_count = 0U;
-        while (lane_count < 4U && index < pool->count) {
             lanes[lane_count].formula = &pool->formulas[index];
             lanes[lane_count].score = 0.0;
             lanes[lane_count].evaluation.base_score = 0.0;
@@ -944,8 +890,6 @@ void kf_pool_tick(KolibriFormulaPool *pool, size_t generations) {
     }
     KOLIBRI_ATOMIC_ADD_U64(&pool->profile.generation_steps, generations);
     KOLIBRI_ATOMIC_ADD_U64(&pool->profile.evaluation_calls, evaluations);
-    pool->profile.generation_steps += generations;
-    pool->profile.evaluation_calls += evaluations;
 }
 
 const KolibriFormula *kf_pool_best(const KolibriFormulaPool *pool) {

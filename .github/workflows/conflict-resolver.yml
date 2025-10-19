@@ -35,11 +35,11 @@ jobs:
       - name: Run conflict resolver
         id: run_conflict_resolver
         run: |
-          python scripts/resolve_conflicts.py --report conflict-report.json
+          python scripts/ops/resolve_conflicts.py --report conflict-report.json
       - name: Run bootstrap checks
         id: bootstrap
         run: |
-          bash scripts/ci_bootstrap.sh
+          bash scripts/build/ci_bootstrap.sh
           pyright
           ruff check .
           pytest -q

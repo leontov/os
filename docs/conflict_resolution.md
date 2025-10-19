@@ -5,9 +5,9 @@
 ### Назначение
 Этот документ описывает проверенную последовательность действий для устранения конфликтов при обновлении ветки `work`/`main` и подготовки безупречных коммитов для экосистемы «Колибри».
 
-### Быстрый путь с `scripts/resolve_conflicts.py`
+### Быстрый путь с `scripts/ops/resolve_conflicts.py`
 1. Обновите ссылки на удалённые ветки: `git fetch --all --prune`.
-2. Запустите автоматизированный скрипт: `python scripts/resolve_conflicts.py --base origin/main --head work`.
+2. Запустите автоматизированный скрипт: `python scripts/ops/resolve_conflicts.py --base origin/main --head work`.
 3. Изучите сгенерированный JSON-отчёт в `build/conflict-report.json`, убедитесь, что все файлы промаркированы как `resolved`.
    > Примечание. Скрипт читает глобы `files/prefer_ours` и `files/prefer_theirs` из `AGENTS.md`: для совпадающих путей блок `ours` или `theirs` выбирается автоматически. Если соответствий нет, сохраняются обе версии, как и раньше. Решения по каждому конфликту попадают в лог (`resolve_conflicts`) и в отчёт через поле `strategy` (`ours`, `theirs`, `both`). При отсутствии перевода строки в одном из блоков добавляется только разделительный `\n`, чтобы не изменять конец файла лишний раз.
 4. Выполните `make`, `make test`, `./kolibri.sh up` для проверки целостности и работоспособности.
@@ -33,9 +33,9 @@
 ### Purpose
 This guide captures the recommended sequence for resolving merge conflicts while keeping the Kolibri repository pristine.
 
-### Fast path with `scripts/resolve_conflicts.py`
+### Fast path with `scripts/ops/resolve_conflicts.py`
 1. Refresh remotes: `git fetch --all --prune`.
-2. Run the helper: `python scripts/resolve_conflicts.py --base origin/main --head work`.
+2. Run the helper: `python scripts/ops/resolve_conflicts.py --base origin/main --head work`.
 3. Inspect the generated report `build/conflict-report.json` and verify that every entry is marked `resolved`.
    > Note. The resolver reads the `files/prefer_ours` and `files/prefer_theirs` globs from `AGENTS.md` and automatically keeps the matching `ours` or `theirs` side. Unmatched files retain both versions, preserving the previous behaviour. Each decision is logged via the `resolve_conflicts` logger and stored in the report as `strategy` (`ours`, `theirs`, `both`). When a conflict chunk lacks a trailing newline, only a separator `\n` is added to avoid rewriting the file tail.
 4. Execute `make`, `make test`, and `./kolibri.sh up` to validate the fix.
@@ -61,9 +61,9 @@ This guide captures the recommended sequence for resolving merge conflicts while
 ### 目的
 本文档记录了在保持 Kolibri 仓库整洁的前提下解决合并冲突的推荐步骤。
 
-### 使用 `scripts/resolve_conflicts.py` 的快速流程
+### 使用 `scripts/ops/resolve_conflicts.py` 的快速流程
 1. 刷新远端：`git fetch --all --prune`。
-2. 运行辅助脚本：`python scripts/resolve_conflicts.py --base origin/main --head work`。
+2. 运行辅助脚本：`python scripts/ops/resolve_conflicts.py --base origin/main --head work`。
 3. 查看 `build/conflict-report.json`，确认所有条目标记为 `resolved`。
    > 注意：脚本会读取 `AGENTS.md` 中 `files/prefer_ours` / `files/prefer_theirs` 的路径模式，对匹配的文件自动保留 `ours` 或 `theirs` 版本；未命中的文件仍会像之前一样保留双方内容。每个冲突的选择会写入 `resolve_conflicts` 日志，并通过 `strategy` 字段（`ours`、`theirs`、`both`）体现在报告里。若冲突块缺少结尾换行，工具只会在必要时补充分隔 `\n`，避免无谓地改写文件尾部。
 4. 依次执行 `make`、`make test`、`./kolibri.sh up` 验证修复结果。

@@ -10,9 +10,9 @@
 
 ### Основные изменения
 
-- Добавлена автоматическая сборка загрузочного образа Kolibri OS через `scripts/build_iso.sh` с поддержкой
+- Добавлена автоматическая сборка загрузочного образа Kolibri OS через `scripts/build/build_iso.sh` с поддержкой
   fallback на системные инструменты (`gcc -m32`, `ld`).
-- Введён скрипт `scripts/build_wasm.sh`, собирающий вычислительное ядро Kolibri в `build/wasm/kolibri.wasm`
+- Введён скрипт `scripts/build/build_wasm.sh`, собирающий вычислительное ядро Kolibri в `build/wasm/kolibri.wasm`
   и контролирующий бюджет размера < 1 МБ.
 - Обновлены `Makefile` и документация: цель `make check` выполняет `ctest`, сборку ISO и wasm одним вызовом.
 - README и Руководство разработчика дополнены инструкциями по установке зависимостей, проверке артефактов и
@@ -23,7 +23,7 @@
 
 | Артефакт | Путь | Примечание |
 |----------|------|------------|
-| kolibri.iso | `build/kolibri.iso` | Создаётся `scripts/build_iso.sh`, готов к запуску в QEMU/GRUB |
+| kolibri.iso | `build/kolibri.iso` | Создаётся `scripts/build/build_iso.sh`, готов к запуску в QEMU/GRUB |
 | kolibri.wasm | `build/wasm/kolibri.wasm` | Размер < 1 МБ, включает десятичное ядро и эволюцию формул |
 | SHA256 | `build/wasm/kolibri.wasm.sha256` | Контрольная сумма wasm-модуля |
 | CI лог | GitHub Actions → `Kolibri CI` | Хранит результаты тестов и сборки |
@@ -32,7 +32,7 @@
 
 1. `make check` — юнит-тесты, ISO, wasm.
 2. `./kolibri.sh up` — ручной прогон одиночного узла.
-3. `./scripts/run_cluster.sh` — смоук роя (опционально).
+3. `./scripts/ops/run_cluster.sh` — смоук роя (опционально).
 4. `qemu-system-i386 -cdrom build/kolibri.iso` — загрузка микроядра.
 5. Публикация `build/wasm/kolibri.wasm` на PWA-хостинге (например, GitHub Pages).
 

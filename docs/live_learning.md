@@ -19,8 +19,8 @@
    - Следом вызывается `kolibri_queue enqueue --status approved` → попадание в pipeline.
 
 4. **Assimilation**
-   - Nightly job: `scripts/knowledge_pipeline.sh` переиндексирует approved знания.
-   - `scripts/auto_train.sh` прогоняет узел (ticks configurable) → обновлённый геном.
+   - Nightly job: `scripts/ops/knowledge_pipeline.sh` переиндексирует approved знания.
+   - `scripts/experiments/auto_train.sh` прогоняет узел (ticks configurable) → обновлённый геном.
    - Health-check и метрики отражают новые знания.
 
 5. **Feedback**
@@ -30,7 +30,7 @@
 ## 3. Компоненты реализации
 - `scripts/live_ingest.py` — фоновые сенсоры + черновик KolibriScript.
 - Расширение фронтенда: вкладка «Live Queue», кнопки approve/reject/edit.
-- Дополнение `scripts/auto_train.sh`: поддержка `--roots` для approved live данных.
+- Дополнение `scripts/experiments/auto_train.sh`: поддержка `--roots` для approved live данных.
 - Prometheus: наблюдение за live-очередью, скоростью апрува.
 
 ## 4. Ближайшие задачи

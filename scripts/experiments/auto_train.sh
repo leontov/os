@@ -76,7 +76,7 @@ if [[ "$skip_build" -ne 1 ]]; then
 fi
 
 echo "[auto-train] Building knowledge index from roots: ${roots[*]}"
-"$project_root/scripts/knowledge_pipeline.sh" "${roots[@]}"
+"$project_root/scripts/ops/knowledge_pipeline.sh" "${roots[@]}"
 
 index_json="$build_dir/knowledge/index.json"
 if [[ ! -f "$index_json" ]]; then

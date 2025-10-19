@@ -1,19 +1,24 @@
 #!/usr/bin/env python3
-"""CLI-tool that delegates to the C knowledge indexer."""
+"""Kolibri knowledge ingestion helper."""
 
 from __future__ import annotations
 
 import argparse
+import logging
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
-def project_root() -> Path:
-    return Path(__file__).resolve().parents[1]
+from scripts.utils import bootstrap_parser, ensure_project_root  # noqa: E402
 
 
 def run() -> None:
+    """Entry point for the CLI."""
     parser = argparse.ArgumentParser(description="Kolibri knowledge ingestion helper")
     parser.add_argument("query", nargs="?", default="", help="Search query to execute")
     parser.add_argument("--limit", type=int, default=5, help="Number of snippets to return")
@@ -23,10 +28,11 @@ def run() -> None:
         help="Path to write JSON snapshot of the knowledge index",
     )
 
-    args = parser.parse_args()
+    args = bootstrap_parser(parser, commands=["cmake"], modules=["sqlite3"])
 
-    roots = [str(project_root() / "docs"), str(project_root() / "data")]
-    indexer_path = project_root() / "build" / "kolibri_indexer"
+    project_root = ensure_project_root()
+    roots = [str(project_root / "docs"), str(project_root / "data")]
+    indexer_path = project_root / "build" / "kolibri_indexer"
 
     if args.export:
         with tempfile.TemporaryDirectory(prefix="kolibri_index_") as tmpdir:
@@ -37,10 +43,11 @@ def run() -> None:
             payload = Path(tmpdir) / "index.json"
             if payload.exists():
                 args.export.write_text(payload.read_text(encoding="utf-8"), encoding="utf-8")
-                print(f"Exported index snapshot to {args.export}")
+                logging.info("Экспортирован снепшот индекса: %s", args.export)
 
     query = args.query.strip()
     if not query:
+        logging.debug("Пустой запрос — завершаю работу без поиска")
         return
 
     completed = subprocess.run(
@@ -57,12 +64,12 @@ def run() -> None:
         text=True,
     )
     if completed.returncode != 0:
-        print(completed.stderr.strip() or "Поиск не выполнен")
+        logging.error("Поиск не выполнен: %s", completed.stderr.strip())
         return
 
     lines = [line for line in completed.stdout.splitlines() if line.strip()]
     if not lines:
-        print("Знания не найдены.")
+        logging.warning("Знания не найдены")
         return
 
     for line in lines:

@@ -19,7 +19,7 @@
 2. **Архитектура (5 мин)**
    - Диаграмма: KolibriNode, Knowledge Service, Frontend, swarm.
 3. **Live Demo (15 мин)**
-   - Импорт markdown-документа через `scripts/knowledge_pipeline.sh`.
+   - Импорт markdown-документа через `scripts/ops/knowledge_pipeline.sh`.
    - Показ колибри-консоли: запрос → генерация ответа → показ genoma.
    - Swarm-run (2 узла): синхронизация знаний.
    - Observability: метрики в Grafana, audit-лог.
@@ -27,7 +27,7 @@
    - EAP предложение, roadmap, потенциальные KPI.
 
 ## 4. Подготовка окружения
-- Сборка `scripts/run_all.sh --skip-cluster` заранее.
+- Сборка `scripts/ops/run_all.sh --skip-cluster` заранее.
 - Предзаготовить knowledge набор (docs + data).
 - Настроить Prometheus/Grafana dashboard.
 - Подготовить Zoom/Meet + запись.

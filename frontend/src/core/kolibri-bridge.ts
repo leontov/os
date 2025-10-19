@@ -549,7 +549,7 @@ class KolibriFallbackBridge implements KolibriBridge {
     return [
       "KolibriScript недоступен: kolibri.wasm не был загружен.",
       reasonText,
-      "Запустите scripts/build_wasm.sh или установите переменную KOLIBRI_ALLOW_WASM_STUB=1 для деградированного режима.",
+      "Запустите scripts/build/build_wasm.sh или установите переменную KOLIBRI_ALLOW_WASM_STUB=1 для деградированного режима.",
     ].join("\n");
   }
 
@@ -620,7 +620,7 @@ class KolibriLLMBridge implements KolibriBridge {
 
 const createBridge = async (): Promise<KolibriBridge> => {
   if (!WASM_BUNDLE_AVAILABLE) {
-    const fallbackReason = WASM_BUNDLE_ERROR || "kolibri.wasm недоступен. Запустите scripts/build_wasm.sh.";
+    const fallbackReason = WASM_BUNDLE_ERROR || "kolibri.wasm недоступен. Запустите scripts/build/build_wasm.sh.";
     const reason = await describeWasmFailure(new Error(fallbackReason));
     console.warn("[kolibri-bridge] Переход в деградированный режим без WebAssembly.", reason);
     return new KolibriFallbackBridge(reason);

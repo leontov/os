@@ -10,6 +10,11 @@ import logging
 import sys
 from fnmatch import fnmatch
 from pathlib import Path
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.utils import bootstrap_parser
 from typing import (
     Callable,
     Dict,
@@ -318,12 +323,12 @@ def postroit_otchet(root: Path) -> ResolveReport:
 def main(argv: List[str]) -> int:
     parser = argparse.ArgumentParser(description="Автоконфликт Kolibri")
     parser.add_argument("--report", type=Path, default=None, help="путь для JSON-отчёта")
-    args = parser.parse_args(argv)
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+    args = bootstrap_parser(parser, argv=argv)
     koren = Path.cwd()
     otchet = postroit_otchet(koren)
     if args.report:
         args.report.write_text(json.dumps(otchet, ensure_ascii=False, indent=2), encoding="utf-8")
+        logging.info("Отчёт записан в %s", args.report)
     print(json.dumps(otchet, ensure_ascii=False, indent=2))
     return 0
 

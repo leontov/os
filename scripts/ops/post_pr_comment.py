@@ -1,15 +1,23 @@
 #!/usr/bin/env python3
-"""Служебный скрипт для оставления комментариев в PR и отчётов сторожевого воркфлоу."""
+"""Post comments to GitHub pull requests or print watchdog summaries."""
 
 from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import sys
+from pathlib import Path
 from typing import Any, Dict, List
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.utils import bootstrap_parser  # noqa: E402
 
 API_BASE = "https://api.github.com"
 
@@ -24,13 +32,13 @@ def _get_headers(token: str | None) -> Dict[str, str]:
 def otpravit_kommentarij(repo: str, pr: int, tekst: str, token: str | None) -> None:
     """Отправляет комментарий в PR или выводит его в консоль при отсутствии токена."""
     if not token:
-        print("GITHUB_TOKEN не найден, вывод комментария в stdout:")
+        logging.warning("GITHUB_TOKEN не найден — печатаю комментарий в stdout")
         print(tekst)
         return
     url = f"{API_BASE}/repos/{repo}/issues/{pr}/comments"
     zapros = Request(url, data=json.dumps({"body": tekst}).encode("utf-8"), headers=_get_headers(token))
     with urlopen(zapros) as response:
-        print(f"Комментарий опубликован, статус: {response.status}")
+        logging.info("Комментарий опубликован, статус %s", response.status)
 
 
 def poluchit_runs(repo: str, token: str | None, limit: int = 5) -> List[Dict[str, Any]]:
@@ -41,7 +49,7 @@ def poluchit_runs(repo: str, token: str | None, limit: int = 5) -> List[Dict[str
         with urlopen(zapros) as response:
             dannye = json.loads(response.read().decode("utf-8"))
     except HTTPError as oshibka:
-        print(f"Не удалось получить список прогонов: {oshibka}")
+        logging.error("Не удалось получить список прогонов: %s", oshibka)
         return []
     return dannye.get("workflow_runs", [])
 
@@ -65,24 +73,24 @@ def main(argv: List[str]) -> int:
     parser.add_argument("--body", help="текст комментария")
     parser.add_argument("--repository", default=os.environ.get("GITHUB_REPOSITORY", ""))
     parser.add_argument("--watchdog", action="store_true", help="сформировать отчёт без указания PR")
-    args = parser.parse_args(argv)
+    args = bootstrap_parser(parser)
 
     token = os.environ.get("GITHUB_TOKEN")
 
     if args.watchdog:
         if not args.repository:
-            print("Не задано имя репозитория для watchdog-режима", file=sys.stderr)
+            logging.error("Не задано имя репозитория для watchdog-режима")
             return 1
         tekst = sobrat_watchdog_tekst(args.repository, token)
         print(tekst)
         return 0
 
     if not args.pr or not args.body:
-        print("Для публикации комментария требуются --pr и --body", file=sys.stderr)
+        logging.error("Для публикации комментария требуются --pr и --body")
         return 1
 
     if not args.repository:
-        print("Неизвестный репозиторий", file=sys.stderr)
+        logging.error("Неизвестный репозиторий")
         return 1
 
     otpravit_kommentarij(args.repository, args.pr, args.body, token)

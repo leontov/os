@@ -64,8 +64,8 @@ struct KolibriBootConfig {
 
 ## 6. Build & Emulation / Сборка и эмуляция / 构建与仿真
 
-1. Запустите `scripts/package_release.sh` — он выполнит тесты, соберёт ядро (`scripts/build_iso.sh --kernel-only`), запакует загрузчик `boot/kolibri.asm` и положит образ `build/kolibri.img`.
-2. Для ручной отладки ядра достаточно `scripts/build_iso.sh --kernel-only`, затем `nasm -f bin boot/kolibri.asm -o build/kolibri_boot.bin` и `dd` для объединения загрузчика и `build/kolibri.bin`.
+1. Запустите `scripts/build/package_release.sh` — он выполнит тесты, соберёт ядро (`scripts/build/build_iso.sh --kernel-only`), запакует загрузчик `boot/kolibri.asm` и положит образ `build/kolibri.img`.
+2. Для ручной отладки ядра достаточно `scripts/build/build_iso.sh --kernel-only`, затем `nasm -f bin boot/kolibri.asm -o build/kolibri_boot.bin` и `dd` для объединения загрузчика и `build/kolibri.bin`.
 3. Эмулируйте систему: `qemu-system-x86_64 -drive format=raw,file=build/kolibri.img,if=ide`.
 
 ---
@@ -82,7 +82,7 @@ struct KolibriBootConfig {
 
 ## 8. Roadmap / Дорожная карта / 路线图
 
-- [x] Автоматическая упаковка бинарника и загрузчика в `scripts/package_release.sh`.
+- [x] Автоматическая упаковка бинарника и загрузчика в `scripts/build/package_release.sh`.
 - [x] Сетевой драйвер с поддержкой SLIP/UDP для обмена формулами прямо из Kolibri OS.
 - [x] Минимальный файловый слой для хранения `genome.dat` на RAM-диске.
 - [ ] Интеграция с визуальным монитором через последовательный порт.

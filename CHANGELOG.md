@@ -12,6 +12,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Deployment scripts for Linux/macOS/Windows with image override support (`scripts/deploy_*.sh`).
 - Packaging, security, operations, and ops-briefing documentation (`docs/packaging_guide.md`, `docs/security_policy.md`, `docs/service_playbook.md`, `docs/ops_briefing.md`, etc.).
 - Template release manifest for `v0.1.0` and guidance in `deploy/release-manifests/`.
-- Release readiness audit helper (`scripts/release_audit.py`) and guidance in `docs/release_process.md`.
+- Release readiness audit helper (`scripts/ops/release_audit.py`) and guidance in `docs/release_process.md`.
 ### Changed
 - Расширен аудит готовности к релизу: добавлены проверки чистоты Git, наличия свежих архивов, корректная обработка отсутствующих артефактов и поддержка JSON-отчётов.

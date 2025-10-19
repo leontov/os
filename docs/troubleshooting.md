@@ -13,7 +13,7 @@
   **Action:** Confirm backend container is healthy, restart frontend `docker restart kolibri-frontend`.
 
 - **Symptom:** wasm download fails (`kolibri.wasm 404`).  
-  **Action:** Ensure `./scripts/build_wasm.sh` ran during release; redeploy frontend image.
+  **Action:** Ensure `./scripts/build/build_wasm.sh` ran during release; redeploy frontend image.
 
 ## Knowledge Search Issues / Проблемы с поиском знаний
 - **Symptom:** No results for fresh documents.  
