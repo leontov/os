@@ -5,105 +5,74 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: dark;
-  --color-primary: 99 102 241;
-  --color-accent: 56 189 248;
-  --color-background-main: 11 17 32;
-  --color-background-accent: 15 27 51;
-  --color-background-panel: 15 23 42;
-  --color-background-card: 30 41 59;
-  --color-background-input: 15 23 42;
-  --color-border-strong: 148 163 184;
-  --color-text-primary: 226 232 240;
-  --color-text-secondary: 148 163 184;
-  color: rgb(var(--color-text-primary));
-  background-color: rgb(var(--color-background-main));
+  color-scheme: light;
+  --color-brand: 59 130 246;
+  --color-brand-foreground: 255 255 255;
+  --color-app-background: 248 250 252;
+  --color-surface: 255 255 255;
+  --color-surface-muted: 241 245 249;
+  --color-sidebar: 237 242 247;
+  --color-border: 226 232 240;
+  --color-text: 15 23 42;
+  --color-text-muted: 100 116 139;
+  --color-primary: 59 130 246;
+  --color-accent: 14 165 233;
+  --color-background-card: 255 255 255;
+  --color-background-input: 241 245 249;
+  --color-background-panel: 248 250 252;
+  --color-border-strong: 209 213 219;
+  --color-text-primary: 15 23 42;
+  --color-text-secondary: 100 116 139;
+  color: rgb(var(--color-text));
+  background-color: rgb(var(--color-app-background));
   font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
-[data-theme="light"] {
-  color-scheme: light;
-  --color-primary: 79 70 229;
-  --color-accent: 14 165 233;
-  --color-background-main: 245 246 250;
-  --color-background-accent: 231 236 246;
-  --color-background-panel: 255 255 255;
-  --color-background-card: 255 255 255;
-  --color-background-input: 248 250 252;
-  --color-border-strong: 203 213 225;
-  --color-text-primary: 15 23 42;
-  --color-text-secondary: 71 85 105;
-}
-
-@media (prefers-color-scheme: light) {
-  :root {
-    color-scheme: light;
-    --color-primary: 79 70 229;
-    --color-accent: 14 165 233;
-    --color-background-main: 245 246 250;
-    --color-background-accent: 231 236 246;
-    --color-background-panel: 255 255 255;
-    --color-background-card: 255 255 255;
-    --color-background-input: 248 250 252;
-    --color-border-strong: 203 213 225;
-    --color-text-primary: 15 23 42;
-    --color-text-secondary: 71 85 105;
-  }
+[data-theme="dark"] {
+  color-scheme: dark;
+  --color-brand: 96 165 250;
+  --color-brand-foreground: 15 23 42;
+  --color-app-background: 15 23 42;
+  --color-surface: 30 41 59;
+  --color-surface-muted: 21 31 48;
+  --color-sidebar: 17 24 39;
+  --color-border: 71 85 105;
+  --color-text: 226 232 240;
+  --color-text-muted: 148 163 184;
+  --color-primary: 96 165 250;
+  --color-accent: 56 189 248;
+  --color-background-card: 30 41 59;
+  --color-background-input: 21 31 48;
+  --color-background-panel: 30 41 59;
+  --color-border-strong: 94 109 126;
+  --color-text-primary: 226 232 240;
+  --color-text-secondary: 148 163 184;
 }
 
 body {
-  position: relative;
   min-height: 100vh;
-  color: rgb(var(--color-text-primary));
-  background: radial-gradient(circle at 20% 20%, rgba(79, 70, 229, 0.35), transparent 55%),
-    radial-gradient(circle at 80% 10%, rgba(14, 165, 233, 0.2), transparent 55%),
-    linear-gradient(135deg, rgb(var(--color-background-main)), rgb(var(--color-background-accent)));
+  color: rgb(var(--color-text));
+  background-color: rgb(var(--color-app-background));
+  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   overflow-x: hidden;
-  transition: color 200ms ease, background-color 200ms ease;
-}
-
-body::before,
-body::after {
-  content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: -1;
-}
-
-body::before {
-  background: radial-gradient(circle at 15% 80%, rgba(56, 189, 248, 0.18), transparent 55%),
-    radial-gradient(circle at 70% 75%, rgba(99, 102, 241, 0.22), transparent 60%);
-  filter: blur(20px);
-}
-
-body::after {
-  background-image: linear-gradient(
-      to right,
-      rgba(148, 163, 184, 0.08) 1px,
-      transparent 1px
-    ),
-    linear-gradient(to bottom, rgba(148, 163, 184, 0.06) 1px, transparent 1px);
-  background-size: 64px 64px;
-  opacity: 0.65;
-  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0));
+  transition: color 180ms ease, background-color 180ms ease;
 }
 
 @layer utilities {
   .glass-panel {
-    @apply rounded-3xl border border-border-strong/70 bg-background-card/75 backdrop-blur shadow-card;
+    @apply rounded-2xl border border-border/70 bg-surface shadow-sm;
   }
 
   .glass-panel-strong {
-    @apply rounded-[2.5rem] border border-border-strong/80 bg-background-panel/80 backdrop-blur-md shadow-card;
+    @apply rounded-2xl border border-border/80 bg-surface-muted shadow-sm;
   }
 
   .pill-badge {
-    @apply rounded-full border border-border-strong/60 bg-background-input/70 px-3 py-1 text-[0.7rem] font-semibold uppercase tracking-[0.3em] text-text-secondary;
+    @apply inline-flex items-center gap-1 rounded-full border border-border/70 bg-surface-muted px-3 py-1 text-[0.7rem] font-semibold uppercase tracking-[0.25em] text-text-muted;
   }
 
   .ghost-button {
-    @apply inline-flex items-center gap-2 rounded-2xl border border-border-strong/70 bg-background-input/70 px-4 py-2 text-sm font-semibold text-text-secondary transition-colors hover:text-text-primary;
+    @apply inline-flex items-center gap-2 rounded-xl border border-border/70 bg-surface px-4 py-2 text-sm font-semibold text-text-muted transition-colors hover:border-border hover:text-text;
   }
 
   .soft-scroll {
@@ -120,7 +89,7 @@ body::after {
   }
 
   .soft-scroll::-webkit-scrollbar-thumb {
-    background: linear-gradient(180deg, rgba(99, 102, 241, 0.6), rgba(14, 165, 233, 0.6));
+    background-color: rgba(148, 163, 184, 0.5);
     border-radius: 9999px;
   }
 }

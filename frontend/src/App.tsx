@@ -1,23 +1,29 @@
+import { Sparkles } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import AppShell from "./components/AppShell";
 import AnalyticsView from "./components/AnalyticsView";
 import ChatInput from "./components/ChatInput";
 import ChatView from "./components/ChatView";
 import ConversationPreferencesBar from "./components/ConversationPreferencesBar";
-import MobileDock from "./components/MobileDock";
 import InspectorPanel from "./components/InspectorPanel";
 import KernelControlsPanel from "./components/KernelControlsPanel";
 import KnowledgeView from "./components/KnowledgeView";
-import NavigationRail from "./components/NavigationRail";
-import type { NavigationSection } from "./components/navigation";
-import OverlaySheet from "./components/OverlaySheet";
 import Sidebar from "./components/Sidebar";
 import SwarmView from "./components/SwarmView";
-import TopBar from "./components/TopBar";
 import WelcomeScreen from "./components/WelcomeScreen";
+import ChatLayout from "./components/layout/ChatLayout";
+import PanelDialog from "./components/layout/PanelDialog";
 import useKolibriChat from "./core/useKolibriChat";
 import { findModeLabel } from "./core/modes";
 import useMediaQuery from "./core/useMediaQuery";
+
+type PanelKey = "knowledge" | "swarm" | "analytics" | "controls" | "preferences" | null;
+
+const DEFAULT_SUGGESTIONS = [
+  "Сформулируй краткое резюме беседы",
+  "Предложи три следующих шага",
+  "Выпиши ключевые идеи",
+  "Помоги подготовить письмо по теме диалога",
+];
 
 const App = () => {
   const {
@@ -55,9 +61,8 @@ const App = () => {
     refreshKnowledgeStatus,
   } = useKolibriChat();
 
-  const [activeSection, setActiveSection] = useState<NavigationSection>("dialog");
-  const [isInspectorOpen, setInspectorOpen] = useState(false);
-  const [isHistoryOpen, setHistoryOpen] = useState(false);
+  const [isSidebarOpen, setSidebarOpen] = useState(false);
+  const [activePanel, setActivePanel] = useState<PanelKey>(null);
   const isDesktop = useMediaQuery("(min-width: 1024px)");
 
   const modeLabel = useMemo(() => findModeLabel(mode), [mode]);
@@ -71,38 +76,33 @@ const App = () => {
     [draft, setDraft],
   );
 
-  const chatContent = useMemo(() => {
-    if (!messages.length) {
-      return <WelcomeScreen onSuggestionSelect={setDraft} />;
+  const quickSuggestions = useMemo(() => {
+    const suggestions = new Set<string>();
+
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const candidate = messages[index];
+      if (candidate.role === "assistant" && candidate.content.trim()) {
+        const [firstSentence] = candidate.content.split(/[.!?\n]/u);
+        const trimmed = firstSentence?.trim();
+        if (trimmed) {
+          const excerpt = trimmed.length > 96 ? `${trimmed.slice(0, 96)}…` : trimmed;
+          suggestions.add(`Раскрой подробнее: ${excerpt}`);
+        }
+        break;
+      }
     }
 
-    return (
-      <ChatView
-        messages={messages}
-        isLoading={isProcessing}
-        isBusy={isProcessing}
-        conversationId={conversationId}
-        conversationTitle={conversationTitle}
-        metrics={metrics}
-        modeLabel={modeLabel}
-        onSuggestionSelect={handleSuggestionSelect}
-      />
-    );
-  }, [conversationId, conversationTitle, handleSuggestionSelect, isProcessing, messages, metrics, modeLabel, setDraft]);
+    suggestions.add(`Применим режим ${modeLabel} к новому примеру`);
+    DEFAULT_SUGGESTIONS.forEach((item) => suggestions.add(item));
+
+    return Array.from(suggestions).slice(0, 4);
+  }, [messages, modeLabel]);
 
   useEffect(() => {
     if (isDesktop) {
-      setInspectorOpen(false);
-      setHistoryOpen(false);
+      setSidebarOpen(false);
     }
   }, [isDesktop]);
-
-  useEffect(() => {
-    if (activeSection !== "dialog") {
-      setInspectorOpen(false);
-      setHistoryOpen(false);
-    }
-  }, [activeSection]);
 
   const handleCreateConversation = useCallback(() => {
     void createConversation();
@@ -115,194 +115,165 @@ const App = () => {
     [selectConversation],
   );
 
-  const renderSection = () => {
-    switch (activeSection) {
-      case "dialog":
-        return (
-          <div className="grid min-h-0 flex-1 gap-6 lg:grid-cols-[18rem_minmax(0,1fr)] xl:grid-cols-[22rem_minmax(0,1fr)]">
-            {isDesktop ? (
-              <aside className="hidden lg:block">
-                <div className="sticky top-32 h-[calc(100vh-14rem)]">
-                  <Sidebar
-                    conversations={conversationSummaries}
-                    activeConversationId={conversationId}
-                    onConversationSelect={handleSelectConversation}
-                    onCreateConversation={handleCreateConversation}
-                  />
-                </div>
-              </aside>
-            ) : null}
-            <div className="flex min-h-0 flex-col gap-6">
-              <div className="flex min-h-0 flex-1">
-                <div className="min-h-0 flex-1">{chatContent}</div>
-              </div>
-              <ConversationPreferencesBar preferences={preferences} onChange={updatePreferences} />
-              <ChatInput
-                value={draft}
-                mode={mode}
-                isBusy={isProcessing || !bridgeReady}
-                attachments={attachments}
-                onChange={setDraft}
-                onModeChange={setMode}
-                onSubmit={() => {
-                  void sendMessage();
-                }}
-                onReset={() => {
-                  void resetConversation();
-                }}
-                onAttach={attachFiles}
-                onRemoveAttachment={removeAttachment}
-                onClearAttachments={clearAttachments}
-                onOpenControls={!isDesktop ? () => setInspectorOpen(true) : undefined}
-              />
-            </div>
-          </div>
-        );
-      case "knowledge":
-        return (
-          <KnowledgeView
-            status={knowledgeStatus}
-            error={knowledgeError}
-            isLoading={statusLoading}
-            onRefresh={() => {
-              void refreshKnowledgeStatus();
-            }}
-            usage={knowledgeUsage}
-          />
-        );
-      case "swarm":
-        return (
-          <SwarmView
-            kernelControls={kernelControls}
-            kernelCapabilities={kernelCapabilities}
-            onApplyControls={updateKernelControls}
-            onModeChange={setMode}
-            activeMode={mode}
-            metrics={metrics}
-            isBusy={isProcessing}
-          />
-        );
-      case "analytics":
-        return <AnalyticsView analytics={analytics} />;
-      default:
-        return null;
-    }
-  };
-
   return (
     <>
-      <AppShell
-        navigation={
-          isDesktop ? (
-            <NavigationRail
-              onCreateConversation={handleCreateConversation}
-              isBusy={isProcessing}
-              metrics={metrics}
-              activeSection={activeSection}
-              onSectionChange={setActiveSection}
-            />
-          ) : undefined
-        }
-        mobileNavigation={
-          !isDesktop ? (
-            <MobileDock
-              activeSection={activeSection}
-              onSectionChange={setActiveSection}
-              onCreateConversation={handleCreateConversation}
-              onOpenHistory={() => setHistoryOpen(true)}
-              onOpenControls={() => setInspectorOpen(true)}
-              isBusy={isProcessing}
-              metrics={metrics}
-            />
-          ) : undefined
-        }
-        header={
-          <TopBar
-            title={conversationTitle}
-            onTitleChange={renameConversation}
-            isProcessing={isProcessing}
-            bridgeReady={bridgeReady}
-            knowledgeStatus={knowledgeStatus}
-            metrics={metrics}
-            onRefreshKnowledge={() => {
-              void refreshKnowledgeStatus();
-            }}
-            isKnowledgeLoading={statusLoading}
-            showMobileActions={!isDesktop}
-            onOpenHistory={() => setHistoryOpen(true)}
-            onOpenControls={() => setInspectorOpen(true)}
-            onlineAllowed={preferences.allowOnline}
+      <ChatLayout
+        sidebar={
+          <Sidebar
+            conversations={conversationSummaries}
+            activeConversationId={conversationId}
+            onConversationSelect={handleSelectConversation}
+            onCreateConversation={handleCreateConversation}
           />
         }
-        inspector={
-          activeSection === "dialog" && isDesktop ? (
-            <div className="flex h-full flex-col gap-4">
-              <KernelControlsPanel
-                controls={kernelControls}
-                capabilities={kernelCapabilities}
-                onChange={updateKernelControls}
-              />
-              <InspectorPanel
-                status={knowledgeStatus}
-                error={knowledgeError}
-                isLoading={statusLoading}
-                metrics={metrics}
-                capabilities={kernelCapabilities}
-                latestAssistantMessage={latestAssistantMessage}
-                onRefresh={() => {
-                  void refreshKnowledgeStatus();
-                }}
-              />
-            </div>
-          ) : undefined
+        isSidebarOpen={isSidebarOpen}
+        onSidebarOpenChange={setSidebarOpen}
+        footer={
+          <div className="flex flex-col gap-4">
+            <ChatInput
+              value={draft}
+              mode={mode}
+              isBusy={isProcessing || !bridgeReady}
+              attachments={attachments}
+              onChange={setDraft}
+              onModeChange={setMode}
+              onSubmit={() => {
+                void sendMessage();
+              }}
+              onReset={() => {
+                void resetConversation();
+              }}
+              onAttach={attachFiles}
+              onRemoveAttachment={removeAttachment}
+              onClearAttachments={clearAttachments}
+              onOpenControls={() => setActivePanel("controls")}
+            />
+            {quickSuggestions.length > 0 ? (
+              <div className="rounded-2xl border border-border/60 bg-surface px-4 py-3 text-sm text-text-muted shadow-sm">
+                <div className="flex items-center justify-between text-[0.7rem] uppercase tracking-[0.3em]">
+                  <span>Быстрые подсказки</span>
+                  <span className="inline-flex items-center gap-2 text-text">
+                    <Sparkles className="h-4 w-4" />
+                    Фокус: {modeLabel}
+                  </span>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {quickSuggestions.map((suggestion) => (
+                    <button
+                      key={suggestion}
+                      type="button"
+                      onClick={() => handleSuggestionSelect(suggestion)}
+                      className="rounded-full border border-border/70 bg-surface-muted px-4 py-2 text-xs font-semibold text-text-muted transition-colors hover:text-text disabled:cursor-not-allowed disabled:opacity-60"
+                      disabled={isProcessing || !bridgeReady}
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
         }
       >
-        {renderSection()}
-      </AppShell>
-      <OverlaySheet
-        title="История диалогов"
-        description="Быстро переключайтесь между недавними беседами."
-        isOpen={!isDesktop && isHistoryOpen}
-        onClose={() => setHistoryOpen(false)}
-      >
-        <Sidebar
-          conversations={conversationSummaries}
-          activeConversationId={conversationId}
-          onConversationSelect={(id) => {
-            handleSelectConversation(id);
-            setHistoryOpen(false);
+        <ChatView
+          messages={messages}
+          isLoading={isProcessing}
+          conversationId={conversationId}
+          conversationTitle={conversationTitle}
+          metrics={metrics}
+          modeLabel={modeLabel}
+          emptyState={<WelcomeScreen onSuggestionSelect={setDraft} />}
+          onConversationTitleChange={renameConversation}
+          onOpenSidebar={() => setSidebarOpen(true)}
+          onOpenKnowledge={() => setActivePanel("knowledge")}
+          onOpenAnalytics={() => setActivePanel("analytics")}
+          onOpenSwarm={() => setActivePanel("swarm")}
+          onOpenPreferences={() => setActivePanel("preferences")}
+          onRefreshKnowledge={() => {
+            void refreshKnowledgeStatus();
           }}
-          onCreateConversation={() => {
-            handleCreateConversation();
-            setHistoryOpen(false);
-          }}
+          isKnowledgeLoading={statusLoading}
+          bridgeReady={bridgeReady}
         />
-      </OverlaySheet>
-      <OverlaySheet
-        title="Управление ядром"
-        description="Настройте режимы, параметры генерации и просмотрите метрики."
-        isOpen={!isDesktop && isInspectorOpen}
-        onClose={() => setInspectorOpen(false)}
-        footer="Изменения применяются мгновенно и сохраняются для текущей сессии."
+      </ChatLayout>
+
+      <PanelDialog
+        title="Память Kolibri"
+        description="Отслеживайте статус загрузки знаний и ищите источники."
+        isOpen={activePanel === "knowledge"}
+        onClose={() => setActivePanel(null)}
       >
-        <KernelControlsPanel
-          controls={kernelControls}
-          capabilities={kernelCapabilities}
-          onChange={updateKernelControls}
-        />
-        <InspectorPanel
+        <KnowledgeView
           status={knowledgeStatus}
           error={knowledgeError}
           isLoading={statusLoading}
-          metrics={metrics}
-          capabilities={kernelCapabilities}
-          latestAssistantMessage={latestAssistantMessage}
           onRefresh={() => {
-            setInspectorOpen(false);
             void refreshKnowledgeStatus();
           }}
+          usage={knowledgeUsage}
         />
-      </OverlaySheet>
+      </PanelDialog>
+
+      <PanelDialog
+        title="Swarm"
+        description="Настройте режимы генерации и распределение нагрузки."
+        isOpen={activePanel === "swarm"}
+        onClose={() => setActivePanel(null)}
+      >
+        <SwarmView
+          kernelControls={kernelControls}
+          kernelCapabilities={kernelCapabilities}
+          onApplyControls={updateKernelControls}
+          onModeChange={setMode}
+          activeMode={mode}
+          metrics={metrics}
+          isBusy={isProcessing}
+        />
+      </PanelDialog>
+
+      <PanelDialog
+        title="Аналитика"
+        description="Сводка по активности диалогов и использованию знаний."
+        isOpen={activePanel === "analytics"}
+        onClose={() => setActivePanel(null)}
+      >
+        <AnalyticsView analytics={analytics} />
+      </PanelDialog>
+
+      <PanelDialog
+        title="Настройки ядра"
+        description="Переключайте режимы и просматривайте последние метрики."
+        isOpen={activePanel === "controls"}
+        onClose={() => setActivePanel(null)}
+      >
+        <div className="grid gap-4 md:grid-cols-2">
+          <KernelControlsPanel
+            controls={kernelControls}
+            capabilities={kernelCapabilities}
+            onChange={updateKernelControls}
+          />
+          <InspectorPanel
+            status={knowledgeStatus}
+            error={knowledgeError}
+            isLoading={statusLoading}
+            metrics={metrics}
+            capabilities={kernelCapabilities}
+            latestAssistantMessage={latestAssistantMessage}
+            onRefresh={() => {
+              void refreshKnowledgeStatus();
+            }}
+          />
+        </div>
+      </PanelDialog>
+
+      <PanelDialog
+        title="Параметры беседы"
+        description="Управляйте приватностью, режимами обучения и голосом ассистента."
+        isOpen={activePanel === "preferences"}
+        onClose={() => setActivePanel(null)}
+      >
+        <ConversationPreferencesBar preferences={preferences} onChange={updatePreferences} />
+      </PanelDialog>
     </>
   );
 };
