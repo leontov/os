@@ -26,6 +26,53 @@ stub_flag=0
 stub_prichina=""
 otchet_sozdan=0
 
+prepare_em_config() {
+    if [[ -n "${KOLIBRI_WASM_EM_CONFIG:-}" ]]; then
+        EM_CONFIG="${KOLIBRI_WASM_EM_CONFIG}"
+    fi
+
+    if [[ -z "${EM_CONFIG:-}" ]]; then
+        local config_dir="${KOLIBRI_WASM_CONFIG_DIR:-$proekt_koren/build/emscripten_config}"
+        mkdir -p "$config_dir"
+        EM_CONFIG="$config_dir/.emscripten"
+    else
+        mkdir -p "$(dirname "$EM_CONFIG")"
+    fi
+
+    export EM_CONFIG
+
+    if [[ ! -f "$EM_CONFIG" ]] && command -v "$EMCC" >/dev/null 2>&1; then
+        if EM_CONFIG="$EM_CONFIG" "$EMCC" --generate-config >/dev/null 2>&1; then
+            echo "[Kolibri] Создан конфиг Emscripten: $EM_CONFIG"
+        else
+            echo "[ПРЕДУПРЕЖДЕНИЕ] Не удалось автоматически сгенерировать конфиг Emscripten ($EM_CONFIG)." >&2
+        fi
+    fi
+
+    if [[ -f "$EM_CONFIG" ]] && grep -q '^FROZEN_CACHE = True' "$EM_CONFIG"; then
+        if command -v python3 >/dev/null 2>&1; then
+            python3 - "$EM_CONFIG" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+config_path = Path(sys.argv[1])
+text = config_path.read_text(encoding="utf-8")
+updated = re.sub(r'^FROZEN_CACHE = True\b', 'FROZEN_CACHE = False', text, count=1, flags=re.MULTILINE)
+if text != updated:
+    config_path.write_text(updated, encoding="utf-8")
+PY
+        else
+            local tmp_config="$EM_CONFIG.tmp"
+            if sed 's/^FROZEN_CACHE = True/FROZEN_CACHE = False/' "$EM_CONFIG" >"$tmp_config"; then
+                mv "$tmp_config" "$EM_CONFIG"
+            else
+                rm -f "$tmp_config"
+            fi
+        fi
+    fi
+}
+
 json_otchet() {
     local status="$1"
     local reason="$2"
@@ -151,10 +198,132 @@ EMCC="${EMCC:-emcc}"
 sozdat_zaglushku=0
 sobranov_docker=0
 allow_stub_success=0
+bootstrap_enabled=1
+bootstrap_attempted=0
+
+if [[ "${KOLIBRI_WASM_DISABLE_BOOTSTRAP:-0}" =~ ^(1|true|TRUE|on|ON|yes|YES)$ ]]; then
+    bootstrap_enabled=0
+fi
 
 if [[ "${KOLIBRI_WASM_ALLOW_STUB_SUCCESS:-0}" =~ ^(1|true|TRUE|on|ON|yes|YES)$ ]]; then
     allow_stub_success=1
 fi
+
+bootstrap_emsdk() {
+    if (( bootstrap_attempted )); then
+        return 1
+    fi
+    bootstrap_attempted=1
+
+    local version="${KOLIBRI_WASM_EMSDK_VERSION:-3.1.61}"
+    local emsdk_home="${KOLIBRI_WASM_EMSDK_DIR:-$proekt_koren/build/emsdk}"
+    local emsdk_env="$emsdk_home/emsdk_env.sh"
+    local emcc_path="$emsdk_home/upstream/emscripten/emcc"
+
+    if [[ -x "$emcc_path" ]]; then
+        if [[ -f "$emsdk_env" ]]; then
+            # shellcheck disable=SC1090
+            source "$emsdk_env" >/dev/null 2>&1 || true
+        fi
+        export EMSDK="$emsdk_home"
+        EMCC="$emcc_path"
+        echo "[Kolibri] Используется локальный emsdk: $EMCC"
+        return 0
+    fi
+
+    if ! (( bootstrap_enabled )); then
+        return 1
+    fi
+
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "[ПРЕДУПРЕЖДЕНИЕ] Невозможно загрузить emsdk: python3 недоступен." >&2
+        return 1
+    fi
+
+    if ! command -v tar >/dev/null 2>&1; then
+        echo "[ПРЕДУПРЕЖДЕНИЕ] Невозможно загрузить emsdk: утилита tar недоступна." >&2
+        return 1
+    fi
+
+    local download_dir="${KOLIBRI_WASM_DOWNLOAD_DIR:-$proekt_koren/build/_downloads}"
+    local tarball="$download_dir/emsdk-${version}.tar.gz"
+    local extracted="$download_dir/emsdk-${version}"
+
+    mkdir -p "$download_dir"
+
+    if [[ ! -f "$tarball" ]]; then
+        echo "[Kolibri] Скачиваю emsdk ${version} из GitHub..."
+        if ! python3 - "$tarball" "$version" <<'PY'; then
+import sys
+import urllib.request
+import urllib.error
+
+target, version = sys.argv[1:3]
+url = f"https://github.com/emscripten-core/emsdk/archive/refs/tags/{version}.tar.gz"
+
+try:
+    with urllib.request.urlopen(url) as response, open(target, "wb") as handle:
+        while True:
+            chunk = response.read(1 << 20)
+            if not chunk:
+                break
+            handle.write(chunk)
+except urllib.error.URLError as exc:
+    raise SystemExit(f"download failed: {exc}")
+PY
+            echo "[ПРЕДУПРЕЖДЕНИЕ] Не удалось скачать emsdk ${version}." >&2
+            rm -f "$tarball"
+            return 1
+        fi
+    fi
+
+    rm -rf "$extracted"
+    if ! tar -xzf "$tarball" -C "$download_dir"; then
+        echo "[ПРЕДУПРЕЖДЕНИЕ] Не удалось распаковать $tarball." >&2
+        rm -rf "$extracted"
+        return 1
+    fi
+
+    if [[ ! -d "$extracted" ]]; then
+        echo "[ПРЕДУПРЕЖДЕНИЕ] Структура архива emsdk неожиданна: нет каталога $extracted." >&2
+        return 1
+    fi
+
+    mkdir -p "$(dirname "$emsdk_home")"
+    rm -rf "$emsdk_home"
+    mv "$extracted" "$emsdk_home"
+
+    if [[ ! -f "$emsdk_home/emsdk.py" ]]; then
+        echo "[ПРЕДУПРЕЖДЕНИЕ] Скачанный emsdk неполный." >&2
+        return 1
+    fi
+
+    echo "[Kolibri] Устанавливаю emsdk ${version} в $emsdk_home"
+    (cd "$emsdk_home" && python3 ./emsdk.py install "$version") || {
+        echo "[ПРЕДУПРЕЖДЕНИЕ] Установка emsdk ${version} завершилась ошибкой." >&2
+        return 1
+    }
+
+    (cd "$emsdk_home" && python3 ./emsdk.py activate "$version") || {
+        echo "[ПРЕДУПРЕЖДЕНИЕ] Активация emsdk ${version} завершилась ошибкой." >&2
+        return 1
+    }
+
+    if [[ -f "$emsdk_env" ]]; then
+        # shellcheck disable=SC1090
+        source "$emsdk_env" >/dev/null 2>&1 || true
+    fi
+
+    if [[ -x "$emcc_path" ]]; then
+        export EMSDK="$emsdk_home"
+        EMCC="$emcc_path"
+        echo "[Kolibri] emsdk ${version} установлен локально: $EMCC"
+        return 0
+    fi
+
+    echo "[ПРЕДУПРЕЖДЕНИЕ] После установки emsdk emcc не найден." >&2
+    return 1
+}
 
 vychislit_sha256_stroku() {
     local file="$1"
@@ -391,6 +560,15 @@ ensure_emcc() {
         return 0
     fi
 
+    if (( bootstrap_enabled )); then
+        if bootstrap_emsdk; then
+            if command -v "$EMCC" >/dev/null 2>&1; then
+                emcc_dostupen=1
+                return 0
+            fi
+        fi
+    fi
+
     if [[ "${KOLIBRI_WASM_INVOKED_VIA_DOCKER:-0}" == "1" ]]; then
         echo "[ОШИБКА] Не найден emcc внутри Docker-окружения. Проверьте образ ${KOLIBRI_WASM_DOCKER_IMAGE:-emscripten/emsdk:3.1.61}." >&2
         stub_prichina="Не найден emcc внутри docker-окружения"
@@ -441,6 +619,26 @@ ensure_emcc() {
 ensure_emcc || exit 1
 
 if (( sozdat_zaglushku )); then
+    if [[ -n "${KOLIBRI_WASM_PREBUILT_PATH:-}" ]]; then
+        local_prebuilt="${KOLIBRI_WASM_PREBUILT_PATH}"
+        if [[ -f "$local_prebuilt" ]]; then
+            cp "$local_prebuilt" "$vyhod_wasm"
+            zapisat_sha256 "$vyhod_wasm" "$vyhod_dir/kolibri.wasm.sha256"
+            cat >"$vyhod_dir/kolibri.wasm.txt" <<EOF_INFO
+kolibri.wasm: предсобранный артефакт
+Источник: ${local_prebuilt}
+EOF_INFO
+            stub_flag=0
+            razmer_prebuilt=$(opredelit_razmer "$vyhod_wasm")
+            zapisat_otchet "prebuilt" "Использован kolibri.wasm из KOLIBRI_WASM_PREBUILT_PATH" "$razmer_prebuilt" "$stub_flag"
+            rm -f "$vremennaja_js" "$vremennaja_map"
+            echo "[Kolibri] Использован kolibri.wasm из ${local_prebuilt}"
+            exit 0
+        else
+            echo "[ПРЕДУПРЕЖДЕНИЕ] KOLIBRI_WASM_PREBUILT_PATH задан, но файл не найден: ${local_prebuilt}" >&2
+        fi
+    fi
+
     stub_flag=1
     sozdat_stub_wasm
     razmer_stub=$(opredelit_razmer "$vyhod_wasm")
@@ -455,6 +653,8 @@ if (( sobranov_docker )) && [[ "${KOLIBRI_WASM_INVOKED_VIA_DOCKER:-0}" != "1" ]]
     # Docker fallback уже собрал артефакт, на хосте больше делать нечего.
     exit 0
 fi
+
+prepare_em_config
 
 istochniki=(
     "$proekt_koren/wasm/kolibri_core.c"
