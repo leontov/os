@@ -26,6 +26,53 @@ stub_flag=0
 stub_prichina=""
 otchet_sozdan=0
 
+prepare_em_config() {
+    if [[ -n "${KOLIBRI_WASM_EM_CONFIG:-}" ]]; then
+        EM_CONFIG="${KOLIBRI_WASM_EM_CONFIG}"
+    fi
+
+    if [[ -z "${EM_CONFIG:-}" ]]; then
+        local config_dir="${KOLIBRI_WASM_CONFIG_DIR:-$proekt_koren/build/emscripten_config}"
+        mkdir -p "$config_dir"
+        EM_CONFIG="$config_dir/.emscripten"
+    else
+        mkdir -p "$(dirname "$EM_CONFIG")"
+    fi
+
+    export EM_CONFIG
+
+    if [[ ! -f "$EM_CONFIG" ]] && command -v "$EMCC" >/dev/null 2>&1; then
+        if EM_CONFIG="$EM_CONFIG" "$EMCC" --generate-config >/dev/null 2>&1; then
+            echo "[Kolibri] Создан конфиг Emscripten: $EM_CONFIG"
+        else
+            echo "[ПРЕДУПРЕЖДЕНИЕ] Не удалось автоматически сгенерировать конфиг Emscripten ($EM_CONFIG)." >&2
+        fi
+    fi
+
+    if [[ -f "$EM_CONFIG" ]] && grep -q '^FROZEN_CACHE = True' "$EM_CONFIG"; then
+        if command -v python3 >/dev/null 2>&1; then
+            python3 - "$EM_CONFIG" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+config_path = Path(sys.argv[1])
+text = config_path.read_text(encoding="utf-8")
+updated = re.sub(r'^FROZEN_CACHE = True\b', 'FROZEN_CACHE = False', text, count=1, flags=re.MULTILINE)
+if text != updated:
+    config_path.write_text(updated, encoding="utf-8")
+PY
+        else
+            local tmp_config="$EM_CONFIG.tmp"
+            if sed 's/^FROZEN_CACHE = True/FROZEN_CACHE = False/' "$EM_CONFIG" >"$tmp_config"; then
+                mv "$tmp_config" "$EM_CONFIG"
+            else
+                rm -f "$tmp_config"
+            fi
+        fi
+    fi
+}
+
 json_otchet() {
     local status="$1"
     local reason="$2"
@@ -455,6 +502,8 @@ if (( sobranov_docker )) && [[ "${KOLIBRI_WASM_INVOKED_VIA_DOCKER:-0}" != "1" ]]
     # Docker fallback уже собрал артефакт, на хосте больше делать нечего.
     exit 0
 fi
+
+prepare_em_config
 
 istochniki=(
     "$proekt_koren/wasm/kolibri_core.c"
