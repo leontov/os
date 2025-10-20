@@ -9,7 +9,7 @@ on:
 
 jobs:
   codex-autofix:
-    if: ${{ github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.head_repository.full_name == github.repository && github.event.workflow_run.event == 'pull_request' }}
+    if: ${{ github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.head_repository.full_name == github.repository && github.event.workflow_run.event == 'pull_request' && !startsWith(github.event.workflow_run.head_branch, 'codex/autofix-') }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
