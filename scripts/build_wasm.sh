@@ -71,6 +71,83 @@ PY
             fi
         fi
     fi
+
+    local resolved_emcc=""
+    if resolved_emcc="$(command -v "$EMCC" 2>/dev/null)"; then
+        local emsdk_root=""
+        case "$resolved_emcc" in
+            */upstream/emscripten/emcc)
+                emsdk_root="${resolved_emcc%/upstream/emscripten/emcc}"
+                ;;
+        esac
+
+        if [[ -n "$emsdk_root" ]]; then
+            local llvm_root="$emsdk_root/upstream/bin"
+            local binaryen_root="$emsdk_root/upstream"
+            local node_path="${EMSDK_NODE:-}"
+
+            if [[ -z "$node_path" || ! -x "$node_path" ]]; then
+                if [[ -x "$emsdk_root/node/current/bin/node" ]]; then
+                    node_path="$emsdk_root/node/current/bin/node"
+                elif command -v find >/dev/null 2>&1; then
+                    local discovered=""
+                    discovered="$(find "$emsdk_root/node" -maxdepth 3 -type f -name node 2>/dev/null | head -n1 || true)"
+                    if [[ -n "$discovered" ]]; then
+                        node_path="$discovered"
+                    fi
+                fi
+            fi
+
+            export EM_LLVM_ROOT="$llvm_root"
+            export EM_BINARYEN_ROOT="$binaryen_root"
+            if [[ -n "$node_path" ]]; then
+                export NODE_JS="$node_path"
+                export EM_NODE_JS="$node_path"
+                export EMSDK_NODE="$node_path"
+            fi
+
+            if [[ -f "$EM_CONFIG" ]] && command -v python3 >/dev/null 2>&1; then
+                python3 - "$EM_CONFIG" "$llvm_root" "$binaryen_root" "$node_path" <<'PY'
+import sys
+from pathlib import Path
+
+config_path = Path(sys.argv[1])
+llvm_root = sys.argv[2]
+binaryen_root = sys.argv[3]
+node_path = sys.argv[4]
+
+def update_line(lines, key, value):
+    target = f"{key} = '{value}'\n"
+    for idx, line in enumerate(lines):
+        if line.startswith(f"{key} ="):
+            if line != target:
+                lines[idx] = target
+            return True
+    lines.append(target)
+    return True
+
+lines = config_path.read_text(encoding="utf-8").splitlines(keepends=True)
+update_line(lines, "LLVM_ROOT", llvm_root)
+update_line(lines, "BINARYEN_ROOT", binaryen_root)
+if node_path:
+    update_line(lines, "NODE_JS", node_path)
+
+config_path.write_text("".join(lines), encoding="utf-8")
+PY
+            elif [[ -f "$EM_CONFIG" ]]; then
+                if command -v sed >/dev/null 2>&1; then
+                    sed -i.bak \
+                        -e "s|^LLVM_ROOT = .*|LLVM_ROOT = '$llvm_root'|" \
+                        -e "s|^BINARYEN_ROOT = .*|BINARYEN_ROOT = '$binaryen_root'|" \
+                        "$EM_CONFIG" 2>/dev/null || true
+                    if [[ -n "$node_path" ]]; then
+                        sed -i.bak -e "s|^NODE_JS = .*|NODE_JS = '$node_path'|" "$EM_CONFIG" 2>/dev/null || true
+                    fi
+                    rm -f "$EM_CONFIG.bak"
+                fi
+            fi
+        fi
+    fi
 }
 
 json_otchet() {
