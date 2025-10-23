@@ -367,7 +367,25 @@ class KolibriWasmRuntime {
   }
 
   private async instantiate(): Promise<WebAssembly.Instance> {
-    const importObject = this.wasi.imports;
+    const wasiImports = this.wasi.imports;
+    const importObject: Record<string, Record<string, WebAssembly.ImportValue>> = {
+      ...wasiImports,
+    };
+
+    const existingEnv = importObject.env;
+    const envModule: Record<string, WebAssembly.ImportValue> = Object.create(null);
+    if (existingEnv && typeof existingEnv === "object") {
+      Object.assign(envModule, existingEnv);
+    }
+
+    if (typeof envModule.emscripten_notify_memory_growth !== "function") {
+      envModule.emscripten_notify_memory_growth = () => {
+        // Стандартные standalone-сборки emcc вызывают эту функцию при расширении памяти.
+        // Наши адаптеры памяти обновляются лениво перед чтениями, поэтому тут достаточно no-op.
+      };
+    }
+
+    importObject.env = envModule;
 
     if ("instantiateStreaming" in WebAssembly) {
       try {

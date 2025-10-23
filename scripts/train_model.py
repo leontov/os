@@ -13,13 +13,14 @@ import logging
 import math
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional
+from typing import Any, Dict, List, Mapping, Optional, Sequence, TypedDict
 
 import torch
 from torch.utils.data import DataLoader, Dataset
 from transformers import (
     AutoModelForSequenceClassification,
     AutoTokenizer,
+    PreTrainedModel,
     PreTrainedTokenizerBase,
     get_linear_schedule_with_warmup,
 )
@@ -44,7 +45,7 @@ class TrainingConfig:
     checkpoint_steps: int = 500
 
     @staticmethod
-    def from_dict(data: Dict[str, object]) -> "TrainingConfig":
+    def from_dict(data: Mapping[str, Any]) -> "TrainingConfig":
         required_keys = {"model_name_or_path", "num_labels"}
         missing = required_keys - data.keys()
         if missing:
@@ -64,11 +65,21 @@ class TrainingConfig:
         )
 
 
-class JsonlTextDataset(Dataset):
+class Sample(TypedDict):
+    """Single dataset example."""
+
+    text: str
+    label: int
+
+
+Batch = Dict[str, torch.Tensor]
+
+
+class JsonlTextDataset(Dataset[Sample]):
     """Dataset that reads ``text``/``label`` pairs from a JSON Lines file."""
 
     def __init__(self, path: Path, label_mapping: Optional[Dict[str, int]] = None) -> None:
-        self.samples: List[Dict[str, object]] = []
+        self.samples: List[Sample] = []
         with path.open("r", encoding="utf-8") as file:
             for line_number, line in enumerate(file, start=1):
                 if not line.strip():
@@ -86,20 +97,20 @@ class JsonlTextDataset(Dataset):
                             f"Label '{label}' not found in label_mapping at line {line_number}"
                         )
                     label = label_mapping[label]
-                self.samples.append({"text": text, "label": int(label)})
+                self.samples.append(Sample(text=text, label=int(label)))
 
     def __len__(self) -> int:
         return len(self.samples)
 
-    def __getitem__(self, idx: int) -> Dict[str, object]:
+    def __getitem__(self, idx: int) -> Sample:
         return self.samples[idx]
 
 
 def collate_batch(
-    batch: Iterable[Dict[str, object]],
+    batch: Sequence[Sample],
     tokenizer: PreTrainedTokenizerBase,
     max_length: int,
-) -> Dict[str, torch.Tensor]:
+) -> Batch:
     texts = [item["text"] for item in batch]
     labels = torch.tensor([item["label"] for item in batch], dtype=torch.long)
     encoded = tokenizer(
@@ -109,11 +120,14 @@ def collate_batch(
         max_length=max_length,
         return_tensors="pt",
     )
-    encoded["labels"] = labels
-    return encoded
+    batch_tensors: Batch = {key: value for key, value in encoded.items()}
+    batch_tensors["labels"] = labels
+    return batch_tensors
 
 
-def save_checkpoint(output_dir: Path, step: int, model, tokenizer) -> None:
+def save_checkpoint(
+    output_dir: Path, step: int, model: PreTrainedModel, tokenizer: PreTrainedTokenizerBase
+) -> None:
     checkpoint_dir = output_dir / f"checkpoint-{step}"
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
     model.save_pretrained(checkpoint_dir)
@@ -124,8 +138,8 @@ def save_checkpoint(output_dir: Path, step: int, model, tokenizer) -> None:
 def train(
     train_loader: DataLoader,
     eval_loader: Optional[DataLoader],
-    model,
-    tokenizer,
+    model: PreTrainedModel,
+    tokenizer: PreTrainedTokenizerBase,
     config: TrainingConfig,
     device: torch.device,
     output_dir: Path,
@@ -181,7 +195,7 @@ def train(
     tokenizer.save_pretrained(output_dir)
 
 
-def evaluate(model, data_loader: DataLoader, device: torch.device) -> float:
+def evaluate(model: PreTrainedModel, data_loader: DataLoader, device: torch.device) -> float:
     model.eval()
     total_loss = 0.0
     num_batches = 0
