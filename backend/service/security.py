@@ -7,7 +7,6 @@ import datetime as dt
 import hashlib
 import hmac
 import json
-import threading
 import time
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
