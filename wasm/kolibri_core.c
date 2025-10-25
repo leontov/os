@@ -1228,7 +1228,11 @@ int kolibri_bridge_execute(const uint8_t *program, uint8_t *buffer, size_t capac
         }
     }
     size_t produced = k_decode(program, strlen((const char *)program), buffer, capacity, 256, 3);
-    return produced > 0u ? (int)produced : -1;
+    if (produced == 0u) {
+        buffer[0] = '\0';
+        return 0;
+    }
+    return (int)produced;
 }
 
 

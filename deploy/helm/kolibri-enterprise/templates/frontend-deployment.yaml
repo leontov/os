@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kolibri-enterprise.fullname" . }}-frontend
+  labels:
+    {{- include "kolibri-enterprise.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
+spec:
+  replicas: {{ .Values.frontend.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: frontend
+  template:
+    metadata:
+      labels:
+        {{- include "kolibri-enterprise.labels" . | nindent 8 }}
+        app.kubernetes.io/component: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: "{{ .Values.frontendImage.repository }}:{{ .Values.frontendImage.tag }}"
+          imagePullPolicy: {{ .Values.frontendImage.pullPolicy }}
+          env:
+            - name: PORT
+              value: "{{ .Values.frontend.service.port }}"
+          ports:
+            - name: http
+              containerPort: {{ .Values.frontend.service.port }}
+          resources: {{- toYaml .Values.frontend.resources | nindent 12 }}

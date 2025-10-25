@@ -4,6 +4,7 @@ import AnalyticsView from "./components/AnalyticsView";
 import ChatInput from "./components/ChatInput";
 import ChatView from "./components/ChatView";
 import ConversationPreferencesBar from "./components/ConversationPreferencesBar";
+import DemoPage, { DemoMetrics } from "./components/DemoPage";
 import InspectorPanel from "./components/InspectorPanel";
 import KernelControlsPanel from "./components/KernelControlsPanel";
 import KnowledgeView from "./components/KnowledgeView";
@@ -63,6 +64,13 @@ const App = () => {
 
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [activePanel, setActivePanel] = useState<PanelKey>(null);
+  const [isDemoMode, setDemoMode] = useState(false);
+  const [demoMetrics, setDemoMetrics] = useState<DemoMetrics>({
+    coldStartMs: null,
+    wasmBytes: null,
+    offlineFallback: false,
+    degradedReason: null,
+  });
   const isDesktop = useMediaQuery("(min-width: 1024px)");
 
   const modeLabel = useMemo(() => findModeLabel(mode), [mode]);
@@ -104,6 +112,88 @@ const App = () => {
     }
   }, [isDesktop]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return undefined;
+    }
+    const base = import.meta.env.BASE_URL ?? "/";
+    const normalizedBase = base.endsWith("/") ? base : `${base}/`;
+    const demoPath = `${normalizedBase}demo`;
+
+    const evaluate = () => {
+      try {
+        const url = new URL(window.location.href);
+        return url.pathname.startsWith(demoPath) || url.searchParams.get("demo") === "1";
+      } catch (error) {
+        console.warn("[kolibri-demo] Не удалось определить режим демо.", error);
+        return false;
+      }
+    };
+
+    setDemoMode(evaluate());
+
+    const handleLocation = () => {
+      setDemoMode(evaluate());
+    };
+
+    window.addEventListener("popstate", handleLocation);
+    window.addEventListener("hashchange", handleLocation);
+
+    return () => {
+      window.removeEventListener("popstate", handleLocation);
+      window.removeEventListener("hashchange", handleLocation);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) {
+      return undefined;
+    }
+
+    const handleMessage = (event: MessageEvent) => {
+      const payload = event.data;
+      if (!payload || typeof payload !== "object") {
+        return;
+      }
+      if (payload.type === "kolibri:pwa-metrics" && payload.payload) {
+        const data = payload.payload as DemoMetrics;
+        setDemoMetrics({
+          coldStartMs: typeof data.coldStartMs === "number" ? data.coldStartMs : null,
+          wasmBytes: typeof data.wasmBytes === "number" ? data.wasmBytes : null,
+          offlineFallback: Boolean(data.offlineFallback),
+          degradedReason: data.degradedReason ?? null,
+        });
+      }
+    };
+
+    navigator.serviceWorker.addEventListener("message", handleMessage);
+
+    void navigator.serviceWorker.ready
+      .then((registration) => {
+        registration.active?.postMessage({ type: "GET_STARTUP_METRICS" });
+      })
+      .catch((error) => {
+        console.warn("[kolibri-demo] Не удалось получить регистрацию service worker.", error);
+      });
+
+    if (navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({ type: "GET_STARTUP_METRICS" });
+    }
+
+    return () => {
+      navigator.serviceWorker.removeEventListener("message", handleMessage);
+    };
+  }, []);
+
+  const handleExitDemo = useCallback(() => {
+    if (typeof window !== "undefined") {
+      const base = import.meta.env.BASE_URL ?? "/";
+      const target = new URL(base, window.location.href);
+      window.history.pushState({}, "", target.pathname);
+    }
+    setDemoMode(false);
+  }, []);
+
   const handleCreateConversation = useCallback(() => {
     void createConversation();
   }, [createConversation]);
@@ -114,6 +204,10 @@ const App = () => {
     },
     [selectConversation],
   );
+
+  if (isDemoMode) {
+    return <DemoPage metrics={demoMetrics} onLaunchApp={handleExitDemo} />;
+  }
 
   return (
     <>
