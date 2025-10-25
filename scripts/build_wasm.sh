@@ -25,6 +25,203 @@ docker_dostupen=0
 stub_flag=0
 stub_prichina=""
 otchet_sozdan=0
+emcc_sanity_output=""
+emcc_sanity_class=""
+
+prepare_em_config() {
+    if [[ -n "${KOLIBRI_WASM_EM_CONFIG:-}" ]]; then
+        EM_CONFIG="${KOLIBRI_WASM_EM_CONFIG}"
+    fi
+
+    if [[ -z "${EM_CONFIG:-}" ]]; then
+        local config_dir="${KOLIBRI_WASM_CONFIG_DIR:-$proekt_koren/build/emscripten_config}"
+        mkdir -p "$config_dir"
+        EM_CONFIG="$config_dir/.emscripten"
+    else
+        mkdir -p "$(dirname "$EM_CONFIG")"
+    fi
+
+    export EM_CONFIG
+
+    local resolved_emcc=""
+    if resolved_emcc="$(command -v "$EMCC" 2>/dev/null)"; then
+        :
+    fi
+
+    local emsdk_root=""
+    case "$resolved_emcc" in
+        */upstream/emscripten/emcc)
+            emsdk_root="${resolved_emcc%/upstream/emscripten/emcc}"
+            ;;
+    esac
+
+    local llvm_root=""
+    local binaryen_root=""
+    local emscripten_path=""
+    local node_path="${EMSDK_NODE:-}"
+
+    if [[ -n "$emsdk_root" ]]; then
+        llvm_root="$emsdk_root/upstream/bin"
+        binaryen_root="$emsdk_root/upstream"
+        emscripten_path="$emsdk_root/upstream/emscripten"
+
+        if [[ -z "$node_path" || ! -x "$node_path" ]]; then
+            if [[ -x "$emsdk_root/node/current/bin/node" ]]; then
+                node_path="$emsdk_root/node/current/bin/node"
+            elif command -v find >/dev/null 2>&1; then
+                local discovered=""
+                discovered="$(find "$emsdk_root/node" -maxdepth 3 -type f -name node 2>/dev/null | head -n1 || true)"
+                if [[ -n "$discovered" ]]; then
+                    node_path="$discovered"
+                fi
+            fi
+        fi
+
+        export EM_LLVM_ROOT="$llvm_root"
+        export EM_BINARYEN_ROOT="$binaryen_root"
+        export LLVM_ROOT="$llvm_root"
+        export BINARYEN_ROOT="$binaryen_root"
+
+        if [[ -n "$node_path" ]]; then
+            export NODE_JS="$node_path"
+            export EM_NODE_JS="$node_path"
+            export EMSDK_NODE="$node_path"
+        fi
+
+        if [[ -n "$llvm_root" ]]; then
+            local path_prefixes=("$llvm_root")
+            if [[ -n "$emscripten_path" ]]; then
+                path_prefixes+=("$emscripten_path")
+            fi
+            for prefix in "${path_prefixes[@]}"; do
+                case ":$PATH:" in
+                    *":$prefix:") ;;
+                    *) PATH="$prefix:$PATH" ;;
+                esac
+            done
+            export PATH
+        fi
+    fi
+
+    if [[ ! -f "$EM_CONFIG" ]] && [[ -n "$resolved_emcc" ]]; then
+        if EM_CONFIG="$EM_CONFIG" "$resolved_emcc" --generate-config >/dev/null 2>&1; then
+            echo "[Kolibri] Создан конфиг Emscripten: $EM_CONFIG"
+        else
+            echo "[ПРЕДУПРЕЖДЕНИЕ] Не удалось автоматически сгенерировать конфиг Emscripten ($EM_CONFIG)." >&2
+        fi
+    fi
+
+    if [[ -f "$EM_CONFIG" ]] && grep -q '^FROZEN_CACHE = True' "$EM_CONFIG"; then
+        if command -v python3 >/dev/null 2>&1; then
+            python3 - "$EM_CONFIG" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+config_path = Path(sys.argv[1])
+text = config_path.read_text(encoding="utf-8")
+updated = re.sub(r'^FROZEN_CACHE = True\b', 'FROZEN_CACHE = False', text, count=1, flags=re.MULTILINE)
+if text != updated:
+    config_path.write_text(updated, encoding="utf-8")
+PY
+        else
+            local tmp_config="$EM_CONFIG.tmp"
+            if sed 's/^FROZEN_CACHE = True/FROZEN_CACHE = False/' "$EM_CONFIG" >"$tmp_config"; then
+                mv "$tmp_config" "$EM_CONFIG"
+            else
+                rm -f "$tmp_config"
+            fi
+        fi
+    fi
+
+    if [[ -n "$llvm_root" ]] && [[ -f "$EM_CONFIG" ]] && command -v python3 >/dev/null 2>&1; then
+        python3 - "$EM_CONFIG" "$llvm_root" "$binaryen_root" "$node_path" <<'PY'
+import sys
+from pathlib import Path
+
+config_path = Path(sys.argv[1])
+llvm_root = sys.argv[2]
+binaryen_root = sys.argv[3]
+node_path = sys.argv[4]
+
+def update_line(lines, key, value):
+    target = f"{key} = '{value}'\n"
+    for idx, line in enumerate(lines):
+        if line.startswith(f"{key} ="):
+            if line != target:
+                lines[idx] = target
+            return True
+    lines.append(target)
+    return True
+
+lines = config_path.read_text(encoding="utf-8").splitlines(keepends=True)
+update_line(lines, "LLVM_ROOT", llvm_root)
+update_line(lines, "BINARYEN_ROOT", binaryen_root)
+if node_path:
+    update_line(lines, "NODE_JS", node_path)
+
+config_path.write_text("".join(lines), encoding="utf-8")
+PY
+    elif [[ -n "$llvm_root" ]] && [[ -f "$EM_CONFIG" ]] && command -v sed >/dev/null 2>&1; then
+        sed -i.bak \
+            -e "s|^LLVM_ROOT = .*|LLVM_ROOT = '$llvm_root'|" \
+            -e "s|^BINARYEN_ROOT = .*|BINARYEN_ROOT = '$binaryen_root'|" \
+            "$EM_CONFIG" 2>/dev/null || true
+        if [[ -n "$node_path" ]]; then
+            sed -i.bak -e "s|^NODE_JS = .*|NODE_JS = '$node_path'|" "$EM_CONFIG" 2>/dev/null || true
+        fi
+        rm -f "$EM_CONFIG.bak"
+    fi
+}
+
+proverit_emcc_sanity() {
+    emcc_sanity_output=""
+    emcc_sanity_class=""
+
+    if ! command -v "$EMCC" >/dev/null 2>&1; then
+        return 1
+    fi
+
+    local tmpdir
+    if tmpdir="$(mktemp -d "${TMPDIR:-/tmp}/kolibri-emcc-XXXXXX" 2>/dev/null)" && [[ -n "$tmpdir" ]]; then
+        :
+    else
+        tmpdir="$vyhod_dir/.emcc-sanity"
+        rm -rf "$tmpdir"
+        mkdir -p "$tmpdir"
+    fi
+
+    local src="$tmpdir/sanity.c"
+    local wasm_out="$tmpdir/sanity.wasm"
+    local log_file="$tmpdir/sanity.log"
+
+    cat >"$src" <<'EOF'
+#include <stdint.h>
+
+static uint32_t kolibri_stub(void) {
+    return 0;
+}
+
+int main(void) {
+    return (int)kolibri_stub();
+}
+EOF
+
+    if "$EMCC" -sSTANDALONE_WASM=1 -sSIDE_MODULE=0 --no-entry -O0 "$src" -o "$wasm_out" >"$log_file" 2>&1; then
+        rm -rf "$tmpdir"
+        return 0
+    fi
+
+    emcc_sanity_output="$(cat "$log_file" 2>/dev/null || true)"
+    if [[ "$emcc_sanity_output" == *"LLVM has not been built with the WebAssembly backend"* ]]; then
+        emcc_sanity_class="missing-wasm-backend"
+    elif [[ "$emcc_sanity_output" == *"emscripten:ERROR"* || "$emcc_sanity_output" == *"error:"* ]]; then
+        emcc_sanity_class="generic-error"
+    fi
+
+    rm -rf "$tmpdir"
+    return 1
+}
 
 prepare_em_config() {
     if [[ -n "${KOLIBRI_WASM_EM_CONFIG:-}" ]]; then
@@ -709,65 +906,93 @@ EOF_INFO
 }
 
 ensure_emcc() {
-    if command -v "$EMCC" >/dev/null 2>&1; then
-        emcc_dostupen=1
-        return 0
-    fi
-
-    if (( bootstrap_enabled )); then
-        if bootstrap_emsdk; then
-            if command -v "$EMCC" >/dev/null 2>&1; then
-                emcc_dostupen=1
+    while true; do
+        if command -v "$EMCC" >/dev/null 2>&1; then
+            emcc_dostupen=1
+            prepare_em_config
+            if proverit_emcc_sanity; then
                 return 0
             fi
-        fi
-    fi
 
-    if [[ "${KOLIBRI_WASM_INVOKED_VIA_DOCKER:-0}" == "1" ]]; then
-        echo "[ОШИБКА] Не найден emcc внутри Docker-окружения. Проверьте образ ${KOLIBRI_WASM_DOCKER_IMAGE:-emscripten/emsdk:3.1.61}." >&2
-        stub_prichina="Не найден emcc внутри docker-окружения"
-        return 1
-    fi
+            local sanity_message="$emcc_sanity_output"
+            if (( bootstrap_enabled )) && bootstrap_emsdk; then
+                continue
+            fi
 
-    if (( allow_stub_success )); then
-        sozdat_zaglushku=1
-        if [[ -z "$stub_prichina" ]]; then
-            stub_prichina="emcc не найден, заглушка разрешена (KOLIBRI_WASM_ALLOW_STUB_SUCCESS)"
-        fi
-        return 0
-    fi
+            local condensed="$(printf '%s' "$sanity_message" | tr '\r\n' ' ' | sed 's/[[:space:]]\+/ /g' 2>/dev/null | cut -c1-200)"
+            if [[ "$emcc_sanity_class" == "missing-wasm-backend" ]]; then
+                condensed+="; установите или активируйте toolchain Emscripten"
+            fi
+            if [[ -z "$condensed" ]]; then
+                condensed="Проверка emcc не пройдена."
+            else
+                condensed="Проверка emcc не пройдена: ${condensed}"
+            fi
 
-    if command -v docker >/dev/null 2>&1; then
-        docker_dostupen=1
-        docker_image="${KOLIBRI_WASM_DOCKER_IMAGE:-emscripten/emsdk:3.1.61}"
-        echo "[Kolibri] emcc не найден. Пытаюсь собрать kolibri.wasm через Docker (${docker_image})."
-        docker run --rm \
-            -v "$proekt_koren":/project \
-            -w /project/scripts \
-            -e KOLIBRI_WASM_INVOKED_VIA_DOCKER=1 \
-            -e KOLIBRI_WASM_INCLUDE_GENOME \
-            -e KOLIBRI_WASM_GENERATE_MAP \
-            "$docker_image" \
-            bash -lc "./build_wasm.sh"
-        local docker_status=$?
-        if (( docker_status == 0 )); then
-            sobranov_docker=1
-        else
-            echo "[ОШИБКА] Сборка kolibri.wasm внутри Docker завершилась с ошибкой." >&2
             if (( allow_stub_success )); then
                 sozdat_zaglushku=1
-                stub_prichina="Сборка через Docker не удалась, заглушка разрешена (KOLIBRI_WASM_ALLOW_STUB_SUCCESS)"
+                stub_prichina="$condensed"
+                echo "[ПРЕДУПРЕЖДЕНИЕ] $condensed" >&2
                 return 0
             fi
-        fi
-        return $docker_status
-    fi
 
-    sozdat_zaglushku=1
-    if [[ -z "$stub_prichina" ]]; then
-        stub_prichina="emcc не найден и Docker недоступен"
-    fi
-    return 0
+            echo "[ОШИБКА] emcc не прошёл проверку: требуется корректный инструмент WebAssembly." >&2
+            if [[ -n "$sanity_message" ]]; then
+                echo "$sanity_message" >&2
+            fi
+            return 1
+        fi
+
+        if (( bootstrap_enabled )) && bootstrap_emsdk; then
+            continue
+        fi
+
+        if [[ "${KOLIBRI_WASM_INVOKED_VIA_DOCKER:-0}" == "1" ]]; then
+            echo "[ОШИБКА] Не найден emcc внутри Docker-окружения. Проверьте образ ${KOLIBRI_WASM_DOCKER_IMAGE:-emscripten/emsdk:3.1.61}." >&2
+            stub_prichina="Не найден emcc внутри docker-окружения"
+            return 1
+        fi
+
+        if (( allow_stub_success )); then
+            sozdat_zaglushku=1
+            if [[ -z "$stub_prichina" ]]; then
+                stub_prichina="emcc не найден, заглушка разрешена (KOLIBRI_WASM_ALLOW_STUB_SUCCESS)"
+            fi
+            return 0
+        fi
+
+        if command -v docker >/dev/null 2>&1; then
+            docker_dostupen=1
+            docker_image="${KOLIBRI_WASM_DOCKER_IMAGE:-emscripten/emsdk:3.1.61}"
+            echo "[Kolibri] emcc не найден. Пытаюсь собрать kolibri.wasm через Docker (${docker_image})."
+            docker run --rm \
+                -v "$proekt_koren":/project \
+                -w /project/scripts \
+                -e KOLIBRI_WASM_INVOKED_VIA_DOCKER=1 \
+                -e KOLIBRI_WASM_INCLUDE_GENOME \
+                -e KOLIBRI_WASM_GENERATE_MAP \
+                "$docker_image" \
+                bash -lc "./build_wasm.sh"
+            local docker_status=$?
+            if (( docker_status == 0 )); then
+                sobranov_docker=1
+            else
+                echo "[ОШИБКА] Сборка kolibri.wasm внутри Docker завершилась с ошибкой." >&2
+                if (( allow_stub_success )); then
+                    sozdat_zaglushку=1
+                    stub_prichina="Сборка через Docker не удалась, заглушка разрешена (KOLIBRI_WASM_ALLOW_STUB_SUCCESS)"
+                    return 0
+                fi
+            fi
+            return $docker_status
+        fi
+
+        sozdat_zaglushку=1
+        if [[ -z "$stub_prichina" ]]; then
+            stub_prichina="emcc не найден и Docker недоступен"
+        fi
+        return 0
+    done
 }
 
 ensure_emcc || exit 1
