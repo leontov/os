@@ -368,11 +368,11 @@ class KolibriWasmRuntime {
 
   private async instantiate(): Promise<WebAssembly.Instance> {
     const wasiImports = this.wasi.imports;
-    const importObject: Record<string, Record<string, WebAssembly.ImportValue>> = {
+    const moduleImports: Record<string, Record<string, WebAssembly.ImportValue>> = {
       ...wasiImports,
     };
 
-    const existingEnv = importObject.env;
+    const existingEnv = moduleImports.env;
     const envModule: Record<string, WebAssembly.ImportValue> = Object.create(null);
     if (existingEnv && typeof existingEnv === "object") {
       Object.assign(envModule, existingEnv);
@@ -385,23 +385,11 @@ class KolibriWasmRuntime {
       };
     }
 
-    importObject.env = envModule;
-    const envImports: Record<string, WebAssembly.ImportValue> = {
-      ...(("env" in wasiImports ? wasiImports.env : undefined) ?? {}),
-      emscripten_notify_memory_growth: () => {
-        // Стандартные standalone-сборки emcc вызывают эту функцию при расширении памяти.
-        // Наши адаптеры памяти обновляются лениво перед чтениями, поэтому тут достаточно no-op.
-      },
-    };
-
-    const importObject: Record<string, Record<string, WebAssembly.ImportValue>> = {
-      ...wasiImports,
-      env: envImports,
-    };
+    moduleImports.env = envModule;
 
     if ("instantiateStreaming" in WebAssembly) {
       try {
-        const streaming = await WebAssembly.instantiateStreaming(fetch(WASM_RESOURCE_URL), importObject);
+        const streaming = await WebAssembly.instantiateStreaming(fetch(WASM_RESOURCE_URL), moduleImports);
         return streaming.instance;
       } catch (error) {
         console.warn("Kolibri WASM streaming instantiation failed, retrying with ArrayBuffer.", error);
@@ -413,7 +401,7 @@ class KolibriWasmRuntime {
       throw new Error(`Не удалось загрузить kolibri.wasm: ${response.status} ${response.statusText}`);
     }
     const bytes = await response.arrayBuffer();
-    const { instance } = await WebAssembly.instantiate(bytes, importObject);
+    const { instance } = await WebAssembly.instantiate(bytes, moduleImports);
     return instance;
   }
 
