@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "kolibri-enterprise.backendConfigName" . }}
+  labels:
+    {{- include "kolibri-enterprise.labels" . | nindent 4 }}
+data:
+  {{- range $key, $value := .Values.backend.env }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}
+  KOLIBRI_AUDIT_LOG_PATH: {{ .Values.backend.auditLogPath | quote }}
+  KOLIBRI_GENOME_LOG_PATH: {{ .Values.backend.genomeLogPath | quote }}
+  rbac-policy.json: |
+{{ .Values.backend.rbacPolicy | nindent 4 }}

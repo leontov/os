@@ -1,0 +1,23 @@
+{{- if .Values.logging.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "kolibri-enterprise.logsPvcName" . }}
+  labels:
+    {{- include "kolibri-enterprise.labels" . | nindent 4 }}
+  {{- with .Values.logging.persistence.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  accessModes:
+    {{- range .Values.logging.persistence.accessModes }}
+    - {{ . }}
+    {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.logging.persistence.size }}
+  {{- if .Values.logging.persistence.storageClassName }}
+  storageClassName: {{ .Values.logging.persistence.storageClassName | quote }}
+  {{- end }}
+{{- end }}

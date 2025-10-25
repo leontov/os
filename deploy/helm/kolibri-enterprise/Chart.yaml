@@ -1,0 +1,16 @@
+apiVersion: v2
+name: kolibri-enterprise
+version: 0.1.0
+description: Kolibri OS Enterprise bundle (backend, frontend, observability)
+type: application
+appVersion: 1.0.0
+keywords:
+  - kolibri
+  - enterprise
+  - llm
+  - observability
+  - security
+home: https://kolibri.example.com
+maintainers:
+  - name: Kolibri Team
+    email: ops@kolibri.example.com
