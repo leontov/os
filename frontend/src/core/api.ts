@@ -25,7 +25,7 @@ export const submitFeedback = async (payload: FeedbackRequest): Promise<void> =>
     if (data?.detail) {
       detail = data.detail;
     }
-  } catch (error) {
+  } catch {
     // Игнорируем ошибки парсинга и используем сообщение по умолчанию.
   }
 
