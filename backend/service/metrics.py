@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Dict, Iterable, List, Sequence, Tuple
+from typing import Dict, Iterable, Iterator, List, Protocol, Sequence, Tuple
 
 CONTENT_TYPE_LATEST = "text/plain; version=0.0.4; charset=utf-8"
 
@@ -129,14 +129,19 @@ class Histogram:
         return "{" + ",".join(pairs) + "}"
 
 
+class _Collectable(Protocol):
+    def collect(self) -> Iterable[str]:
+        ...
+
+
 class CollectorRegistry:
     def __init__(self) -> None:
-        self._metrics: List[object] = []
+        self._metrics: List[_Collectable] = []
 
-    def register(self, metric: object) -> None:
+    def register(self, metric: _Collectable) -> None:
         self._metrics.append(metric)
 
-    def collect(self) -> Iterable[str]:
+    def collect(self) -> Iterator[str]:
         for metric in self._metrics:
             yield from metric.collect()
 

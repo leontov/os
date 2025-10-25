@@ -72,17 +72,17 @@ class RBACPolicy:
 
 
 DEFAULT_RBAC_MAPPING: Dict[str, Sequence[str]] = {
-    "system:admin": {"*"},
-    "operator": {
+    "system:admin": ("*",),
+    "operator": (
         "kolibri.infer",
         "kolibri.analytics.view",
         "kolibri.audit.read",
-    },
-    "auditor": {
+    ),
+    "auditor": (
         "kolibri.audit.read",
         "kolibri.genome.read",
-    },
-    "observer": {"kolibri.analytics.view"},
+    ),
+    "observer": ("kolibri.analytics.view",),
 }
 
 
