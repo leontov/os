@@ -1,0 +1,120 @@
+image:
+  repository: ghcr.io/kolibri-os/backend
+  tag: latest
+  pullPolicy: IfNotPresent
+
+frontendImage:
+  repository: ghcr.io/kolibri-os/frontend
+  tag: latest
+  pullPolicy: IfNotPresent
+
+ingress:
+  enabled: false
+  className: nginx
+  host: kolibri.local
+  tls: []
+
+serviceAccount:
+  create: true
+  name: ""
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+
+backend:
+  replicaCount: 2
+  service:
+    type: ClusterIP
+    port: 8000
+  resources: {}
+  env:
+    KOLIBRI_RESPONSE_MODE: llm
+    KOLIBRI_SSO_ENABLED: "true"
+    KOLIBRI_SSO_SESSION_TTL: "3600"
+    KOLIBRI_SAML_AUDIENCE: kolibri
+  secretEnv:
+    KOLIBRI_SSO_SHARED_SECRET: "change-me"
+  rbacPolicy: |
+    {
+      "system:admin": ["*"],
+      "operator": ["kolibri.infer", "kolibri.analytics.view"],
+      "auditor": ["kolibri.audit.read", "kolibri.genome.read"],
+      "observer": ["kolibri.analytics.view"]
+    }
+  auditLogPath: /var/log/kolibri/audit.log
+  genomeLogPath: /var/log/kolibri/genome.log
+  extraVolumeMounts: []
+  extraVolumes: []
+
+frontend:
+  replicaCount: 2
+  service:
+    type: ClusterIP
+    port: 4173
+  resources: {}
+
+prometheus:
+  serviceMonitor:
+    enabled: false
+    namespace: monitoring
+    interval: 30s
+
+logging:
+  persistence:
+    enabled: false
+    size: 5Gi
+    accessModes:
+      - ReadWriteOnce
+    storageClassName: ""
+    annotations: {}
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+grafana:
+  dashboard:
+    enabled: true
+    configMapName: kolibri-dashboard
+    folder: Kolibri
+    json: |
+      {
+        "title": "Kolibri Enterprise",
+        "timezone": "browser",
+        "panels": [
+          {
+            "type": "stat",
+            "title": "Успешные инференсы",
+            "datasource": "Prometheus",
+            "targets": [
+              {
+                "expr": "sum(rate(kolibri_infer_requests_total{outcome=\"success\"}[5m]))"
+              }
+            ]
+          },
+          {
+            "type": "graph",
+            "title": "Латентность инференса",
+            "datasource": "Prometheus",
+            "targets": [
+              {
+                "expr": "histogram_quantile(0.95, sum(rate(kolibri_infer_latency_seconds_bucket[5m])) by (le))"
+              }
+            ]
+          },
+          {
+            "type": "stat",
+            "title": "События SSO",
+            "datasource": "Prometheus",
+            "targets": [
+              {
+                "expr": "sum(rate(kolibri_sso_events_total[5m]))"
+              }
+            ]
+          }
+        ]
+      }

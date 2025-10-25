@@ -1,5 +1,14 @@
 const CACHE_NAME = "kolibri-cache-v1";
 const ABSOLUTE_URL_PATTERN = /^[a-z][a-z0-9+.-]*:\/\//i;
+const MAX_WASM_SIZE_BYTES = Number(self.KOLIBRI_MAX_WASM_BYTES || 60 * 1024 * 1024);
+
+const metricsState = {
+  installTimestamp: typeof performance !== "undefined" && typeof performance.now === "function" ? performance.now() : Date.now(),
+  coldStartMs: null,
+  wasmBytes: null,
+  offlineFallback: false,
+  degradedReason: null,
+};
 
 const ensureDirectoryUrl = (input) => {
   const url = new URL(input.href);
@@ -41,6 +50,40 @@ const baseDirectory = deriveBaseDirectory();
 const baseOrigin = baseDirectory.origin;
 const BASE_PATH = baseDirectory.pathname.endsWith("/") ? baseDirectory.pathname : `${baseDirectory.pathname}/`;
 
+const snapshotMetrics = () => ({ ...metricsState });
+
+const broadcastMetrics = async (targets) => {
+  try {
+    const payload = { type: "kolibri:pwa-metrics", payload: snapshotMetrics() };
+    const recipients =
+      targets && targets.length
+        ? targets
+        : await self.clients.matchAll({ includeUncontrolled: true, type: "window" });
+    recipients.forEach((client) => {
+      try {
+        client.postMessage(payload);
+      } catch (error) {
+        console.warn("[kolibri-sw] Не удалось отправить метрики клиенту.", error);
+      }
+    });
+  } catch (error) {
+    console.warn("[kolibri-sw] Не удалось разослать метрики.", error);
+  }
+};
+
+const markDegraded = (reason) => {
+  if (!metricsState.degradedReason) {
+    metricsState.degradedReason = reason;
+  }
+};
+
+const recordColdStart = () => {
+  if (metricsState.coldStartMs == null) {
+    const now = typeof performance !== "undefined" && typeof performance.now === "function" ? performance.now() : Date.now();
+    metricsState.coldStartMs = Math.max(0, now - metricsState.installTimestamp);
+  }
+};
+
 const resolveBasePath = (path = "") => {
   if (!path) {
     return BASE_PATH;
@@ -76,6 +119,22 @@ const toAbsoluteUrl = (path = "") => {
 
   return `${baseOrigin}${resolveBasePath(path)}`;
 };
+
+self.addEventListener("install", (event) => {
+  metricsState.installTimestamp =
+    typeof performance !== "undefined" && typeof performance.now === "function" ? performance.now() : Date.now();
+  event.waitUntil(self.skipWaiting());
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    (async () => {
+      recordColdStart();
+      await self.clients.claim();
+      await broadcastMetrics();
+    })(),
+  );
+});
 
 const OFFLINE_URL = resolveBasePath("index.html");
 const PRECACHE_URLS = [BASE_PATH, OFFLINE_URL];
@@ -602,7 +661,37 @@ async function precacheResource(path) {
     }
   } catch (error) {
     console.warn(`[kolibri-sw] Не удалось закэшировать ${path}.`, error);
+    metricsState.offlineFallback = true;
+    markDegraded(`cache-failure:${path}`);
+    void broadcastMetrics();
   }
+}
+
+async function evaluateWasmBudget(path) {
+  try {
+    const request = new Request(toAbsoluteUrl(path), { method: "HEAD", credentials: "same-origin" });
+    const response = await fetch(request);
+    if (!response || !response.ok) {
+      return true;
+    }
+    const lengthHeader = response.headers.get("Content-Length");
+    if (lengthHeader) {
+      const parsed = Number(lengthHeader);
+      if (!Number.isNaN(parsed) && parsed > 0) {
+        metricsState.wasmBytes = parsed;
+        if (parsed > MAX_WASM_SIZE_BYTES) {
+          metricsState.offlineFallback = true;
+          markDegraded("wasm-over-budget");
+          await broadcastMetrics();
+          return false;
+        }
+      }
+    }
+  } catch (error) {
+    console.warn("[kolibri-sw] Не удалось оценить размер wasm.", error);
+  }
+  await broadcastMetrics();
+  return true;
 }
 
 self.addEventListener("message", (event) => {
@@ -611,14 +700,32 @@ self.addEventListener("message", (event) => {
     return;
   }
 
+  if (data.type === "GET_STARTUP_METRICS") {
+    recordColdStart();
+    const target = event.source ? [event.source] : undefined;
+    event.waitUntil(broadcastMetrics(target));
+    return;
+  }
+
   if (data.type === "SET_WASM_ARTIFACTS") {
+    const tasks = [];
     if (typeof data.url === "string" && data.url) {
       wasmUrl = resolveBasePath(data.url);
-      event.waitUntil(precacheResource(wasmUrl));
+      tasks.push(
+        (async () => {
+          const allowed = await evaluateWasmBudget(wasmUrl);
+          if (allowed) {
+            await precacheResource(wasmUrl);
+          }
+        })(),
+      );
     }
     if (typeof data.infoUrl === "string" && data.infoUrl) {
       wasmInfoUrl = resolveBasePath(data.infoUrl);
-      event.waitUntil(precacheResource(wasmInfoUrl));
+      tasks.push(precacheResource(wasmInfoUrl));
+    }
+    if (tasks.length > 0) {
+      event.waitUntil(Promise.all(tasks).then(() => broadcastMetrics()));
     }
   }
 
@@ -631,7 +738,9 @@ self.addEventListener("message", (event) => {
         resetKnowledgeDataset();
       }
       event.waitUntil(
-        precacheResource(knowledgeUrl).then(() => warmKnowledgeDataset()),
+        precacheResource(knowledgeUrl)
+          .then(() => warmKnowledgeDataset())
+          .then(() => broadcastMetrics()),
       );
     }
   }
@@ -647,7 +756,9 @@ self.addEventListener("message", (event) => {
       if (changed) {
         resetKnowledgeDataset();
       }
-      event.waitUntil(precacheResource(knowledgeUrl));
+      event.waitUntil(
+        precacheResource(knowledgeUrl).then(() => broadcastMetrics()),
+      );
     }
   }
 });
@@ -694,6 +805,9 @@ self.addEventListener("fetch", (event) => {
           return response;
         })
         .catch(async () => {
+          metricsState.offlineFallback = true;
+          markDegraded("offline");
+          void broadcastMetrics();
           const cache = await caches.open(CACHE_NAME);
           const fallback = await cache.match(OFFLINE_URL);
           if (fallback) {
