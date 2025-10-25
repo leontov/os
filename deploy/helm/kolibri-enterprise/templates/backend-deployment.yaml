@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kolibri-enterprise.fullname" . }}-backend
+  labels:
+    {{- include "kolibri-enterprise.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+spec:
+  replicas: {{ .Values.backend.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: backend
+  template:
+    metadata:
+      labels:
+        {{- include "kolibri-enterprise.labels" . | nindent 8 }}
+        app.kubernetes.io/component: backend
+    spec:
+      serviceAccountName: {{ if .Values.serviceAccount.create }}{{ include "kolibri-enterprise.fullname" . }}{{ else }}{{ .Values.serviceAccount.name }}{{ end }}
+      securityContext:
+        runAsNonRoot: {{ .Values.securityContext.runAsNonRoot }}
+        runAsUser: {{ .Values.securityContext.runAsUser }}
+        fsGroup: {{ .Values.securityContext.fsGroup }}
+      containers:
+        - name: backend
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.backend.service.port }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "kolibri-enterprise.backendConfigName" . }}
+            - secretRef:
+                name: {{ include "kolibri-enterprise.backendSecretName" . }}
+          env:
+            - name: KOLIBRI_RBAC_POLICY_PATH
+              value: /etc/kolibri/rbac-policy.json
+          volumeMounts:
+            - name: backend-config
+              mountPath: /etc/kolibri/rbac-policy.json
+              subPath: rbac-policy.json
+            - name: backend-logs
+              mountPath: /var/log/kolibri
+          {{- if .Values.backend.extraVolumeMounts }}
+            {{- toYaml .Values.backend.extraVolumeMounts | nindent 12 }}
+          {{- end }}
+          resources: {{- toYaml .Values.backend.resources | nindent 12 }}
+      volumes:
+        - name: backend-config
+          configMap:
+            name: {{ include "kolibri-enterprise.backendConfigName" . }}
+            items:
+              - key: rbac-policy.json
+                path: rbac-policy.json
+        - name: backend-logs
+          {{- if .Values.logging.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "kolibri-enterprise.logsPvcName" . }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+      {{- if .Values.backend.extraVolumes }}
+        {{- toYaml .Values.backend.extraVolumes | nindent 8 }}
+      {{- end }}

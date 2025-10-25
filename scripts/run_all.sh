@@ -102,4 +102,7 @@ else
     zapisat_shag "Пропускаем запуск кластера по требованию"
 fi
 
+zapisat_shag "Обновляем сценарии демо-видео"
+"$kornevaya/scripts/generate_demo_storyboards.sh"
+
 zapisat_shag "Полный цикл выполнен"

@@ -1,86 +1,54 @@
-"""FastAPI application that proxies chat prompts to an upstream LLM."""
+"""FastAPI application that powers the Kolibri enterprise backend."""
 from __future__ import annotations
 
 import json
-import os
 import time
-from dataclasses import dataclass
-from functools import lru_cache
 from typing import Any, Dict, Optional
 
 import httpx
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, Form, HTTPException, Response, status
 from pydantic import BaseModel, Field
+from .metrics import (
+    CONTENT_TYPE_LATEST,
+    CollectorRegistry,
+    generate_latest,
+    register_counter,
+    register_histogram,
+)
 
+from .audit import log_audit_event, log_genome_event
+from .config import Settings, get_settings
+from .security import AuthContext, issue_session_token, parse_saml_response, require_permission
 
-@dataclass
-class Settings:
-    """Runtime configuration for the LLM proxy service."""
+app = FastAPI(title="Kolibri Enterprise API", version="1.0.0")
 
-    response_mode: str = "script"
-    llm_endpoint: Optional[str] = None
-    llm_api_key: Optional[str] = None
-    llm_model: Optional[str] = None
-    llm_timeout: float = 30.0
-    llm_temperature_default: Optional[float] = None
-    llm_max_tokens_default: Optional[int] = None
-
-    @classmethod
-    def load(cls) -> "Settings":
-        response_mode = os.getenv("KOLIBRI_RESPONSE_MODE", "script").strip().lower()
-        llm_endpoint = os.getenv("KOLIBRI_LLM_ENDPOINT")
-        llm_api_key = os.getenv("KOLIBRI_LLM_API_KEY")
-        llm_model = os.getenv("KOLIBRI_LLM_MODEL")
-        timeout_raw = os.getenv("KOLIBRI_LLM_TIMEOUT", "30")
-        temperature_raw = os.getenv("KOLIBRI_LLM_TEMPERATURE")
-        max_tokens_raw = os.getenv("KOLIBRI_LLM_MAX_TOKENS")
-
-        try:
-            llm_timeout = float(timeout_raw)
-        except ValueError as exc:  # pragma: no cover - defensive branch
-            raise RuntimeError("KOLIBRI_LLM_TIMEOUT must be numeric") from exc
-
-        temperature_default: Optional[float]
-        if temperature_raw is None or temperature_raw == "":
-            temperature_default = None
-        else:
-            try:
-                temperature_default = float(temperature_raw)
-            except ValueError as exc:  # pragma: no cover - defensive branch
-                raise RuntimeError("KOLIBRI_LLM_TEMPERATURE must be numeric") from exc
-            if not 0.0 <= temperature_default <= 2.0:
-                raise RuntimeError("KOLIBRI_LLM_TEMPERATURE must be between 0.0 and 2.0")
-
-        max_tokens_default: Optional[int]
-        if max_tokens_raw is None or max_tokens_raw == "":
-            max_tokens_default = None
-        else:
-            try:
-                max_tokens_default = int(max_tokens_raw)
-            except ValueError as exc:  # pragma: no cover - defensive branch
-                raise RuntimeError("KOLIBRI_LLM_MAX_TOKENS must be an integer") from exc
-            if max_tokens_default <= 0:
-                raise RuntimeError("KOLIBRI_LLM_MAX_TOKENS must be positive")
-
-        return cls(
-            response_mode=response_mode or "script",
-            llm_endpoint=llm_endpoint,
-            llm_api_key=llm_api_key,
-            llm_model=llm_model,
-            llm_timeout=llm_timeout,
-            llm_temperature_default=temperature_default,
-            llm_max_tokens_default=max_tokens_default,
-        )
-
-
-@lru_cache(maxsize=1)
-def get_settings() -> Settings:
-    return Settings.load()
+registry = CollectorRegistry()
+INFER_REQUESTS = register_counter(
+    registry,
+    "kolibri_infer_requests_total",
+    "Количество запросов к апстрим LLM",
+    labelnames=("outcome",),
+)
+INFER_LATENCY = register_histogram(
+    registry,
+    "kolibri_infer_latency_seconds",
+    "Латентность запроса к LLM",
+    labelnames=("provider",),
+    buckets=(0.05, 0.1, 0.25, 0.5, 1.0, 2.0, 5.0, 10.0),
+)
+SSO_EVENTS = register_counter(
+    registry,
+    "kolibri_sso_events_total",
+    "Количество событий SSO",
+    labelnames=("event",),
+)
 
 
 class HealthResponse(BaseModel):
     status: str = "ok"
     response_mode: str
+    sso_enabled: bool
+    prometheus_namespace: str
 
 
 class InferenceRequest(BaseModel):
@@ -96,7 +64,11 @@ class InferenceResponse(BaseModel):
     latency_ms: Optional[float] = Field(default=None, description="End-to-end latency for the upstream call")
 
 
-app = FastAPI(title="Kolibri LLM proxy", version="0.1.0")
+class SAMLLoginResponse(BaseModel):
+    token: str
+    subject: str
+    expires_at: Optional[float]
+    relay_state: Optional[str]
 
 
 def _extract_text(payload: Any) -> str:
@@ -195,13 +167,82 @@ async def _perform_upstream_call(
 
 @app.get("/api/health", response_model=HealthResponse)
 async def health(settings: Settings = Depends(get_settings)) -> HealthResponse:
-    return HealthResponse(status="ok", response_mode=settings.response_mode)
+    return HealthResponse(
+        status="ok",
+        response_mode=settings.response_mode,
+        sso_enabled=settings.sso_enabled,
+        prometheus_namespace=settings.prometheus_namespace,
+    )
+
+
+@app.get("/metrics")
+async def metrics() -> Response:
+    payload = generate_latest(registry)
+    return Response(content=payload, media_type=CONTENT_TYPE_LATEST)
+
+
+@app.get("/api/v1/sso/saml/metadata")
+async def saml_metadata(settings: Settings = Depends(get_settings)) -> Response:
+    acs_url = settings.saml_acs_url or "/api/v1/sso/saml/acs"
+    metadata = f"""
+<EntityDescriptor xmlns=\"urn:oasis:names:tc:SAML:2.0:metadata\" entityID=\"{settings.saml_entity_id}\">
+  <SPSSODescriptor WantAssertionsSigned=\"true\" AuthnRequestsSigned=\"false\" protocolSupportEnumeration=\"urn:oasis:names:tc:SAML:2.0:protocol\">
+    <NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</NameIDFormat>
+    <AssertionConsumerService Binding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST\" Location=\"{acs_url}\" index=\"1\" isDefault=\"true\"/>
+  </SPSSODescriptor>
+</EntityDescriptor>
+""".strip()
+    return Response(content=metadata, media_type="application/samlmetadata+xml")
+
+
+@app.post("/api/v1/sso/saml/acs", response_model=SAMLLoginResponse)
+async def saml_acs(
+    saml_response: str = Form(..., alias="SAMLResponse"),
+    relay_state: Optional[str] = Form(default=None, alias="RelayState"),
+    settings: Settings = Depends(get_settings),
+) -> SAMLLoginResponse:
+    context = parse_saml_response(saml_response, settings)
+    try:
+        token = issue_session_token(context, settings)
+    except RuntimeError as exc:  # pragma: no cover - configuration error path
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
+
+    SSO_EVENTS.labels(event="login").inc()
+    log_audit_event(
+        event_type="sso.login",
+        actor=context.subject,
+        payload={"roles": sorted(context.roles), "relay_state": relay_state},
+        settings=settings,
+    )
+    log_genome_event(
+        stage="sso",
+        actor=context.subject,
+        payload={"session_id": context.session_id, "expires_at": context.session_expires_at},
+        settings=settings,
+    )
+    return SAMLLoginResponse(
+        token=token,
+        subject=context.subject,
+        expires_at=context.session_expires_at,
+        relay_state=relay_state,
+    )
+
+
+@app.get("/api/v1/sso/session", response_model=SAMLLoginResponse)
+async def saml_session(context: AuthContext = Depends(require_permission("kolibri.audit.read"))) -> SAMLLoginResponse:
+    return SAMLLoginResponse(
+        token="redacted",
+        subject=context.subject,
+        expires_at=context.session_expires_at,
+        relay_state=None,
+    )
 
 
 @app.post("/api/v1/infer", response_model=InferenceResponse)
 async def infer(
     request: InferenceRequest,
     settings: Settings = Depends(get_settings),
+    context: AuthContext = Depends(require_permission("kolibri.infer")),
 ) -> InferenceResponse:
     if settings.response_mode != "llm":
         raise HTTPException(
@@ -209,7 +250,37 @@ async def infer(
             detail="LLM mode is disabled",
         )
 
-    text, latency_ms, provider = await _perform_upstream_call(request, settings)
+    try:
+        text, latency_ms, provider = await _perform_upstream_call(request, settings)
+    except HTTPException:
+        INFER_REQUESTS.labels(outcome="error").inc()
+        log_audit_event(
+            event_type="llm.infer.error",
+            actor=context.subject,
+            payload={"mode": request.mode},
+            settings=settings,
+        )
+        raise
+
+    INFER_REQUESTS.labels(outcome="success").inc()
+    INFER_LATENCY.labels(provider=provider or "unknown").observe((latency_ms or 0.0) / 1000.0)
+
+    log_audit_event(
+        event_type="llm.infer",
+        actor=context.subject,
+        payload={
+            "mode": request.mode,
+            "provider": provider,
+            "latency_ms": latency_ms,
+        },
+        settings=settings,
+    )
+    log_genome_event(
+        stage="response",
+        actor=context.subject,
+        payload={"provider": provider, "latency_ms": latency_ms},
+        settings=settings,
+    )
     return InferenceResponse(response=text, provider=provider, latency_ms=latency_ms)
 
 

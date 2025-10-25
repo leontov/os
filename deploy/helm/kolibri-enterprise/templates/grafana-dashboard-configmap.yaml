@@ -1,0 +1,16 @@
+{{- if and .Values.grafana.dashboard.enabled .Values.grafana.dashboard.json }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.grafana.dashboard.configMapName }}
+  labels:
+    {{- include "kolibri-enterprise.labels" . | nindent 4 }}
+    grafana_dashboard: "1"
+  {{- if .Values.grafana.dashboard.folder }}
+  annotations:
+    grafana_folder: {{ .Values.grafana.dashboard.folder | quote }}
+  {{- end }}
+data:
+  kolibri-enterprise.json: |
+{{ .Values.grafana.dashboard.json | indent 4 }}
+{{- end }}
