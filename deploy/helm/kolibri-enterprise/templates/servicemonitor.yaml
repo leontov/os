@@ -1,0 +1,21 @@
+{{- if .Values.prometheus.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "kolibri-enterprise.fullname" . }}-backend
+  labels:
+    {{- include "kolibri-enterprise.labels" . | nindent 4 }}
+    release: prometheus
+spec:
+  namespaceSelector:
+    matchNames:
+      - {{ default .Release.Namespace .Values.prometheus.serviceMonitor.namespace }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: backend
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  endpoints:
+    - interval: {{ .Values.prometheus.serviceMonitor.interval }}
+      port: http
+      path: /metrics
+{{- end }}

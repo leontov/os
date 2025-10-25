@@ -5,7 +5,9 @@ from typing import Any, Dict
 import pytest
 from fastapi.testclient import TestClient
 
-from backend.service.main import app, get_settings
+from backend.service.config import get_settings
+from backend.service.main import app
+from backend.service.security import AuthContext, issue_session_token
 
 
 @pytest.fixture(autouse=True)
@@ -18,6 +20,20 @@ def clear_settings_cache(monkeypatch: pytest.MonkeyPatch) -> None:
         "KOLIBRI_LLM_TIMEOUT",
         "KOLIBRI_LLM_TEMPERATURE",
         "KOLIBRI_LLM_MAX_TOKENS",
+        "KOLIBRI_SSO_ENABLED",
+        "KOLIBRI_SSO_SHARED_SECRET",
+        "KOLIBRI_SSO_SESSION_TTL",
+        "KOLIBRI_SSO_OFFLINE_ROLES",
+        "KOLIBRI_SSO_DEGRADED_TOKENS",
+        "KOLIBRI_SAML_ENTITY_ID",
+        "KOLIBRI_SAML_ACS_URL",
+        "KOLIBRI_SAML_AUDIENCE",
+        "KOLIBRI_SAML_ROLE_ATTRIBUTE",
+        "KOLIBRI_SAML_SIGNATURE_ATTRIBUTE",
+        "KOLIBRI_SAML_CLOCK_SKEW",
+        "KOLIBRI_AUDIT_LOG_PATH",
+        "KOLIBRI_GENOME_LOG_PATH",
+        "KOLIBRI_PROMETHEUS_NAMESPACE",
     ):
         monkeypatch.delenv(key, raising=False)
     get_settings.cache_clear()
@@ -40,6 +56,7 @@ def test_health_reports_response_mode(monkeypatch: pytest.MonkeyPatch, client: T
 
 def test_infer_disabled_when_not_llm(monkeypatch: pytest.MonkeyPatch, client: TestClient) -> None:
     monkeypatch.setenv("KOLIBRI_RESPONSE_MODE", "script")
+    monkeypatch.setenv("KOLIBRI_SSO_ENABLED", "false")
     get_settings.cache_clear()
 
     response = client.post("/api/v1/infer", json={"prompt": "ping"})
@@ -49,6 +66,7 @@ def test_infer_disabled_when_not_llm(monkeypatch: pytest.MonkeyPatch, client: Te
 
 def test_infer_missing_endpoint(monkeypatch: pytest.MonkeyPatch, client: TestClient) -> None:
     monkeypatch.setenv("KOLIBRI_RESPONSE_MODE", "llm")
+    monkeypatch.setenv("KOLIBRI_SSO_ENABLED", "false")
     get_settings.cache_clear()
 
     response = client.post("/api/v1/infer", json={"prompt": "ping"})
@@ -87,6 +105,7 @@ class _DummyClient:
 def test_infer_success(monkeypatch: pytest.MonkeyPatch, client: TestClient) -> None:
     monkeypatch.setenv("KOLIBRI_RESPONSE_MODE", "llm")
     monkeypatch.setenv("KOLIBRI_LLM_ENDPOINT", "https://example.test/llm")
+    monkeypatch.setenv("KOLIBRI_SSO_ENABLED", "false")
     get_settings.cache_clear()
 
     dummy_client = _DummyClient()
@@ -117,6 +136,7 @@ def test_infer_applies_defaults(monkeypatch: pytest.MonkeyPatch, client: TestCli
     monkeypatch.setenv("KOLIBRI_LLM_ENDPOINT", "https://example.test/llm")
     monkeypatch.setenv("KOLIBRI_LLM_TEMPERATURE", "0.9")
     monkeypatch.setenv("KOLIBRI_LLM_MAX_TOKENS", "256")
+    monkeypatch.setenv("KOLIBRI_SSO_ENABLED", "false")
     get_settings.cache_clear()
 
     dummy_client = _DummyClient()
@@ -141,8 +161,49 @@ def test_infer_applies_defaults(monkeypatch: pytest.MonkeyPatch, client: TestCli
 )
 def test_invalid_defaults_raise(monkeypatch: pytest.MonkeyPatch, env_key: str) -> None:
     monkeypatch.setenv("KOLIBRI_RESPONSE_MODE", "llm")
+    monkeypatch.setenv("KOLIBRI_SSO_ENABLED", "false")
     invalid_value = "bad" if env_key.endswith("TEMPERATURE") else "0"
     monkeypatch.setenv(env_key, invalid_value)
 
     with pytest.raises(RuntimeError):
         get_settings()
+
+
+def test_infer_requires_auth_when_sso_enabled(monkeypatch: pytest.MonkeyPatch, client: TestClient) -> None:
+    monkeypatch.setenv("KOLIBRI_RESPONSE_MODE", "llm")
+    monkeypatch.setenv("KOLIBRI_LLM_ENDPOINT", "https://example.test/llm")
+    monkeypatch.setenv("KOLIBRI_SSO_SHARED_SECRET", "testing-secret")
+    get_settings.cache_clear()
+
+    response = client.post("/api/v1/infer", json={"prompt": "ping"})
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Missing bearer token"
+
+
+def test_infer_accepts_valid_token(monkeypatch: pytest.MonkeyPatch, client: TestClient) -> None:
+    monkeypatch.setenv("KOLIBRI_RESPONSE_MODE", "llm")
+    monkeypatch.setenv("KOLIBRI_LLM_ENDPOINT", "https://example.test/llm")
+    monkeypatch.setenv("KOLIBRI_SSO_SHARED_SECRET", "testing-secret")
+    get_settings.cache_clear()
+
+    dummy_client = _DummyClient()
+
+    def factory(*args: Any, **kwargs: Any) -> _DummyClient:
+        dummy_client.args = args
+        dummy_client.kwargs = kwargs
+        return dummy_client
+
+    monkeypatch.setattr("backend.service.main.httpx.AsyncClient", factory)
+
+    settings = get_settings()
+    context = AuthContext(subject="user@example.com", roles={"system:admin"}, attributes={}, session_expires_at=None, session_id="test")
+    token = issue_session_token(context, settings)
+
+    response = client.post(
+        "/api/v1/infer",
+        json={"prompt": "ping"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    assert dummy_client.post_calls
