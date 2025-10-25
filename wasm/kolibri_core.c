@@ -1231,4 +1231,23 @@ int kolibri_bridge_execute(const uint8_t *program, uint8_t *buffer, size_t capac
     return produced > 0u ? (int)produced : -1;
 }
 
+
+EMSCRIPTEN_KEEPALIVE
+int kolibri_bridge_has_simd(void) {
+#if defined(KOLIBRI_USE_WASM_SIMD) && defined(__wasm_simd128__)
+    return 1;
+#else
+    return 0;
+#endif
+}
+
+EMSCRIPTEN_KEEPALIVE
+int kolibri_bridge_lane_width(void) {
+#if defined(KOLIBRI_USE_WASM_SIMD) && defined(__wasm_simd128__)
+    return 16;
+#else
+    return 1;
+#endif
+}
+
 /* ------------------------------- End of file ----------------------------- */

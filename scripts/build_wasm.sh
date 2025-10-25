@@ -41,6 +41,68 @@ prepare_em_config() {
 
     export EM_CONFIG
 
+    local resolved_emcc=""
+    if resolved_emcc="$(command -v "$EMCC" 2>/dev/null)"; then
+        :
+    fi
+
+    local emsdk_root=""
+    case "$resolved_emcc" in
+        */upstream/emscripten/emcc)
+            emsdk_root="${resolved_emcc%/upstream/emscripten/emcc}"
+            ;;
+    esac
+
+    local llvm_root=""
+    local binaryen_root=""
+    local emscripten_path=""
+    local node_path="${EMSDK_NODE:-}"
+
+    if [[ -n "$emsdk_root" ]]; then
+        llvm_root="$emsdk_root/upstream/bin"
+        binaryen_root="$emsdk_root/upstream"
+        emscripten_path="$emsdk_root/upstream/emscripten"
+
+        if [[ -z "$node_path" || ! -x "$node_path" ]]; then
+            if [[ -x "$emsdk_root/node/current/bin/node" ]]; then
+                node_path="$emsdk_root/node/current/bin/node"
+            elif command -v find >/dev/null 2>&1; then
+                local discovered=""
+                discovered="$(find "$emsdk_root/node" -maxdepth 3 -type f -name node 2>/dev/null | head -n1 || true)"
+                if [[ -n "$discovered" ]]; then
+                    node_path="$discovered"
+                fi
+            fi
+        fi
+
+        export EM_LLVM_ROOT="$llvm_root"
+        export EM_BINARYEN_ROOT="$binaryen_root"
+        export LLVM_ROOT="$llvm_root"
+        export BINARYEN_ROOT="$binaryen_root"
+
+        if [[ -n "$node_path" ]]; then
+            export NODE_JS="$node_path"
+            export EM_NODE_JS="$node_path"
+            export EMSDK_NODE="$node_path"
+        fi
+
+        if [[ -n "$llvm_root" ]]; then
+            local path_prefixes=("$llvm_root")
+            if [[ -n "$emscripten_path" ]]; then
+                path_prefixes+=("$emscripten_path")
+            fi
+            for prefix in "${path_prefixes[@]}"; do
+                case ":$PATH:" in
+                    *":$prefix:") ;;
+                    *) PATH="$prefix:$PATH" ;;
+                esac
+            done
+            export PATH
+        fi
+    fi
+
+    if [[ ! -f "$EM_CONFIG" ]] && [[ -n "$resolved_emcc" ]]; then
+        if EM_CONFIG="$EM_CONFIG" "$resolved_emcc" --generate-config >/dev/null 2>&1; then
     if [[ ! -f "$EM_CONFIG" ]] && command -v "$EMCC" >/dev/null 2>&1; then
         if EM_CONFIG="$EM_CONFIG" "$EMCC" --generate-config >/dev/null 2>&1; then
             echo "[Kolibri] Создан конфиг Emscripten: $EM_CONFIG"
@@ -72,6 +134,8 @@ PY
         fi
     fi
 
+    if [[ -n "$llvm_root" ]] && [[ -f "$EM_CONFIG" ]] && command -v python3 >/dev/null 2>&1; then
+        python3 - "$EM_CONFIG" "$llvm_root" "$binaryen_root" "$node_path" <<'PY'
     local resolved_emcc=""
     if resolved_emcc="$(command -v "$EMCC" 2>/dev/null)"; then
         local emsdk_root=""
@@ -134,6 +198,15 @@ if node_path:
 
 config_path.write_text("".join(lines), encoding="utf-8")
 PY
+    elif [[ -n "$llvm_root" ]] && [[ -f "$EM_CONFIG" ]] && command -v sed >/dev/null 2>&1; then
+        sed -i.bak \
+            -e "s|^LLVM_ROOT = .*|LLVM_ROOT = '$llvm_root'|" \
+            -e "s|^BINARYEN_ROOT = .*|BINARYEN_ROOT = '$binaryen_root'|" \
+            "$EM_CONFIG" 2>/dev/null || true
+        if [[ -n "$node_path" ]]; then
+            sed -i.bak -e "s|^NODE_JS = .*|NODE_JS = '$node_path'|" "$EM_CONFIG" 2>/dev/null || true
+        fi
+        rm -f "$EM_CONFIG.bak"
             elif [[ -f "$EM_CONFIG" ]]; then
                 if command -v sed >/dev/null 2>&1; then
                     sed -i.bak \
@@ -533,6 +606,10 @@ def build_stub():
         ("kolibri_bridge_configure", 0, 10),
         ("_kolibri_bridge_execute", 0, 2),
         ("kolibri_bridge_execute", 0, 2),
+        ("_kolibri_bridge_has_simd", 0, 0),
+        ("kolibri_bridge_has_simd", 0, 0),
+        ("_kolibri_bridge_lane_width", 0, 0),
+        ("kolibri_bridge_lane_width", 0, 0),
         ("_kolibri_sim_wasm_init", 0, 3),
         ("kolibri_sim_wasm_init", 0, 3),
         ("_kolibri_sim_wasm_tick", 0, 4),
@@ -737,19 +814,32 @@ istochniki=(
     "$proekt_koren/wasm/kolibri_core.c"
 )
 
+exports=(
+    "_k_state_new"
+    "_k_state_free"
+    "_k_state_save"
+    "_k_state_load"
+    "_k_observe"
+    "_k_decode"
+    "_k_digit_add_syll"
+    "_k_profile"
+    "_kolibri_bridge_init"
+    "_kolibri_bridge_reset"
+    "_kolibri_bridge_configure"
+    "_kolibri_bridge_execute"
+    "_kolibri_bridge_has_simd"
+    "_kolibri_bridge_lane_width"
+    "_malloc"
+    "_free"
+)
+
+export_list=""
+if (( ${#exports[@]} > 0 )); then
+    printf -v export_list '"%s",' "${exports[@]}"
+    export_list=${export_list%,}
+fi
+
 flags=(
-    -Os
-    -std=gnu99
-    -msimd128
-    -s STANDALONE_WASM=1
-    -s SIDE_MODULE=0
-    -s ALLOW_MEMORY_GROWTH=0
-    -s EXPORTED_RUNTIME_METHODS='[]'
-    -s EXPORTED_FUNCTIONS='["_kolibri_bridge_init","_kolibri_bridge_reset","_kolibri_bridge_execute","_kolibri_bridge_has_simd","_kolibri_bridge_lane_width","_kolibri_sim_wasm_init","_kolibri_sim_wasm_tick","_kolibri_sim_wasm_get_logs","_kolibri_sim_wasm_reset","_kolibri_sim_wasm_free","_malloc","_free"]'
-    -s DEFAULT_LIBRARY_FUNCS_TO_INCLUDE='[]'
-    --no-entry
-    -I"$proekt_koren/backend/include"
-    -DKOLIBRI_USE_WASM_SIMD=1
     -O3
     -std=gnu11
     -msimd128
@@ -757,9 +847,11 @@ flags=(
     -sSIDE_MODULE=0
     -sALLOW_MEMORY_GROWTH=1
     -sEXPORTED_RUNTIME_METHODS='[]'
-    -sEXPORTED_FUNCTIONS='["_k_state_new","_k_state_free","_k_state_save","_k_state_load","_k_observe","_k_decode","_k_digit_add_syll","_k_profile","_kolibri_bridge_init","_kolibri_bridge_reset","_kolibri_bridge_configure","_kolibri_bridge_execute","_malloc","_free"]'
     -sDEFAULT_LIBRARY_FUNCS_TO_INCLUDE='[]'
+    -sEXPORTED_FUNCTIONS="[$export_list]"
     --no-entry
+    -I"$proekt_koren/backend/include"
+    -DKOLIBRI_USE_WASM_SIMD=1
     -o "$vyhod_wasm"
 )
 
