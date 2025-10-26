@@ -1,3 +1,4 @@
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   ArrowDownWideNarrow,
   BarChart3,
@@ -12,10 +13,11 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import useMediaQuery from "../core/useMediaQuery";
-import type { ConversationMetrics, ConversationSummary } from "../core/useKolibriChat";
-import type { ModeOption } from "../core/modes";
+import { usePersonaTheme } from "../core/usePersonaTheme";
+import type { ConversationMetrics } from "../core/useKolibriChat";
 import type { ChatMessage } from "../types/chat";
-import ChatMessageView from "./ChatMessageView";
+import ChatMessageView from "./ChatMessage";
+import { MessageSkeleton } from "./loading";
 
 interface ChatViewProps {
   messages: ChatMessage[];
@@ -84,10 +86,11 @@ const ChatView = ({
 }: ChatViewProps) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [isNearBottom, setIsNearBottom] = useState(true);
-  const [isSidebarOpen, setSidebarOpen] = useState(false);
-  const [isSidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const isDesktop = useMediaQuery("(min-width: 1024px)");
-
+  const { resolvedMotion } = usePersonaTheme();
+  const prefersReducedMotion = useReducedMotion();
+  const shouldReduceMotion = resolvedMotion === "reduced" || Boolean(prefersReducedMotion);
+  const easeCurve: [number, number, number, number] = [0.22, 0.61, 0.36, 1];
+  const isMobileViewport = useMediaQuery("(max-width: 1023px)");
   const rootRef = useCallback(
     (element: HTMLElement | null) => {
       if (onViewportElementChange) {
@@ -155,8 +158,11 @@ const ChatView = ({
     }
   }, []);
 
-  const renderedMessages = useMemo(() => {
-    const items: Array<JSX.Element> = [];
+  const timelineItems = useMemo(() => {
+    const items: Array<
+      | { type: "divider"; id: string; label: string }
+      | { type: "message"; id: string; message: ChatMessage; contextUserMessage?: ChatMessage }
+    > = [];
     let lastUserMessage: ChatMessage | undefined;
     let lastDateKey: string | undefined;
 
@@ -173,22 +179,19 @@ const ChatView = ({
           day: "2-digit",
           month: "long",
         });
-        items.push(
-          <div key={`divider-${dateKey}-${index}`} className="flex items-center gap-3 px-2">
-            <span className="h-px flex-1 bg-border/70" />
-            <span className="rounded-full border border-border/70 bg-surface px-3 py-1 text-[0.7rem] font-semibold uppercase tracking-[0.3em] text-text-muted">
-              {formattedDate}
-            </span>
-            <span className="h-px flex-1 bg-border/70" />
-          </div>,
-        );
+        items.push({
+          type: "divider",
+          id: `divider-${dateKey}-${index}`,
+          label: formattedDate,
+        });
       }
 
-      items.push(
-        <div key={message.id} className="px-2">
-          <ChatMessageView message={message} latestUserMessage={contextUserMessage} />
-        </div>,
-      );
+      items.push({
+        type: "message",
+        id: message.id,
+        message,
+        contextUserMessage,
+      });
     });
 
     return items;
@@ -370,7 +373,7 @@ const ChatView = ({
               Фокус
             </button>
           </div>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto hidden items-center gap-2 lg:flex">
             <button
               type="button"
               onClick={onRefreshKnowledge}
@@ -434,18 +437,73 @@ const ChatView = ({
 
       <div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-border/60 bg-surface px-1 py-4 shadow-sm">
         <div className="relative flex-1">
-          <div className="soft-scroll absolute inset-0 space-y-6 overflow-y-auto px-1 pb-8" ref={containerRef}>
-            {renderedMessages.length === 0 && !isLoading ? (
+          <div className="soft-scroll absolute inset-0 overflow-y-auto px-1 pb-8" ref={containerRef}>
+            {timelineItems.length === 0 && !isLoading ? (
               <div className="px-3 py-6 text-sm text-text-muted">{emptyState}</div>
             ) : (
-              renderedMessages
-            )}
-            {isLoading ? (
-              <div className="mx-2 flex items-center gap-2 rounded-xl border border-dashed border-brand/40 bg-brand/10 px-4 py-3 text-sm text-text">
-                <span className="h-2 w-2 animate-pulse rounded-full bg-brand" />
-                Колибри формирует ответ...
+              <div className="flex flex-col gap-6">
+                <AnimatePresence initial={false}>
+                  {timelineItems.map((item) => {
+                    if (item.type === "divider") {
+                      return (
+                        <motion.div
+                          key={item.id}
+                          className="flex items-center gap-3 px-2"
+                          layout="position"
+                          initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
+                          animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
+                          exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
+                          transition={shouldReduceMotion ? { duration: 0.12 } : { duration: 0.22, ease: easeCurve }}
+                        >
+                          <span className="h-px flex-1 bg-border/70" />
+                          <span className="rounded-full border border-border/70 bg-surface px-3 py-1 text-[0.7rem] font-semibold uppercase tracking-[0.3em] text-text-muted">
+                            {item.label}
+                          </span>
+                          <span className="h-px flex-1 bg-border/70" />
+                        </motion.div>
+                      );
+                    }
+
+                    return (
+                      <motion.div
+                        key={item.id}
+                        className="px-2"
+                        layout="position"
+                        initial={
+                          shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 12, scale: 0.98 }
+                        }
+                        animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 }}
+                        exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -12, scale: 0.98 }}
+                        transition={shouldReduceMotion ? { duration: 0.16 } : { duration: 0.32, ease: easeCurve }}
+                      >
+                        <ChatMessageView
+                          message={item.message}
+                          latestUserMessage={item.contextUserMessage}
+                        />
+                      </motion.div>
+                    );
+                  })}
+                </AnimatePresence>
               </div>
-            ) : null}
+            )}
+            <AnimatePresence>
+              {isLoading ? (
+                <motion.div
+                  key="loading-indicator"
+                  className="px-2 pt-4"
+                  layout="position"
+                  initial={shouldReduceMotion ? { opacity: 0.8 } : { opacity: 0, y: 16 }}
+                  animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
+                  exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 12 }}
+                  transition={shouldReduceMotion ? { duration: 0.12 } : { duration: 0.28, ease: easeCurve }}
+                  role="status"
+                  aria-live="polite"
+                >
+                  <MessageSkeleton />
+                  <span className="sr-only">Колибри формирует ответ…</span>
+                </motion.div>
+              ) : null}
+            </AnimatePresence>
           </div>
           {!isNearBottom ? (
             <div className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center">
@@ -522,7 +580,68 @@ const ChatView = ({
           <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 lg:px-8">{composer}</div>
         </footer>
       </div>
-    </div>
+      {isMobileViewport ? (
+        <div
+          className="mt-3 flex flex-col gap-2 rounded-2xl border border-border/60 bg-surface px-3 py-3 text-xs text-text-muted shadow-sm lg:hidden"
+          role="toolbar"
+          aria-label="Быстрые действия"
+        >
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={onOpenKnowledge}
+              className="flex items-center justify-start gap-2 rounded-xl border border-border/60 bg-surface-muted px-3 py-2 text-sm font-semibold text-text transition-colors hover:border-primary hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            >
+              <Sparkles className="h-4 w-4" aria-hidden="true" />
+              Знания
+            </button>
+            <button
+              type="button"
+              onClick={onOpenAnalytics}
+              className="flex items-center justify-start gap-2 rounded-xl border border-border/60 bg-surface-muted px-3 py-2 text-sm font-semibold text-text transition-colors hover:border-primary hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            >
+              <BarChart3 className="h-4 w-4" aria-hidden="true" />
+              Аналитика
+            </button>
+            <button
+              type="button"
+              onClick={onOpenSwarm}
+              className="flex items-center justify-start gap-2 rounded-xl border border-border/60 bg-surface-muted px-3 py-2 text-sm font-semibold text-text transition-colors hover:border-primary hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            >
+              <PanelsTopLeft className="h-4 w-4" aria-hidden="true" />
+              Swarm
+            </button>
+            <button
+              type="button"
+              onClick={onOpenActions}
+              className="flex items-center justify-start gap-2 rounded-xl border border-border/60 bg-surface-muted px-3 py-2 text-sm font-semibold text-text transition-colors hover:border-primary hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            >
+              <ListChecks className="h-4 w-4" aria-hidden="true" />
+              Действия
+            </button>
+          </div>
+          <div className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={onRefreshKnowledge}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border/60 bg-surface-muted text-text transition-colors hover:border-primary hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60"
+              aria-label="Обновить память"
+              disabled={isKnowledgeLoading}
+            >
+              <RefreshCcw className={`h-4 w-4 ${isKnowledgeLoading ? "animate-spin" : ""}`} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              onClick={onOpenPreferences}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border/60 bg-surface-muted text-text transition-colors hover:border-primary hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+              aria-label="Настройки беседы"
+            >
+              <Settings2 className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </section>
   );
 };
 
