@@ -1,4 +1,4 @@
-import { Globe2, Lock, ShieldCheck, Sparkles, SwitchCamera } from "lucide-react";
+import { Globe2, Lock, SendHorizontal, ShieldCheck, Sparkles, SwitchCamera } from "lucide-react";
 import type { ChangeEvent } from "react";
 import type { ConversationPreferences, ProfilePreset } from "../core/useKolibriChat";
 
@@ -35,6 +35,26 @@ const ConversationPreferencesBar = ({ preferences, onChange }: ConversationPrefe
   const handleProfileChange = (event: ChangeEvent<HTMLSelectElement>) => {
     onChange({ profilePreset: event.target.value as ProfilePreset });
   };
+
+  const handleCycleSendOnEnter = () => {
+    const current = preferences.sendOnEnter;
+    const next = current === true ? false : current === false ? undefined : true;
+    onChange({ sendOnEnter: next });
+  };
+
+  const sendOnEnterState = preferences.sendOnEnter;
+  const sendOnEnterLabel =
+    sendOnEnterState === undefined
+      ? "Enter авто"
+      : sendOnEnterState
+        ? "Enter → отправить"
+        : "Enter → перенос";
+  const sendOnEnterTitle =
+    sendOnEnterState === undefined
+      ? "Авто: Enter отправляет на десктопе и добавляет перенос на устройствах с сенсорным вводом. Нажмите, чтобы всегда отправлять."
+      : sendOnEnterState
+        ? "Enter всегда отправляет сообщение. Нажмите, чтобы переключить на перенос строки."
+        : "Enter добавляет перенос строки. Нажмите, чтобы вернуться к автоматическому режиму.";
 
   return (
     <section className="glass-panel flex flex-col gap-4 p-4 md:flex-row md:items-center md:justify-between">
@@ -89,6 +109,20 @@ const ConversationPreferencesBar = ({ preferences, onChange }: ConversationPrefe
         >
           <ShieldCheck className="h-3.5 w-3.5" />
           Тон {preferences.safeTone ? "safe" : "std"}
+        </button>
+        <button
+          type="button"
+          onClick={handleCycleSendOnEnter}
+          className={`flex items-center gap-2 rounded-xl border px-3 py-1 text-[0.7rem] font-semibold transition-colors ${
+            sendOnEnterState === true
+              ? "border-brand/60 bg-brand/15 text-brand"
+              : "border-border-strong bg-background-input/80 text-text-secondary hover:text-text-primary"
+          }`}
+          title={sendOnEnterTitle}
+          aria-pressed={sendOnEnterState === true}
+        >
+          <SendHorizontal className="h-3.5 w-3.5" />
+          {sendOnEnterLabel}
         </button>
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-3 md:mt-0">
