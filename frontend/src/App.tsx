@@ -16,6 +16,7 @@ import PanelDialog from "./components/layout/PanelDialog";
 import useKolibriChat from "./core/useKolibriChat";
 import { findModeLabel } from "./core/modes";
 import useMediaQuery from "./core/useMediaQuery";
+import useInspectorSession from "./core/useInspectorSession";
 
 type PanelKey = "knowledge" | "swarm" | "analytics" | "controls" | "preferences" | null;
 
@@ -62,6 +63,23 @@ const App = () => {
     refreshKnowledgeStatus,
   } = useKolibriChat();
 
+  const inspectorSession = useInspectorSession({
+    conversationId,
+    conversationTitle,
+    messages,
+    metrics,
+    kernelCapabilities,
+    kernelControls,
+    preferences,
+    mode,
+    getDraft: () => draft,
+  });
+
+  const {
+    logAction: logInspectorAction,
+    registerCaptureTarget,
+  } = inspectorSession;
+
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [activePanel, setActivePanel] = useState<PanelKey>(null);
   const [isDemoMode, setDemoMode] = useState(false);
@@ -80,8 +98,99 @@ const App = () => {
       const trimmedDraft = draft.trimEnd();
       const prefix = trimmedDraft.length > 0 ? `${trimmedDraft}\n\n` : "";
       setDraft(`${prefix}${suggestion}`);
+      logInspectorAction("suggestion.apply", "Добавлена подсказка", { suggestion });
     },
-    [draft, setDraft],
+    [draft, logInspectorAction, setDraft],
+  );
+
+  const handleModeChange = useCallback(
+    (nextMode: string) => {
+      if (nextMode === mode) {
+        return;
+      }
+      logInspectorAction("mode.change", `Режим: ${findModeLabel(nextMode)}`, {
+        from: mode,
+        to: nextMode,
+      });
+      setMode(nextMode);
+    },
+    [logInspectorAction, mode, setMode],
+  );
+
+  const handleSendMessage = useCallback(async () => {
+    logInspectorAction("message.user", "Отправка сообщения", {
+      draftLength: draft.trim().length,
+      attachments: attachments.length,
+    });
+    await sendMessage();
+  }, [attachments.length, draft, logInspectorAction, sendMessage]);
+
+  const handleResetConversation = useCallback(async () => {
+    logInspectorAction("conversation.reset", "Начат новый диалог", { conversationId });
+    await resetConversation();
+  }, [conversationId, logInspectorAction, resetConversation]);
+
+  const handleAttachFiles = useCallback(
+    (files: File[]) => {
+      if (files.length) {
+        logInspectorAction("attachment.add", "Прикреплены файлы", {
+          count: files.length,
+          names: files.map((file) => file.name),
+        });
+      }
+      attachFiles(files);
+    },
+    [attachFiles, logInspectorAction],
+  );
+
+  const handleRemoveAttachment = useCallback(
+    (id: string) => {
+      logInspectorAction("attachment.remove", "Удалено вложение", { id });
+      removeAttachment(id);
+    },
+    [logInspectorAction, removeAttachment],
+  );
+
+  const handleClearAttachments = useCallback(() => {
+    logInspectorAction("attachment.clear", "Очистка вложений");
+    clearAttachments();
+  }, [clearAttachments, logInspectorAction]);
+
+  const handleCreateConversation = useCallback(() => {
+    logInspectorAction("conversation.create", "Создана новая беседа");
+    void createConversation();
+  }, [createConversation, logInspectorAction]);
+
+  const handleSelectConversation = useCallback(
+    (id: string) => {
+      logInspectorAction("conversation.select", "Выбор беседы", { targetId: id });
+      selectConversation(id);
+    },
+    [logInspectorAction, selectConversation],
+  );
+
+  const handleRenameConversation = useCallback(
+    (title: string) => {
+      logInspectorAction("conversation.title", "Обновлено название беседы", {
+        title,
+        conversationId,
+      });
+      renameConversation(title);
+    },
+    [conversationId, logInspectorAction, renameConversation],
+  );
+
+  const handleRefreshKnowledge = useCallback(() => {
+    logInspectorAction("knowledge.refresh", "Запрошено обновление памяти");
+    void refreshKnowledgeStatus();
+  }, [logInspectorAction, refreshKnowledgeStatus]);
+
+  const handleUpdatePreferences = useCallback(
+    (next: typeof preferences) => {
+      logInspectorAction("preferences.update", "Изменены настройки беседы", next);
+      updatePreferences(next);
+    },
+    [logInspectorAction, updatePreferences],
   );
 
   const quickSuggestions = useMemo(() => {
@@ -194,17 +303,6 @@ const App = () => {
     setDemoMode(false);
   }, []);
 
-  const handleCreateConversation = useCallback(() => {
-    void createConversation();
-  }, [createConversation]);
-
-  const handleSelectConversation = useCallback(
-    (id: string) => {
-      selectConversation(id);
-    },
-    [selectConversation],
-  );
-
   if (isDemoMode) {
     return <DemoPage metrics={demoMetrics} onLaunchApp={handleExitDemo} />;
   }
@@ -230,16 +328,16 @@ const App = () => {
               isBusy={isProcessing || !bridgeReady}
               attachments={attachments}
               onChange={setDraft}
-              onModeChange={setMode}
+              onModeChange={handleModeChange}
               onSubmit={() => {
-                void sendMessage();
+                void handleSendMessage();
               }}
               onReset={() => {
-                void resetConversation();
+                void handleResetConversation();
               }}
-              onAttach={attachFiles}
-              onRemoveAttachment={removeAttachment}
-              onClearAttachments={clearAttachments}
+              onAttach={handleAttachFiles}
+              onRemoveAttachment={handleRemoveAttachment}
+              onClearAttachments={handleClearAttachments}
               onOpenControls={() => setActivePanel("controls")}
             />
             {quickSuggestions.length > 0 ? (
@@ -277,17 +375,16 @@ const App = () => {
           metrics={metrics}
           modeLabel={modeLabel}
           emptyState={<WelcomeScreen onSuggestionSelect={setDraft} />}
-          onConversationTitleChange={renameConversation}
+          onConversationTitleChange={handleRenameConversation}
           onOpenSidebar={() => setSidebarOpen(true)}
           onOpenKnowledge={() => setActivePanel("knowledge")}
           onOpenAnalytics={() => setActivePanel("analytics")}
           onOpenSwarm={() => setActivePanel("swarm")}
           onOpenPreferences={() => setActivePanel("preferences")}
-          onRefreshKnowledge={() => {
-            void refreshKnowledgeStatus();
-          }}
+          onRefreshKnowledge={handleRefreshKnowledge}
           isKnowledgeLoading={statusLoading}
           bridgeReady={bridgeReady}
+          onViewportElementChange={registerCaptureTarget}
         />
       </ChatLayout>
 
@@ -353,9 +450,8 @@ const App = () => {
             metrics={metrics}
             capabilities={kernelCapabilities}
             latestAssistantMessage={latestAssistantMessage}
-            onRefresh={() => {
-              void refreshKnowledgeStatus();
-            }}
+            onRefresh={handleRefreshKnowledge}
+            session={inspectorSession}
           />
         </div>
       </PanelDialog>
@@ -366,7 +462,7 @@ const App = () => {
         isOpen={activePanel === "preferences"}
         onClose={() => setActivePanel(null)}
       >
-        <ConversationPreferencesBar preferences={preferences} onChange={updatePreferences} />
+        <ConversationPreferencesBar preferences={preferences} onChange={handleUpdatePreferences} />
       </PanelDialog>
     </>
   );
