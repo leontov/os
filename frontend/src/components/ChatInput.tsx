@@ -1,5 +1,6 @@
 import { Keyboard, Paperclip, Plus, RefreshCw, SendHorizontal, SlidersHorizontal, X } from "lucide-react";
 import { useEffect, useId, useMemo, useRef } from "react";
+import { KNOWLEDGE_SNIPPET_MIME, type DraggedKnowledgeSnippet } from "../core/drag";
 import { MODE_OPTIONS, findModeLabel } from "../core/modes";
 import type { PendingAttachment } from "../types/attachments";
 
@@ -113,8 +114,69 @@ const ChatInput = ({
     void onSubmit();
   };
 
+  const extractKnowledgeSnippet = (event: React.DragEvent<HTMLElement>) => {
+    if (!event.dataTransfer) {
+      return null;
+    }
+    const availableTypes = Array.from(event.dataTransfer.types ?? []);
+    if (!availableTypes.includes(KNOWLEDGE_SNIPPET_MIME) && !availableTypes.includes("application/json")) {
+      return null;
+    }
+    const rawPayload = event.dataTransfer.getData(KNOWLEDGE_SNIPPET_MIME) || event.dataTransfer.getData("application/json");
+    if (!rawPayload) {
+      return null;
+    }
+    try {
+      const payload = JSON.parse(rawPayload) as DraggedKnowledgeSnippet;
+      if (payload && payload.type === "knowledge-snippet" && payload.snippet) {
+        return payload.snippet;
+      }
+    } catch {
+      return null;
+    }
+    return null;
+  };
+
+  const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+    const snippet = extractKnowledgeSnippet(event);
+    if (!snippet) {
+      return;
+    }
+    event.preventDefault();
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = "copy";
+    }
+  };
+
+  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    const snippet = extractKnowledgeSnippet(event);
+    if (!snippet) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    const parts: string[] = [];
+    if (snippet.title) {
+      parts.push(`Цитата из «${snippet.title}»`);
+    }
+    parts.push(snippet.content);
+    if (snippet.citation) {
+      parts.push(`Цитата: ${snippet.citation}`);
+    }
+    if (snippet.source) {
+      parts.push(`Источник: ${snippet.source}`);
+    }
+    const block = parts.join("\n").trim();
+    const prefix = value.trim().length ? `${value.trimEnd()}\n\n` : "";
+    onChange(`${prefix}${block}`);
+  };
+
   return (
-    <div className="rounded-2xl border border-border/70 bg-surface shadow-sm">
+    <div
+      className="rounded-2xl border border-border/70 bg-surface shadow-sm"
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
       <div className="flex flex-col gap-3 border-b border-border/60 px-4 py-3 text-xs text-text-muted md:flex-row md:items-center md:justify-between">
         <div className="flex flex-wrap items-center gap-3">
           <label htmlFor={textAreaId} className="text-[0.65rem] uppercase tracking-[0.3em]">
