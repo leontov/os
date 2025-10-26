@@ -1,4 +1,4 @@
-import { Plus } from "lucide-react";
+import { HelpCircle, Plus, Sparkles, User } from "lucide-react";
 import type { ConversationSummary } from "../core/useKolibriChat";
 
 interface SidebarProps {
@@ -92,6 +92,38 @@ const Sidebar = ({ conversations, activeConversationId, onConversationSelect, on
         </li>
       )}
     </ul>
+    <div className="rounded-xl border border-border/70 bg-surface px-4 py-4 text-sm text-text-muted">
+      <p className="text-xs font-semibold uppercase tracking-[0.3em] text-text-muted">Аккаунт</p>
+      <h3 className="mt-1 text-sm font-semibold text-text">Профиль Kolibri</h3>
+      <p className="mt-1 text-xs leading-relaxed text-text-muted">
+        Управляйте подпиской, настройками организации и получайте быстрый доступ к поддержке.
+      </p>
+      <div className="mt-3 flex flex-col gap-2">
+        <button
+          type="button"
+          className="inline-flex items-center justify-center gap-2 rounded-xl border border-primary/40 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary transition-colors hover:border-primary/60 hover:text-primary"
+        >
+          <Sparkles className="h-4 w-4" />
+          Upgrade
+        </button>
+        <button
+          type="button"
+          className="inline-flex items-center justify-center gap-2 rounded-xl border border-border/70 bg-surface-muted px-4 py-2 text-sm font-semibold text-text transition-colors hover:border-primary/40 hover:text-primary"
+        >
+          <User className="h-4 w-4" />
+          Профиль
+        </button>
+      </div>
+      <a
+        className="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-text-muted transition-colors hover:text-text"
+        href="https://kolibri.ai/help"
+        target="_blank"
+        rel="noreferrer"
+      >
+        <HelpCircle className="h-4 w-4" />
+        Центр помощи
+      </a>
+    </div>
     <div className="rounded-xl border border-border/70 bg-surface px-4 py-3 text-sm text-text-muted">
       <p className="text-sm font-semibold text-text">Kolibri</p>
       <p className="mt-1 text-xs leading-relaxed">Колибри может делать ошибки. Проверяйте факты.</p>

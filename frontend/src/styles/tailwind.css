@@ -68,6 +68,33 @@ body {
   transition-timing-function: var(--motion-easing-standard);
 }
 
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --color-brand: 16 163 127;
+    --color-brand-foreground: 19 20 22;
+    --color-app-background: 19 20 22;
+    --color-surface: 26 28 30;
+    --color-surface-muted: 32 34 37;
+    --color-sidebar: 23 24 28;
+    --color-border: 58 60 67;
+    --color-text: 229 231 235;
+    --color-text-muted: 148 163 184;
+    --color-primary: 16 163 127;
+    --color-accent: 110 231 183;
+    --color-background-card: 30 32 35;
+    --color-background-input: 37 39 43;
+    --color-background-panel: 28 30 33;
+    --color-border-strong: 74 78 86;
+    --color-text-primary: 229 231 235;
+    --color-text-secondary: 148 163 184;
+    --color-chat-surface: var(--color-surface);
+    --color-chat-header: var(--color-surface);
+    --color-chat-footer: var(--color-surface);
+    --color-chat-input: var(--color-background-input);
+  }
+}
+
 @layer utilities {
   .glass-panel {
     @apply rounded-2xl border border-border/70 bg-surface;

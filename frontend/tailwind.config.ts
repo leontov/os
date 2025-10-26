@@ -33,6 +33,10 @@ const config: Config = {
         "border-strong": withOpacityValue("--color-border-strong"),
         "text-primary": withOpacityValue("--color-text"),
         "text-secondary": withOpacityValue("--color-text-muted"),
+        "chat-surface": withOpacityValue("--color-chat-surface"),
+        "chat-header": withOpacityValue("--color-chat-header"),
+        "chat-footer": withOpacityValue("--color-chat-footer"),
+        "chat-input": withOpacityValue("--color-chat-input"),
       },
       fontFamily: {
         sans: ["Inter", "system-ui", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "sans-serif"],
