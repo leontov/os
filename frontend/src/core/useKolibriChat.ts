@@ -753,7 +753,7 @@ interface UseKolibriChatResult {
   updatePreferences: (preferences: Partial<ConversationPreferences>) => void;
   setDraft: (value: string) => void;
   setMode: (mode: string) => void;
-  renameConversation: (title: string) => void;
+  renameConversation: (title: string, conversationId?: string) => void;
   attachFiles: (files: File[]) => void;
   removeAttachment: (id: string) => void;
   clearAttachments: () => void;
@@ -761,6 +761,7 @@ interface UseKolibriChatResult {
   resetConversation: () => Promise<void>;
   selectConversation: (id: string) => void;
   createConversation: () => Promise<void>;
+  deleteConversation: (id: string) => void;
   refreshKnowledgeStatus: () => Promise<void>;
 }
 
@@ -1314,10 +1315,63 @@ const useKolibriChat = (): UseKolibriChatResult => {
     }
   }, [attachments, bridgeReady, clearAttachments, draft, executeQuickCommand, isProcessing, mode, refreshKnowledgeStatus]);
 
-  const renameConversation = useCallback((nextTitle: string) => {
-    const trimmed = nextTitle.trim();
-    setConversationTitle(trimmed ? trimmed.slice(0, 80) : DEFAULT_TITLE);
-  }, []);
+  const renameConversation = useCallback(
+    (nextTitle: string, targetId?: string) => {
+      const trimmed = nextTitle.trim();
+      const normalized = trimmed ? trimmed.slice(0, 80) : DEFAULT_TITLE;
+
+      const conversationToUpdate = targetId ?? conversationId;
+      setConversations((records) =>
+        records.map((record) =>
+          record.id === conversationToUpdate
+            ? {
+                ...record,
+                title: normalized,
+              }
+            : record,
+        ),
+      );
+
+      if (!targetId || targetId === conversationId) {
+        setConversationTitle(normalized);
+      }
+    },
+    [conversationId],
+  );
+
+  const deleteConversation = useCallback(
+    (id: string) => {
+      setConversations((records) => {
+        const filtered = records.filter((record) => record.id !== id);
+        if (id !== conversationId) {
+          return filtered;
+        }
+
+        const [nextActive, ...rest] = filtered;
+        if (nextActive) {
+          setConversationId(nextActive.id);
+          setConversationTitle(nextActive.title);
+          setMessages(nextActive.messages);
+          setDraft(nextActive.draft);
+          setMode(nextActive.mode ?? DEFAULT_MODE_VALUE);
+          setAttachments([]);
+          setPreferences(nextActive.preferences ?? DEFAULT_PREFERENCES);
+          return [nextActive, ...rest];
+        }
+
+        const replacement = createConversationRecord();
+        setConversationId(replacement.id);
+        setConversationTitle(replacement.title);
+        setMessages([]);
+        setDraft("");
+        setMode(DEFAULT_MODE_VALUE);
+        setAttachments([]);
+        setPreferences(DEFAULT_PREFERENCES);
+        return [replacement];
+      });
+    },
+    [conversationId],
+  );
 
   const selectConversation = useCallback(
     (id: string) => {
@@ -1406,6 +1460,7 @@ const useKolibriChat = (): UseKolibriChatResult => {
     resetConversation,
     selectConversation,
     createConversation,
+    deleteConversation,
     refreshKnowledgeStatus,
   };
 };
