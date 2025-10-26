@@ -132,22 +132,32 @@ const WelcomeScreen = ({
   }, [popularGpts]);
 
   const notifications = useMemo<NotificationItem[]>(() => {
-    const highlightEntries = whatsNew.map((item, index) => ({
-      id: `highlight-${item.id}`,
-      title: item.title,
-      description: item.summary,
-      accentClass: accentPalette[index % accentPalette.length],
-      meta: item.publishedAtIso ? formatRelativeTime(item.publishedAtIso) : "Новое",
-      onClick: item.prompt
-        ? () => onSuggestionSelect(item.prompt)
-        : item.link
-          ? () => {
-              if (typeof window !== "undefined") {
-                window.open(item.link, "_blank", "noopener,noreferrer");
-              }
-            }
-          : undefined,
-    }));
+    const highlightEntries = whatsNew.map((item, index) => {
+      let onClick: (() => void) | undefined;
+
+      if (item.prompt) {
+        const prompt = item.prompt;
+        onClick = () => {
+          onSuggestionSelect(prompt);
+        };
+      } else if (item.link) {
+        const { link } = item;
+        onClick = () => {
+          if (typeof window !== "undefined") {
+            window.open(link, "_blank", "noopener,noreferrer");
+          }
+        };
+      }
+
+      return {
+        id: `highlight-${item.id}`,
+        title: item.title,
+        description: item.summary,
+        accentClass: accentPalette[index % accentPalette.length],
+        meta: item.publishedAtIso ? formatRelativeTime(item.publishedAtIso) : "Новое",
+        onClick,
+      } satisfies NotificationItem;
+    });
 
     const recentEntries = recentConversations.slice(0, 4).map((conversation, index) => ({
       id: `conversation-${conversation.id}`,
