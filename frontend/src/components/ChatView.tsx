@@ -29,6 +29,7 @@ interface ChatViewProps {
   onRefreshKnowledge: () => void;
   isKnowledgeLoading: boolean;
   bridgeReady: boolean;
+  onViewportElementChange?: (element: HTMLElement | null) => void;
 }
 
 const ChatView = ({
@@ -48,9 +49,18 @@ const ChatView = ({
   onRefreshKnowledge,
   isKnowledgeLoading,
   bridgeReady,
+  onViewportElementChange,
 }: ChatViewProps) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [isNearBottom, setIsNearBottom] = useState(true);
+  const rootRef = useCallback(
+    (element: HTMLElement | null) => {
+      if (onViewportElementChange) {
+        onViewportElementChange(element);
+      }
+    },
+    [onViewportElementChange],
+  );
 
   useEffect(() => {
     const container = containerRef.current;
@@ -153,7 +163,7 @@ const ChatView = ({
   };
 
   return (
-    <section className="flex h-full flex-col gap-4">
+    <section ref={rootRef} className="flex h-full flex-col gap-4">
       <header className="rounded-2xl border border-border/70 bg-surface px-4 py-3 shadow-sm">
         <div className="flex flex-wrap items-center gap-3">
           <button

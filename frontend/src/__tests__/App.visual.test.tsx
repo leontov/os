@@ -19,6 +19,17 @@ vi.mock("../core/useMediaQuery", () => ({
   default: vi.fn(),
 }));
 
+vi.mock("html2canvas", () => ({
+  default: vi.fn(async () => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 10;
+    canvas.height = 10;
+    const context = canvas.getContext("2d");
+    context?.fillRect(0, 0, 10, 10);
+    return canvas;
+  }),
+}));
+
 const useKolibriChatMock = vi.mocked(useKolibriChat);
 const useMediaQueryMock = vi.mocked(useMediaQuery);
 

@@ -24,7 +24,8 @@ iso:
 	./scripts/build_iso.sh
 
 ci: build test frontend iso
-	./scripts/policy_validate.py
+        python3 scripts/generate_test_dialogs.py --backend stub --output logs/ci_dialogs.json --seed 2025 --count 4
+        ./scripts/policy_validate.py
 
 clean:
 	rm -rf build frontend/dist frontend/node_modules
