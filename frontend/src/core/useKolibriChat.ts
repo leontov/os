@@ -1324,6 +1324,7 @@ const useKolibriChat = (): UseKolibriChatResult => {
 
     try {
       const coordinator = ensureStreamCoordinator(streamCoordinatorRef);
+      let streamErrored = false;
       const session = coordinator.startStream({
         payload: {
           prompt,
@@ -1338,6 +1339,7 @@ const useKolibriChat = (): UseKolibriChatResult => {
           return buildFallbackSnapshot(answer, { transport: "fallback" });
         },
         onError: (error) => {
+          streamErrored = true;
           const errorMessage =
             error instanceof Error ? error.message : "Не удалось получить потоковый ответ.";
           setMessages((prev) =>
@@ -1407,25 +1409,30 @@ const useKolibriChat = (): UseKolibriChatResult => {
           setMessages((prev) =>
             prev.map((message) =>
               message.id === assistantMessageId
-                ? {
-                    ...message,
-                    content: snapshot.text,
-                    subtitles: snapshot.subtitles,
-                    emojiTimeline: snapshot.emojis,
-                    audioStreamId: snapshot.audio
-                      ? `${conversationId}:${assistantMessageId}`
-                      : message.audioStreamId,
-                    audioMimeType: snapshot.audio?.mimeType ?? message.audioMimeType,
-                    audioSpectrum: snapshot.audio?.spectrum ?? message.audioSpectrum,
-                    audioWaveform: snapshot.audio?.waveform ?? message.audioWaveform,
-                    avatar: snapshot.avatar ?? message.avatar,
-                    highlights: snapshot.highlights,
-                    isStreaming: false,
-                    context: knowledgeContext.length ? knowledgeContext : undefined,
-                    contextError,
-                    modeValue: mode,
-                    modeLabel: findModeLabel(mode),
-                  }
+                ? streamErrored || (!snapshot.text && message.content?.startsWith("Ошибка потока"))
+                  ? {
+                      ...message,
+                      isStreaming: false,
+                    }
+                  : {
+                      ...message,
+                      content: snapshot.text,
+                      subtitles: snapshot.subtitles,
+                      emojiTimeline: snapshot.emojis,
+                      audioStreamId: snapshot.audio
+                        ? `${conversationId}:${assistantMessageId}`
+                        : message.audioStreamId,
+                      audioMimeType: snapshot.audio?.mimeType ?? message.audioMimeType,
+                      audioSpectrum: snapshot.audio?.spectrum ?? message.audioSpectrum,
+                      audioWaveform: snapshot.audio?.waveform ?? message.audioWaveform,
+                      avatar: snapshot.avatar ?? message.avatar,
+                      highlights: snapshot.highlights,
+                      isStreaming: false,
+                      context: knowledgeContext.length ? knowledgeContext : undefined,
+                      contextError,
+                      modeValue: mode,
+                      modeLabel: findModeLabel(mode),
+                    }
                 : message,
             ),
           );
