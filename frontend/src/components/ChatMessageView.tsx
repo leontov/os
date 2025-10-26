@@ -34,6 +34,7 @@ interface ChatMessageProps {
     userMessage?: ChatMessageModel;
   }) => void;
   onCopyLink?: (message: ChatMessageModel) => void;
+  isEditing?: boolean;
 }
 
 const formatScore = (value: number): string => {
@@ -52,6 +53,7 @@ const ChatMessageView = ({
   onContinueMessage,
   onRegenerateMessage,
   onCopyLink,
+  isEditing = false,
 }: ChatMessageProps) => {
   const isUser = message.role === "user";
   const [isContextExpanded, setIsContextExpanded] = useState(false);
@@ -150,6 +152,12 @@ const ChatMessageView = ({
     };
   }, [isMenuOpen]);
 
+  useEffect(() => {
+    if (isEditing && isMenuOpen) {
+      setIsMenuOpen(false);
+    }
+  }, [isEditing, isMenuOpen]);
+
   const handleEdit = useCallback(() => {
     if (!onEditMessage) {
       return;
@@ -182,14 +190,15 @@ const ChatMessageView = ({
     closeMenu();
   }, [closeMenu, message, onCopyLink]);
 
-  const canEdit = isUser && Boolean(onEditMessage);
+  const canEdit = isUser && Boolean(onEditMessage) && !isEditing;
   const canContinue = !isUser && Boolean(latestUserMessage) && Boolean(onContinueMessage);
   const canRegenerate = !isUser && Boolean(latestUserMessage) && Boolean(onRegenerateMessage);
   const canCopyLink = Boolean(onCopyLink);
 
-  const bubbleClasses = isUser
+  const baseBubbleClasses = isUser
     ? "border-white/10 bg-[rgba(64,65,79,0.88)] text-white shadow-[0_26px_60px_-34px_rgba(15,23,42,0.7)]"
     : "border-border/60 bg-surface/95 text-text shadow-[0_26px_68px_-38px_rgba(15,23,42,0.5)]";
+  const bubbleClasses = `${baseBubbleClasses} ${isEditing ? "ring-2 ring-primary/60" : ""}`.trim();
 
   return (
     <article
@@ -214,6 +223,11 @@ const ChatMessageView = ({
           >
             <span>{actorLabel}</span>
             <div className="flex items-center gap-2 text-[0.7rem]">
+              {isEditing ? (
+                <span className="rounded-full border border-primary/50 bg-primary/10 px-3 py-1 text-[0.62rem] font-semibold uppercase tracking-[0.28em] text-primary">
+                  Редактируется
+                </span>
+              ) : null}
               <span className={isUser ? "text-white/70" : "text-text-muted"}>{isoDate ?? message.timestamp}</span>
               <div ref={menuRef} className="relative">
                 <button

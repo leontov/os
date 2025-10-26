@@ -125,6 +125,18 @@ const App = () => {
   const [popularLoading, setPopularLoading] = useState(true);
   const [whatsNewLoading, setWhatsNewLoading] = useState(true);
   const backendHealthState = useBackendHealth();
+  const {
+    snapshot: backendHealthSnapshot,
+    snapshot: backendHealth,
+    error: backendHealthError,
+    checkedAt: backendHealthCheckedAt,
+    isLoading: isBackendHealthLoading,
+    refresh: refreshBackendHealth,
+  } = useBackendHealth();
+  const [backendHealth, setBackendHealth] = useState<BackendHealthSnapshot | null>(null);
+  const [backendHealthError, setBackendHealthError] = useState<string | null>(null);
+  const [backendHealthCheckedAt, setBackendHealthCheckedAt] = useState<string | null>(null);
+  const [isBackendHealthLoading, setBackendHealthLoading] = useState(false);
   const [editingState, setEditingState] = useState<EditingState | null>(null);
 
   const modeLabel = useMemo(() => findModeLabel(mode), [mode]);
@@ -147,6 +159,11 @@ const App = () => {
       controller.abort();
     };
   }, [backendHealthState.refresh]);
+    void refreshBackendHealth({ signal: controller.signal });
+    return () => {
+      controller.abort();
+    };
+  }, [refreshBackendHealth]);
 
   useEffect(() => {
     setEditingState(null);
@@ -194,7 +211,7 @@ const App = () => {
     }
 
     logInspectorAction("message.user", "Отправка сообщения", {
-      draftLength: draft.trim().length,
+      draftLength: trimmedDraft.length,
       attachments: attachments.length,
     });
     await sendMessage();
@@ -204,7 +221,7 @@ const App = () => {
     logInspectorAction("conversation.reset", "Начат новый диалог", { conversationId });
     setEditingState(null);
     await resetConversation();
-  }, [conversationId, logInspectorAction, resetConversation]);
+  }, [clearAttachments, conversationId, logInspectorAction, resetConversation, setDraft]);
 
   const handleAttachFiles = useCallback(
     (files: File[]) => {
@@ -234,15 +251,21 @@ const App = () => {
 
   const handleCreateConversation = useCallback(() => {
     logInspectorAction("conversation.create", "Создана новая беседа");
+    setEditingMessage(null);
+    setDraft("");
+    clearAttachments();
     void createConversation();
-  }, [createConversation, logInspectorAction]);
+  }, [clearAttachments, createConversation, logInspectorAction, setDraft]);
 
   const handleSelectConversation = useCallback(
     (id: string) => {
       logInspectorAction("conversation.select", "Выбор беседы", { targetId: id });
+      setEditingMessage(null);
+      setDraft("");
+      clearAttachments();
       selectConversation(id);
     },
-    [logInspectorAction, selectConversation],
+    [clearAttachments, logInspectorAction, selectConversation, setDraft],
   );
 
   const handleRenameConversation = useCallback(
@@ -284,6 +307,8 @@ const App = () => {
     logInspectorAction("system.health.refresh", "Проверка статуса backend");
     void backendHealthState.refresh();
   }, [backendHealthState.refresh, logInspectorAction]);
+    void refreshBackendHealth();
+  }, [logInspectorAction, refreshBackendHealth]);
 
   const handleUpdatePreferences = useCallback(
     (next: Partial<typeof preferences>) => {
@@ -356,6 +381,22 @@ const App = () => {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    setEditingMessage(null);
+  }, [conversationId]);
+
+  useEffect(() => {
+    if (!editingMessage) {
+      return;
+    }
+    const stillExists = messages.some(
+      (item) => item.id === editingMessage.id && item.role === "user",
+    );
+    if (!stillExists) {
+      setEditingMessage(null);
+    }
+  }, [editingMessage, messages]);
 
   const recentConversations = useMemo(() => {
     const getTimestamp = (value?: string) => {
@@ -450,13 +491,15 @@ const App = () => {
       if (!target || target.role !== "user") {
         return;
       }
+      setEditingMessage(null);
+      setDraft("");
       logInspectorAction("message.regenerate", "Повторный запрос ответа", {
         messageId: target.id,
         assistantId: assistantMessage.id,
       });
       void resendMessage(target.id);
     },
-    [logInspectorAction, resendMessage],
+    [logInspectorAction, resendMessage, setDraft],
   );
 
   const handleMessageContinue = useCallback(
@@ -465,14 +508,28 @@ const App = () => {
         return;
       }
       const continuedPrompt = `${userMessage.content.trim()}\n\nПродолжи ответ.`;
+      setEditingMessage(null);
+      setDraft("");
       logInspectorAction("message.continue", "Запрошено продолжение ответа", {
         messageId: userMessage.id,
         assistantId: assistantMessage.id,
       });
       void resendMessage(userMessage.id, { content: continuedPrompt });
     },
-    [logInspectorAction, resendMessage],
+    [logInspectorAction, resendMessage, setDraft],
   );
+
+  const handleCancelEditing = useCallback(() => {
+    if (!editingMessage) {
+      return;
+    }
+    logInspectorAction("message.edit.cancel", "Редактирование отменено пользователем", {
+      messageId: editingMessage.id,
+    });
+    setEditingMessage(null);
+    setDraft("");
+    clearAttachments();
+  }, [clearAttachments, editingMessage, logInspectorAction, setDraft]);
 
   const handleMessageCopyLink = useCallback(
     async (message: ChatMessage) => {
@@ -771,6 +828,7 @@ const App = () => {
           onMessageContinue={handleMessageContinue}
           onMessageRegenerate={handleMessageRegenerate}
           onMessageCopyLink={handleMessageCopyLink}
+          editingMessage={editingMessage ?? undefined}
         />
       </div>
 
@@ -822,6 +880,11 @@ const App = () => {
           backendError={backendHealthState.error}
           backendCheckedAt={backendHealthState.checkedAt}
           isBackendLoading={backendHealthState.isLoading}
+          backend={backendHealthSnapshot}
+          backend={backendHealth}
+          backendError={backendHealthError}
+          backendCheckedAt={backendHealthCheckedAt}
+          isBackendLoading={isBackendHealthLoading}
           onBackendRefresh={handleBackendHealthRefresh}
           knowledgeStatus={knowledgeStatus}
           knowledgeError={knowledgeError}
