@@ -199,6 +199,7 @@ const App = () => {
       return;
     }
 
+    const trimmedDraft = draft.trim();
     logInspectorAction("message.user", "Отправка сообщения", {
       draftLength: trimmedDraft.length,
       attachments: attachments.length,
@@ -240,7 +241,7 @@ const App = () => {
 
   const handleCreateConversation = useCallback(() => {
     logInspectorAction("conversation.create", "Создана новая беседа");
-    setEditingMessage(null);
+    setEditingState(null);
     setDraft("");
     clearAttachments();
     void createConversation();
@@ -249,7 +250,7 @@ const App = () => {
   const handleSelectConversation = useCallback(
     (id: string) => {
       logInspectorAction("conversation.select", "Выбор беседы", { targetId: id });
-      setEditingMessage(null);
+      setEditingState(null);
       setDraft("");
       clearAttachments();
       selectConversation(id);
@@ -370,20 +371,16 @@ const App = () => {
   }, []);
 
   useEffect(() => {
-    setEditingMessage(null);
-  }, [conversationId]);
-
-  useEffect(() => {
-    if (!editingMessage) {
+    if (!editingState) {
       return;
     }
     const stillExists = messages.some(
-      (item) => item.id === editingMessage.id && item.role === "user",
+      (item) => item.id === editingState.messageId && item.role === "user",
     );
     if (!stillExists) {
-      setEditingMessage(null);
+      setEditingState(null);
     }
-  }, [editingMessage, messages]);
+  }, [editingState, messages]);
 
   const recentConversations = useMemo(() => {
     const getTimestamp = (value?: string) => {
@@ -478,7 +475,7 @@ const App = () => {
       if (!target || target.role !== "user") {
         return;
       }
-      setEditingMessage(null);
+      setEditingState(null);
       setDraft("");
       logInspectorAction("message.regenerate", "Повторный запрос ответа", {
         messageId: target.id,
@@ -495,7 +492,7 @@ const App = () => {
         return;
       }
       const continuedPrompt = `${userMessage.content.trim()}\n\nПродолжи ответ.`;
-      setEditingMessage(null);
+      setEditingState(null);
       setDraft("");
       logInspectorAction("message.continue", "Запрошено продолжение ответа", {
         messageId: userMessage.id,
@@ -505,18 +502,6 @@ const App = () => {
     },
     [logInspectorAction, resendMessage, setDraft],
   );
-
-  const handleCancelEditing = useCallback(() => {
-    if (!editingMessage) {
-      return;
-    }
-    logInspectorAction("message.edit.cancel", "Редактирование отменено пользователем", {
-      messageId: editingMessage.id,
-    });
-    setEditingMessage(null);
-    setDraft("");
-    clearAttachments();
-  }, [clearAttachments, editingMessage, logInspectorAction, setDraft]);
 
   const handleMessageCopyLink = useCallback(
     async (message: ChatMessage) => {
@@ -815,7 +800,7 @@ const App = () => {
           onMessageContinue={handleMessageContinue}
           onMessageRegenerate={handleMessageRegenerate}
           onMessageCopyLink={handleMessageCopyLink}
-          editingMessage={editingMessage ?? undefined}
+          editingMessage={editingContext ?? undefined}
         />
       </div>
 
