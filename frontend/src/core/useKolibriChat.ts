@@ -943,6 +943,13 @@ const useKolibriChat = (): UseKolibriChatResult => {
     return DEFAULT_MODEL_ID;
   });
 
+  const setModelId = useCallback(
+    (nextModel: ModelId) => {
+      setModelIdState(nextModel);
+    },
+    [setModelIdState],
+  );
+
   const knowledgeSearchAbortRef = useRef<AbortController | null>(null);
   const conversationsRef = useRef<ConversationRecord[]>(initialConversations);
 
@@ -1660,6 +1667,7 @@ const useKolibriChat = (): UseKolibriChatResult => {
     executeQuickCommand,
     isProcessing,
     mode,
+    modelId,
     refreshKnowledgeStatus,
   ]);
 

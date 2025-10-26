@@ -6,7 +6,6 @@ import {
   RefreshCw,
   SendHorizontal,
   SlidersHorizontal,
-  X,
 } from "lucide-react";
 import { useEffect, useId, useMemo, useRef } from "react";
 import { KNOWLEDGE_SNIPPET_MIME, type DraggedKnowledgeSnippet } from "../core/drag";

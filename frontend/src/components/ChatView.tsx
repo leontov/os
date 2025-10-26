@@ -3,16 +3,27 @@ import {
   ArrowDownWideNarrow,
   BarChart3,
   Crosshair,
+  Database,
   ListChecks,
   Menu,
   PanelsTopLeft,
+  Pencil,
   RefreshCcw,
   Settings2,
-  Database,
   Sparkles,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 import useMediaQuery from "../core/useMediaQuery";
+import type { ConversationMetrics, ConversationSummary } from "../core/useKolibriChat";
+import type { ModeOption } from "../core/modes";
 import { usePersonaTheme } from "../core/usePersonaTheme";
 import type { ModeOption } from "../core/modes";
 import type { ConversationMetrics, ConversationSummary } from "../core/useKolibriChat";
@@ -54,6 +65,10 @@ interface ChatViewProps {
   onViewportElementChange?: (element: HTMLElement | null) => void;
 }
 
+type TimelineItem =
+  | { type: "divider"; id: string; label: string }
+  | { type: "message"; id: string; message: ChatMessage; contextUserMessage?: ChatMessage };
+
 const ChatView = ({
   messages,
   isLoading,
@@ -87,7 +102,12 @@ const ChatView = ({
   onViewportElementChange,
 }: ChatViewProps) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const titleInputRef = useRef<HTMLInputElement | null>(null);
   const [isNearBottom, setIsNearBottom] = useState(true);
+  const [isSidebarOpen, setSidebarOpen] = useState(false);
+  const [isSidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [isRenamingTitle, setIsRenamingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(conversationTitle);
   const { resolvedMotion } = usePersonaTheme();
   const prefersReducedMotion = useReducedMotion();
   const shouldReduceMotion = resolvedMotion === "reduced" || Boolean(prefersReducedMotion);
@@ -106,15 +126,28 @@ const ChatView = ({
   );
 
   useEffect(() => {
+    if (!isRenamingTitle) {
+      setTitleDraft(conversationTitle);
+    }
+  }, [conversationTitle, isRenamingTitle]);
+
+  useEffect(() => {
+    if (isRenamingTitle) {
+      titleInputRef.current?.focus();
+      titleInputRef.current?.select();
+    }
+  }, [isRenamingTitle]);
+
+  useEffect(() => {
     const container = containerRef.current;
 
     if (!container) {
-      return;
+      return undefined;
     }
 
     const handleScroll = () => {
       const distance = container.scrollHeight - (container.scrollTop + container.clientHeight);
-      setIsNearBottom(distance < 120);
+      setIsNearBottom(distance < 96);
     };
 
     container.addEventListener("scroll", handleScroll, { passive: true });
@@ -126,18 +159,24 @@ const ChatView = ({
   }, []);
 
   useEffect(() => {
-    const container = containerRef.current;
+    if (!isNearBottom) {
+      return;
+    }
 
-    if (!container || !isNearBottom) {
+    const container = containerRef.current;
+    if (!container) {
       return;
     }
 
     if (typeof container.scrollTo === "function") {
-      container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior: shouldReduceMotion ? "auto" : "smooth",
+      });
     } else {
       container.scrollTop = container.scrollHeight;
     }
-  }, [messages, isLoading, isNearBottom]);
+  }, [isLoading, isNearBottom, messages, shouldReduceMotion]);
 
   useEffect(() => {
     if (isDesktop) {
@@ -156,18 +195,19 @@ const ChatView = ({
     if (!container) {
       return;
     }
+
     if (typeof container.scrollTo === "function") {
-      container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior: shouldReduceMotion ? "auto" : "smooth",
+      });
     } else {
       container.scrollTop = container.scrollHeight;
     }
-  }, []);
+  }, [shouldReduceMotion]);
 
-  const timelineItems = useMemo(() => {
-    const items: Array<
-      | { type: "divider"; id: string; label: string }
-      | { type: "message"; id: string; message: ChatMessage; contextUserMessage?: ChatMessage }
-    > = [];
+  const timelineItems = useMemo<TimelineItem[]>(() => {
+    const items: TimelineItem[] = [];
     let lastUserMessage: ChatMessage | undefined;
     let lastDateKey: string | undefined;
 
@@ -184,37 +224,32 @@ const ChatView = ({
           day: "2-digit",
           month: "long",
         });
-        items.push({
-          type: "divider",
-          id: `divider-${dateKey}-${index}`,
-          label: formattedDate,
-        });
+        items.push({ type: "divider", id: `divider-${dateKey}-${index}`, label: formattedDate });
       }
 
-      items.push({
-        type: "message",
-        id: message.id,
-        message,
-        contextUserMessage,
-      });
+      items.push({ type: "message", id: message.id, message, contextUserMessage });
     });
 
     return items;
   }, [messages]);
 
   const conversationShortId = useMemo(() => conversationId.slice(0, 8), [conversationId]);
+
   const totalMessages = metrics.userMessages + metrics.assistantMessages;
 
-  const formatIsoTime = (iso?: string) => {
-    if (!iso) {
+  const lastUpdatedLabel = useMemo(() => {
+    if (!metrics.lastUpdatedIso) {
       return "—";
     }
     try {
-      return new Date(iso).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+      return new Date(metrics.lastUpdatedIso).toLocaleTimeString("ru-RU", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
     } catch {
       return "—";
     }
-  };
+  }, [metrics.lastUpdatedIso]);
 
   const handleConversationSelect = useCallback(
     (id: string) => {
@@ -232,6 +267,36 @@ const ChatView = ({
       setSidebarOpen(false);
     }
   }, [isDesktop, onConversationCreate]);
+
+  const commitTitle = useCallback(() => {
+    const trimmed = titleDraft.trim();
+    if (trimmed && trimmed !== conversationTitle) {
+      onConversationTitleChange(trimmed);
+    }
+    if (!trimmed) {
+      setTitleDraft(conversationTitle);
+    }
+    setIsRenamingTitle(false);
+  }, [conversationTitle, onConversationTitleChange, titleDraft]);
+
+  const cancelRename = useCallback(() => {
+    setTitleDraft(conversationTitle);
+    setIsRenamingTitle(false);
+  }, [conversationTitle]);
+
+  const handleTitleKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLInputElement>) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        commitTitle();
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        cancelRename();
+      }
+    },
+    [cancelRename, commitTitle],
+  );
 
   return (
     <div ref={rootRef} className="flex h-full min-h-screen w-full bg-app-background text-text" data-zen-mode={isZenMode}>
@@ -260,39 +325,69 @@ const ChatView = ({
       {!isDesktop && isSidebarOpen ? (
         <button
           type="button"
-          className="fixed inset-0 z-30 bg-black/40"
+          className="fixed inset-0 z-30 bg-black/50"
           onClick={() => setSidebarOpen(false)}
           aria-label="Закрыть список бесед"
         />
       ) : null}
 
-      <div className="flex min-h-screen flex-1 flex-col bg-chat-surface">
-        <header className="sticky top-0 z-10 border-b border-border/60 bg-chat-header/80 backdrop-blur">
-          <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8">
+      <div className="flex min-h-screen flex-1 flex-col bg-background-main/95">
+        <header className="sticky top-0 z-20 border-b border-border/60 bg-sidebar/90 backdrop-blur">
+          <div className="mx-auto flex w-full max-w-4xl items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8">
             <div className="flex items-center gap-3">
               <button
                 type="button"
                 onClick={() => setSidebarOpen(true)}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border/70 text-text-muted transition-colors hover:text-text lg:hidden"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border/70 text-text-muted transition-colors hover:text-text lg:hidden"
                 aria-label="Открыть список бесед"
               >
                 <Menu className="h-4 w-4" />
               </button>
-              <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand/90 text-base font-semibold text-brand-foreground shadow-card">
-                  K
+              <div className="flex flex-col gap-1">
+                {isRenamingTitle ? (
+                  <input
+                    ref={titleInputRef}
+                    value={titleDraft}
+                    onChange={(event) => setTitleDraft(event.target.value)}
+                    onBlur={commitTitle}
+                    onKeyDown={handleTitleKeyDown}
+                    className="w-full rounded-xl border border-border/70 bg-background-input px-3 py-2 text-sm font-semibold text-text focus:border-brand focus:outline-none"
+                    aria-label="Название беседы"
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setIsRenamingTitle(true)}
+                    className="inline-flex items-center gap-2 text-left text-base font-semibold text-text transition-colors hover:text-primary"
+                  >
+                    <span className="truncate">{conversationTitle || "Новая беседа"}</span>
+                    <Pencil className="h-3.5 w-3.5 text-text-muted" />
+                  </button>
+                )}
+                <span className="text-xs font-medium uppercase tracking-[0.32em] text-text-muted">
+                  Диалог #{conversationShortId}
                 </span>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.35em] text-text-muted">Kolibri Studio</p>
-                  <p className="text-sm font-semibold text-text">Диалог #{conversationShortId}</p>
-                </div>
               </div>
             </div>
+
             <div className="flex items-center gap-2">
               <button
                 type="button"
+                onClick={onToggleZenMode}
+                className={`inline-flex h-10 w-10 items-center justify-center rounded-full border transition-colors ${
+                  isZenMode
+                    ? "border-primary/60 bg-primary/10 text-primary"
+                    : "border-border/70 text-text-muted hover:text-text"
+                }`}
+                aria-pressed={isZenMode}
+                aria-label={isZenMode ? "Отключить режим фокуса" : "Включить режим фокуса"}
+              >
+                <Crosshair className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
                 onClick={onOpenKnowledge}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border/70 text-text-muted transition-colors hover:text-text"
+                className="hidden h-10 w-10 items-center justify-center rounded-full border border-border/70 text-text-muted transition-colors hover:text-text sm:inline-flex"
                 aria-label="Открыть знания"
               >
                 <Sparkles className="h-4 w-4" />
@@ -300,7 +395,7 @@ const ChatView = ({
               <button
                 type="button"
                 onClick={onOpenAnalytics}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border/70 text-text-muted transition-colors hover:text-text"
+                className="hidden h-10 w-10 items-center justify-center rounded-full border border-border/70 text-text-muted transition-colors hover:text-text lg:inline-flex"
                 aria-label="Открыть аналитику"
               >
                 <BarChart3 className="h-4 w-4" />
@@ -308,7 +403,7 @@ const ChatView = ({
               <button
                 type="button"
                 onClick={onOpenActions}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border/70 text-text-muted transition-colors hover:text-text"
+                className="hidden h-10 w-10 items-center justify-center rounded-full border border-border/70 text-text-muted transition-colors hover:text-text lg:inline-flex"
                 aria-label="Открыть действия"
               >
                 <ListChecks className="h-4 w-4" />
@@ -316,22 +411,29 @@ const ChatView = ({
               <button
                 type="button"
                 onClick={onOpenSwarm}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border/70 text-text-muted transition-colors hover:text-text"
+                className="hidden h-10 w-10 items-center justify-center rounded-full border border-border/70 text-text-muted transition-colors hover:text-text xl:inline-flex"
                 aria-label="Открыть swarm"
               >
                 <PanelsTopLeft className="h-4 w-4" />
               </button>
               <button
                 type="button"
+                onClick={onOpenSettings}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border/70 text-text-muted transition-colors hover:text-text"
+                aria-label="Открыть память"
+              >
+                <Database className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
                 onClick={onOpenPreferences}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border/70 text-text-muted transition-colors hover:text-text"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border/70 text-text-muted transition-colors hover:text-text"
                 aria-label="Настройки беседы"
               >
                 <Settings2 className="h-4 w-4" />
               </button>
             </div>
           </div>
-        </header>
 
         <section className="border-b border-border/50 bg-chat-surface">
           <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
