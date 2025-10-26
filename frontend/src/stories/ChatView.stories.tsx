@@ -81,7 +81,6 @@ const meta: Meta<typeof ChatView> = {
     onOpenSwarm: fn(),
     onOpenPreferences: fn(),
     onOpenSettings: fn(),
-    onOpenActions: fn(),
     onRefreshKnowledge: fn(),
     isKnowledgeLoading: false,
     bridgeReady: true,
