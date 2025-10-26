@@ -2,6 +2,18 @@
 
 This document captures 100 concrete upgrade tasks for Kolibri-Σ, grouped by functional area so parallel teams can execute without overlap.
 
+## Recommended next steps
+
+To maximize impact in the short term, prioritize a thin vertical slice that improves runtime performance, resilience, and user experience in parallel:
+
+1. **Ship SIMD-ready WASM builds (tasks 1–4, 47)** — enabling `-msimd128`, providing scalar fallbacks, and bundling strict Emscripten flags will unlock immediate latency gains for both native and threaded WASM targets.
+2. **Harden the observe/learn path (tasks 29–38)** — adding source flags, text normalization, and rehearsal safeguards reduces drift and gives product teams confidence to re-enable on-device adaptation.
+3. **Introduce cache-aware mini-VM primitives (tasks 21–28)** — a minimal interpreter with profiling counters pays dividends for determinism, caching, and later JIT upgrades.
+4. **Deliver PWA resiliency features (tasks 55–63)** — COOP/COEP headers, Service Worker caching, and offline indicators are prerequisites for stable threaded WASM in Chromium-based browsers.
+5. **Close the profiling loop (tasks 39–45)** — exposing key counters in both CLI and UI helps validate the previous workstreams and gives rapid feedback on regressions.
+
+Each stream can progress independently but should converge in a combined release where profiling dashboards confirm latency wins, the UI surfaces the new controls, and the learning pipeline remains safe by default.
+
 ## Ядро C/WASM: производительность и память
 1. Включить `-msimd128` и условное ветвление по `__wasm_simd128__` со скалярным фолбэком.
 2. Переписать горячие суммирующие циклы на SIMD-интринсики (`i32x4`, `wasm_u16x8_*`).
