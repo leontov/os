@@ -17,7 +17,7 @@ import useKolibriChat from "./core/useKolibriChat";
 import { MODE_OPTIONS, findModeLabel } from "./core/modes";
 import { usePersonaTheme } from "./core/usePersonaTheme";
 import useInspectorSession from "./core/useInspectorSession";
-import type { ModelId } from "./core/models";
+import { MODEL_OPTIONS, type ModelId } from "./core/models";
 
 type PanelKey =
   | "knowledge"
@@ -292,6 +292,47 @@ const App = () => {
     }
   }, [conversationId, conversationTitle, exportConversationAsMarkdown, logInspectorAction]);
 
+  const handleShareConversation = useCallback(async () => {
+    logInspectorAction("conversation.share", "Поделиться беседой", {
+      conversationId,
+      title: conversationTitle,
+    });
+
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const shareUrl = window.location.href;
+    const shortId = conversationId.slice(0, 8);
+    const shareTitle = conversationTitle || "Беседа Kolibri";
+    const shareText = `Диалог Kolibri #${shortId}`;
+
+    if (typeof navigator !== "undefined" && navigator.share) {
+      try {
+        await navigator.share({ title: shareTitle, text: shareText, url: shareUrl });
+        return;
+      } catch (error) {
+        console.warn("[kolibri-share] Не удалось поделиться через Web Share API", error);
+      }
+    }
+
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+        return;
+      } catch (error) {
+        console.warn("[kolibri-share] Не удалось скопировать ссылку", error);
+      }
+    }
+  }, [conversationId, conversationTitle, logInspectorAction]);
+
+  const handleManagePlan = useCallback(() => {
+    logInspectorAction("account.plan", "Открыто управление подпиской");
+    if (typeof window !== "undefined") {
+      window.open("https://kolibri.app/account", "_blank", "noopener,noreferrer");
+    }
+  }, [logInspectorAction]);
+
   const quickSuggestions = useMemo(() => {
     const suggestions = new Set<string>();
 
@@ -463,6 +504,8 @@ const App = () => {
           mode={mode}
           modeLabel={modeLabel}
           modeOptions={MODE_OPTIONS}
+          modelId={modelId}
+          modelOptions={MODEL_OPTIONS}
           metrics={metrics}
           emptyState={<WelcomeScreen onSuggestionSelect={setDraft} />}
           composer={composer}
@@ -472,6 +515,7 @@ const App = () => {
           onConversationRename={handleRenameConversationById}
           onConversationDelete={handleDeleteConversation}
           onModeChange={handleModeChange}
+          onModelChange={handleModelChange}
           onOpenKnowledge={() => setActivePanel("knowledge")}
           onOpenAnalytics={() => setActivePanel("analytics")}
           onOpenActions={() => setActivePanel("actions")}
@@ -479,6 +523,9 @@ const App = () => {
           onOpenPreferences={() => setActivePanel("preferences")}
           onOpenSettings={() => setActivePanel("settings")}
           onRefreshKnowledge={handleRefreshKnowledge}
+          onShareConversation={handleShareConversation}
+          onExportConversation={handleExportConversation}
+          onManagePlan={handleManagePlan}
           isKnowledgeLoading={statusLoading}
           bridgeReady={bridgeReady}
           isZenMode={isZenMode}
