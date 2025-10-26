@@ -7,6 +7,7 @@ import DemoPage, { DemoMetrics } from "./components/DemoPage";
 import InspectorPanel from "./components/InspectorPanel";
 import KernelControlsPanel from "./components/KernelControlsPanel";
 import KnowledgeView from "./components/KnowledgeView";
+import ReadinessPanel from "./components/ReadinessPanel";
 import SwarmView from "./components/SwarmView";
 import ActionsPanel from "./features/actions/ActionsPanel";
 import WelcomeScreen from "./components/WelcomeScreen";
@@ -16,6 +17,12 @@ import useKolibriChat from "./core/useKolibriChat";
 import { MODE_OPTIONS, findModeLabel } from "./core/modes";
 import { usePersonaTheme } from "./core/usePersonaTheme";
 import useInspectorSession from "./core/useInspectorSession";
+import {
+  fetchBackendHealth,
+  getHealthErrorMessage,
+  isAbortError,
+  type BackendHealthSnapshot,
+} from "./core/health";
 import type { ModelId } from "./core/models";
 import { MODEL_OPTIONS } from "./core/models";
 import { fetchPopularGpts, fetchWhatsNewHighlights } from "./core/recommendations";
@@ -26,6 +33,7 @@ type PanelKey =
   | "knowledge"
   | "swarm"
   | "analytics"
+  | "readiness"
   | "controls"
   | "actions"
   | "settings"
@@ -113,12 +121,53 @@ const App = () => {
   const [whatsNewHighlights, setWhatsNewHighlights] = useState<WhatsNewHighlight[]>([]);
   const [popularLoading, setPopularLoading] = useState(true);
   const [whatsNewLoading, setWhatsNewLoading] = useState(true);
-  const [editingMessage, setEditingMessage] = useState<{
-    id: string;
-    originalContent: string;
-  } | null>(null);
+  const [backendHealth, setBackendHealth] = useState<BackendHealthSnapshot | null>(null);
+  const [backendHealthError, setBackendHealthError] = useState<string | null>(null);
+  const [backendHealthCheckedAt, setBackendHealthCheckedAt] = useState<string | null>(null);
+  const [isBackendHealthLoading, setBackendHealthLoading] = useState(false);
 
   const modeLabel = useMemo(() => findModeLabel(mode), [mode]);
+
+  const loadBackendHealth = useCallback(
+    async ({ signal, suppressLoading }: { signal?: AbortSignal; suppressLoading?: boolean } = {}) => {
+      if (!suppressLoading) {
+        setBackendHealthLoading(true);
+        setBackendHealthError(null);
+      }
+
+      try {
+        const snapshot = await fetchBackendHealth({ signal });
+        if (signal?.aborted) {
+          return;
+        }
+        setBackendHealth(snapshot);
+        setBackendHealthError(null);
+      } catch (error) {
+        if (isAbortError(error) || signal?.aborted) {
+          return;
+        }
+        setBackendHealth(null);
+        setBackendHealthError(getHealthErrorMessage(error));
+      } finally {
+        if (signal?.aborted) {
+          return;
+        }
+        if (!suppressLoading) {
+          setBackendHealthLoading(false);
+        }
+        setBackendHealthCheckedAt(new Date().toISOString());
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void loadBackendHealth({ signal: controller.signal });
+    return () => {
+      controller.abort();
+    };
+  }, [loadBackendHealth]);
 
   const handleSuggestionSelect = useCallback(
     (suggestion: string) => {
@@ -273,6 +322,11 @@ const App = () => {
     logInspectorAction("knowledge.refresh", "Запрошено обновление памяти");
     void refreshKnowledgeStatus();
   }, [logInspectorAction, refreshKnowledgeStatus]);
+
+  const handleBackendHealthRefresh = useCallback(() => {
+    logInspectorAction("system.health.refresh", "Проверка статуса backend");
+    void loadBackendHealth();
+  }, [loadBackendHealth, logInspectorAction]);
 
   const handleUpdatePreferences = useCallback(
     (next: Partial<typeof preferences>) => {
@@ -756,6 +810,7 @@ const App = () => {
           onModeChange={handleModeChange}
           onModelChange={handleModelChange}
           onOpenKnowledge={() => setActivePanel("knowledge")}
+          onOpenReadiness={() => setActivePanel("readiness")}
           onOpenAnalytics={() => setActivePanel("analytics")}
           onOpenActions={() => setActivePanel("actions")}
           onOpenSwarm={() => setActivePanel("swarm")}
@@ -813,6 +868,28 @@ const App = () => {
             void refreshKnowledgeStatus();
           }}
           usage={knowledgeUsage}
+        />
+      </PanelDialog>
+
+      <PanelDialog
+        title="Готовность продукта"
+        description="Проверьте состояние backend, памяти и wasm ядра перед демонстрацией."
+        isOpen={activePanel === "readiness"}
+        onClose={() => setActivePanel(null)}
+        maxWidthClass="max-w-5xl"
+      >
+        <ReadinessPanel
+          backend={backendHealth}
+          backendError={backendHealthError}
+          backendCheckedAt={backendHealthCheckedAt}
+          isBackendLoading={isBackendHealthLoading}
+          onBackendRefresh={handleBackendHealthRefresh}
+          knowledgeStatus={knowledgeStatus}
+          knowledgeError={knowledgeError}
+          isKnowledgeLoading={statusLoading}
+          onKnowledgeRefresh={handleRefreshKnowledge}
+          bridgeReady={bridgeReady}
+          kernelCapabilities={kernelCapabilities}
         />
       </PanelDialog>
 
