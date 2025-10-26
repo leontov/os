@@ -28,6 +28,11 @@ interface ChatInputProps {
   onRemoveAttachment?: (id: string) => void;
   onClearAttachments: () => void;
   onOpenControls?: () => void;
+  editingMessage?: {
+    id: string;
+    originalContent: string;
+  };
+  onCancelEditing?: () => void;
 }
 
 const MAX_LENGTH = 4000;
@@ -45,6 +50,8 @@ const ChatInput = ({
   onRemoveAttachment,
   onClearAttachments,
   onOpenControls,
+  editingMessage,
+  onCancelEditing,
 }: ChatInputProps) => {
   const textAreaId = useId();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -108,13 +115,17 @@ const ChatInput = ({
   };
 
   const handleAttachClick = () => {
-    if (isBusy) {
+    if (isBusy || editingMessage) {
       return;
     }
     fileInputRef.current?.click();
   };
 
   const handleClearDraft = () => {
+    if (editingMessage && onCancelEditing) {
+      onCancelEditing();
+      return;
+    }
     onChange("");
     onClearAttachments();
     if (fileInputRef.current) {
@@ -162,6 +173,9 @@ const ChatInput = ({
   };
 
   const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+    if (editingMessage) {
+      return;
+    }
     const snippet = extractKnowledgeSnippet(event);
     if (!snippet) {
       return;
@@ -173,6 +187,9 @@ const ChatInput = ({
   };
 
   const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    if (editingMessage) {
+      return;
+    }
     const snippet = extractKnowledgeSnippet(event);
     if (!snippet) {
       return;
@@ -253,6 +270,27 @@ const ChatInput = ({
         </div>
       </div>
       <div className="flex flex-col gap-4 px-4 py-4">
+        {editingMessage ? (
+          <div className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-primary/50 bg-primary/10 px-4 py-3 text-sm text-primary">
+            <div className="max-w-xl space-y-1">
+              <p className="text-[0.65rem] font-semibold uppercase tracking-[0.3em] text-primary/80">
+                Редактирование сообщения
+              </p>
+              <p className="break-words text-xs text-primary/90">
+                {editingMessage.originalContent || "(пустое сообщение)"}
+              </p>
+            </div>
+            {onCancelEditing ? (
+              <button
+                type="button"
+                onClick={onCancelEditing}
+                className="inline-flex items-center gap-2 rounded-lg border border-primary/40 bg-surface px-3 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-primary transition-colors hover:border-primary hover:text-primary/90"
+              >
+                Отменить
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         <textarea
           ref={textAreaRef}
           id={`${textAreaId}-textarea`}
@@ -312,8 +350,8 @@ const ChatInput = ({
             <button
               type="button"
               onClick={handleAttachClick}
-              className="inline-flex items-center gap-2 rounded-lg border border-border/70 bg-surface px-3 py-2 transition-colors hover:text-text"
-              disabled={isBusy}
+              className="inline-flex items-center gap-2 rounded-lg border border-border/70 bg-surface px-3 py-2 transition-colors hover:text-text disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isBusy || Boolean(editingMessage)}
             >
               <Paperclip className="h-4 w-4" />
               Вложить

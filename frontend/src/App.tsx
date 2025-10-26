@@ -17,8 +17,10 @@ import { MODE_OPTIONS, findModeLabel } from "./core/modes";
 import { usePersonaTheme } from "./core/usePersonaTheme";
 import useInspectorSession from "./core/useInspectorSession";
 import type { ModelId } from "./core/models";
+import { MODEL_OPTIONS } from "./core/models";
 import { fetchPopularGpts, fetchWhatsNewHighlights } from "./core/recommendations";
 import type { PopularGptRecommendation, WhatsNewHighlight } from "./types/recommendations";
+import type { ChatMessage } from "./types/chat";
 
 type PanelKey =
   | "knowledge"
@@ -111,6 +113,10 @@ const App = () => {
   const [whatsNewHighlights, setWhatsNewHighlights] = useState<WhatsNewHighlight[]>([]);
   const [popularLoading, setPopularLoading] = useState(true);
   const [whatsNewLoading, setWhatsNewLoading] = useState(true);
+  const [editingMessage, setEditingMessage] = useState<{
+    id: string;
+    originalContent: string;
+  } | null>(null);
 
   const modeLabel = useMemo(() => findModeLabel(mode), [mode]);
 
@@ -139,17 +145,54 @@ const App = () => {
   );
 
   const handleSendMessage = useCallback(async () => {
+    const trimmedDraft = draft.trim();
+
+    if (editingMessage) {
+      if (!trimmedDraft) {
+        logInspectorAction("message.edit.cancel", "Редактирование отменено из-за пустого текста", {
+          messageId: editingMessage.id,
+        });
+        setEditingMessage(null);
+        setDraft("");
+        clearAttachments();
+        return;
+      }
+
+      logInspectorAction("message.edit.submit", "Сообщение обновлено и отправлено повторно", {
+        messageId: editingMessage.id,
+        previousLength: editingMessage.originalContent.trim().length,
+        nextLength: trimmedDraft.length,
+      });
+      await resendMessage(editingMessage.id, { content: draft });
+      setEditingMessage(null);
+      setDraft("");
+      clearAttachments();
+      return;
+    }
+
     logInspectorAction("message.user", "Отправка сообщения", {
-      draftLength: draft.trim().length,
+      draftLength: trimmedDraft.length,
       attachments: attachments.length,
     });
     await sendMessage();
-  }, [attachments.length, draft, logInspectorAction, sendMessage]);
+  }, [
+    attachments.length,
+    clearAttachments,
+    draft,
+    editingMessage,
+    logInspectorAction,
+    resendMessage,
+    sendMessage,
+    setDraft,
+  ]);
 
   const handleResetConversation = useCallback(async () => {
     logInspectorAction("conversation.reset", "Начат новый диалог", { conversationId });
+    setEditingMessage(null);
+    setDraft("");
+    clearAttachments();
     await resetConversation();
-  }, [conversationId, logInspectorAction, resetConversation]);
+  }, [clearAttachments, conversationId, logInspectorAction, resetConversation, setDraft]);
 
   const handleAttachFiles = useCallback(
     (files: File[]) => {
@@ -179,15 +222,21 @@ const App = () => {
 
   const handleCreateConversation = useCallback(() => {
     logInspectorAction("conversation.create", "Создана новая беседа");
+    setEditingMessage(null);
+    setDraft("");
+    clearAttachments();
     void createConversation();
-  }, [createConversation, logInspectorAction]);
+  }, [clearAttachments, createConversation, logInspectorAction, setDraft]);
 
   const handleSelectConversation = useCallback(
     (id: string) => {
       logInspectorAction("conversation.select", "Выбор беседы", { targetId: id });
+      setEditingMessage(null);
+      setDraft("");
+      clearAttachments();
       selectConversation(id);
     },
-    [logInspectorAction, selectConversation],
+    [clearAttachments, logInspectorAction, selectConversation, setDraft],
   );
 
   const handleRenameConversation = useCallback(
@@ -297,6 +346,22 @@ const App = () => {
     };
   }, []);
 
+  useEffect(() => {
+    setEditingMessage(null);
+  }, [conversationId]);
+
+  useEffect(() => {
+    if (!editingMessage) {
+      return;
+    }
+    const stillExists = messages.some(
+      (item) => item.id === editingMessage.id && item.role === "user",
+    );
+    if (!stillExists) {
+      setEditingMessage(null);
+    }
+  }, [editingMessage, messages]);
+
   const recentConversations = useMemo(() => {
     const getTimestamp = (value?: string) => {
       if (!value) {
@@ -355,21 +420,19 @@ const App = () => {
       if (message.role !== "user") {
         return;
       }
-      const edited = window.prompt("Отредактируйте сообщение перед повторной отправкой:", message.content);
-      if (edited === null) {
-        return;
-      }
-      const trimmed = edited.trim();
-      if (!trimmed) {
-        return;
-      }
-      logInspectorAction("message.edit", "Повторная отправка после правки", {
-        messageId: message.id,
-        length: trimmed.length,
+      const nextDraft = message.content ?? "";
+      setEditingMessage({
+        id: message.id,
+        originalContent: nextDraft,
       });
-      void resendMessage(message.id, { content: trimmed });
+      setDraft(nextDraft);
+      clearAttachments();
+      logInspectorAction("message.edit.start", "Начато редактирование сообщения", {
+        messageId: message.id,
+        length: nextDraft.trim().length,
+      });
     },
-    [logInspectorAction, resendMessage],
+    [clearAttachments, logInspectorAction, setDraft],
   );
 
   const handleMessageRegenerate = useCallback(
@@ -378,13 +441,15 @@ const App = () => {
       if (!target || target.role !== "user") {
         return;
       }
+      setEditingMessage(null);
+      setDraft("");
       logInspectorAction("message.regenerate", "Повторный запрос ответа", {
         messageId: target.id,
         assistantId: assistantMessage.id,
       });
       void resendMessage(target.id);
     },
-    [logInspectorAction, resendMessage],
+    [logInspectorAction, resendMessage, setDraft],
   );
 
   const handleMessageContinue = useCallback(
@@ -393,14 +458,28 @@ const App = () => {
         return;
       }
       const continuedPrompt = `${userMessage.content.trim()}\n\nПродолжи ответ.`;
+      setEditingMessage(null);
+      setDraft("");
       logInspectorAction("message.continue", "Запрошено продолжение ответа", {
         messageId: userMessage.id,
         assistantId: assistantMessage.id,
       });
       void resendMessage(userMessage.id, { content: continuedPrompt });
     },
-    [logInspectorAction, resendMessage],
+    [logInspectorAction, resendMessage, setDraft],
   );
+
+  const handleCancelEditing = useCallback(() => {
+    if (!editingMessage) {
+      return;
+    }
+    logInspectorAction("message.edit.cancel", "Редактирование отменено пользователем", {
+      messageId: editingMessage.id,
+    });
+    setEditingMessage(null);
+    setDraft("");
+    clearAttachments();
+  }, [clearAttachments, editingMessage, logInspectorAction, setDraft]);
 
   const handleMessageCopyLink = useCallback(
     async (message: ChatMessage) => {
@@ -467,6 +546,8 @@ const App = () => {
         onRemoveAttachment={handleRemoveAttachment}
         onClearAttachments={handleClearAttachments}
         onOpenControls={() => setActivePanel("controls")}
+        editingMessage={editingMessage ?? undefined}
+        onCancelEditing={handleCancelEditing}
       />
       {quickSuggestions.length > 0 ? (
         <div className="rounded-2xl border border-border/60 bg-surface px-4 py-3 text-sm text-text-muted shadow-sm">
@@ -583,6 +664,57 @@ const App = () => {
     setZenMode((previous) => !previous);
   }, []);
 
+  const handleShareConversation = useCallback(async () => {
+    if (!conversationId) {
+      return;
+    }
+
+    logInspectorAction("conversation.share", "Поделились беседой", {
+      conversationId,
+    });
+
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const url = new URL(window.location.href);
+    url.searchParams.set("conversationId", conversationId);
+    const shareUrl = url.toString();
+
+    try {
+      if (navigator?.share) {
+        await navigator.share({
+          title: conversationTitle || "Беседа Kolibri",
+          url: shareUrl,
+        });
+        return;
+      }
+
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+        return;
+      }
+
+      window.prompt("Скопируйте ссылку на беседу", shareUrl);
+    } catch (error) {
+      console.warn("[kolibri-share] Не удалось поделиться беседой", error);
+      logInspectorAction("conversation.share.failed", "Не удалось поделиться беседой", {
+        conversationId,
+      });
+    }
+  }, [conversationId, conversationTitle, logInspectorAction]);
+
+  const handleManagePlan = useCallback(() => {
+    logInspectorAction("plan.manage", "Открытие настроек тарифа");
+
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const targetUrl = new URL("/pricing", window.location.origin);
+    window.open(targetUrl.toString(), "_blank", "noopener,noreferrer");
+  }, [logInspectorAction]);
+
   if (isDemoMode) {
     return <DemoPage metrics={demoMetrics} onLaunchApp={handleExitDemo} />;
   }
@@ -644,6 +776,7 @@ const App = () => {
           onMessageContinue={handleMessageContinue}
           onMessageRegenerate={handleMessageRegenerate}
           onMessageCopyLink={handleMessageCopyLink}
+          editingMessage={editingMessage ?? undefined}
         />
       </div>
 
