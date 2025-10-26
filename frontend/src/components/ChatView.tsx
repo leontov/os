@@ -2,6 +2,7 @@ import {
   ArrowDownWideNarrow,
   BarChart3,
   ListChecks,
+  Crosshair,
   Menu,
   PanelsTopLeft,
   RefreshCcw,
@@ -31,6 +32,10 @@ interface ChatViewProps {
   onRefreshKnowledge: () => void;
   isKnowledgeLoading: boolean;
   bridgeReady: boolean;
+  isZenMode: boolean;
+  onToggleZenMode: () => void;
+  personaName: string;
+  onViewportElementChange?: (element: HTMLElement | null) => void;
 }
 
 const ChatView = ({
@@ -51,9 +56,21 @@ const ChatView = ({
   onRefreshKnowledge,
   isKnowledgeLoading,
   bridgeReady,
+  isZenMode,
+  onToggleZenMode,
+  personaName,
+  onViewportElementChange,
 }: ChatViewProps) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [isNearBottom, setIsNearBottom] = useState(true);
+  const rootRef = useCallback(
+    (element: HTMLElement | null) => {
+      if (onViewportElementChange) {
+        onViewportElementChange(element);
+      }
+    },
+    [onViewportElementChange],
+  );
 
   useEffect(() => {
     const container = containerRef.current;
@@ -156,7 +173,7 @@ const ChatView = ({
   };
 
   return (
-    <section className="flex h-full flex-col gap-4">
+    <section ref={rootRef} className="flex h-full flex-col gap-4">
       <header className="rounded-2xl border border-border/70 bg-surface px-4 py-3 shadow-sm">
         <div className="flex flex-wrap items-center gap-3">
           <button
@@ -191,9 +208,28 @@ const ChatView = ({
             <span className="hidden text-xs text-text-muted sm:inline">{modeLabel}</span>
           </div>
         </div>
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-text-muted">
+        <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-text-muted">
           <span>Сообщений: {totalMessages}</span>
           <span>Обновлено: {formatIsoTime(metrics.lastUpdatedIso)}</span>
+          <div className="flex items-center gap-2">
+            <span className="hidden rounded-full border border-border/70 bg-surface-muted px-3 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.35em] text-text-muted sm:inline">
+              {personaName}
+            </span>
+            <button
+              type="button"
+              onClick={onToggleZenMode}
+              className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold transition-quick ${
+                isZenMode
+                  ? "border-primary/70 bg-primary/15 text-primary"
+                  : "border-border/70 text-text-muted hover:text-text"
+              }`}
+              aria-pressed={isZenMode}
+              aria-label={isZenMode ? "Отключить режим фокуса" : "Включить режим фокуса"}
+            >
+              <Crosshair className="h-3.5 w-3.5" />
+              Фокус
+            </button>
+          </div>
           <div className="ml-auto flex items-center gap-2">
             <button
               type="button"

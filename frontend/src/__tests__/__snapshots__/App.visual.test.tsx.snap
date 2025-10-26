@@ -2,13 +2,23 @@
 
 exports[`App layout snapshots > renders chat with history 1`] = `
 <div
-  class="flex min-h-screen bg-app-background text-text"
+  class="relative flex min-h-screen bg-app-background text-text"
+  data-zen-mode="false"
 >
-  <div
-    class="fixed inset-y-0 left-0 z-40 w-80 transform border-r border-border/60 bg-sidebar transition-transform duration-200 ease-out lg:static lg:h-auto lg:translate-x-0 -translate-x-full lg:translate-x-0"
+  <a
+    class="skip-link"
+    href="#kolibri-main-content"
+  >
+    Перейти к содержимому
+  </a>
+  <aside
+    aria-hidden="false"
+    aria-label="Навигация по беседам"
+    class="fixed inset-y-0 left-0 z-40 w-80 transform border-r border-border/60 bg-sidebar transition-gentle ease-gesture lg:shadow-none translate-x-0 shadow-card lg:static lg:translate-x-0"
   >
     <div
-      class="flex h-full flex-col overflow-y-auto"
+      class="flex h-full flex-col overflow-y-auto soft-scroll"
+      role="complementary"
     >
       <div
         class="flex h-full w-full flex-col gap-6 bg-sidebar px-5 pb-6 pt-8"
@@ -92,12 +102,16 @@ exports[`App layout snapshots > renders chat with history 1`] = `
         </div>
       </div>
     </div>
-  </div>
+  </aside>
   <div
     class="flex min-h-screen flex-1 flex-col"
+    data-motion-region="true"
   >
-    <div
-      class="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 px-4 py-6 sm:px-6 lg:px-10"
+    <main
+      aria-live="polite"
+      class="mx-auto flex w-full flex-1 flex-col gap-6 px-4 py-6 sm:px-6 lg:px-10 max-w-5xl lg:max-w-6xl"
+      id="kolibri-main-content"
+      role="main"
     >
       <div
         class="flex-1"
@@ -184,7 +198,7 @@ exports[`App layout snapshots > renders chat with history 1`] = `
               </div>
             </div>
             <div
-              class="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-text-muted"
+              class="mt-3 flex flex-wrap items-center gap-3 text-xs text-text-muted"
             >
               <span>
                 Сообщений: 
@@ -194,6 +208,65 @@ exports[`App layout snapshots > renders chat with history 1`] = `
                 Обновлено: 
                 10:00
               </span>
+              <div
+                class="flex items-center gap-2"
+              >
+                <span
+                  class="hidden rounded-full border border-border/70 bg-surface-muted px-3 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.35em] text-text-muted sm:inline"
+                >
+                  Aurora
+                </span>
+                <button
+                  aria-label="Включить режим фокуса"
+                  aria-pressed="false"
+                  class="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold transition-quick border-border/70 text-text-muted hover:text-text"
+                  type="button"
+                >
+                  <svg
+                    class="lucide lucide-crosshair h-3.5 w-3.5"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <circle
+                      cx="12"
+                      cy="12"
+                      r="10"
+                    />
+                    <line
+                      x1="22"
+                      x2="18"
+                      y1="12"
+                      y2="12"
+                    />
+                    <line
+                      x1="6"
+                      x2="2"
+                      y1="12"
+                      y2="12"
+                    />
+                    <line
+                      x1="12"
+                      x2="12"
+                      y1="6"
+                      y2="2"
+                    />
+                    <line
+                      x1="12"
+                      x2="12"
+                      y1="22"
+                      y2="18"
+                    />
+                  </svg>
+                  Фокус
+                </button>
+              </div>
               <div
                 class="ml-auto flex items-center gap-2"
               >
@@ -1063,20 +1136,36 @@ exports[`App layout snapshots > renders chat with history 1`] = `
           </div>
         </div>
       </div>
-    </div>
+    </main>
   </div>
+  <span
+    aria-live="polite"
+    class="sr-only"
+  >
+    Режим фокуса отключён.
+  </span>
 </div>
 `;
 
 exports[`App layout snapshots > renders empty chat state 1`] = `
 <div
-  class="flex min-h-screen bg-app-background text-text"
+  class="relative flex min-h-screen bg-app-background text-text"
+  data-zen-mode="false"
 >
-  <div
-    class="fixed inset-y-0 left-0 z-40 w-80 transform border-r border-border/60 bg-sidebar transition-transform duration-200 ease-out lg:static lg:h-auto lg:translate-x-0 -translate-x-full lg:translate-x-0"
+  <a
+    class="skip-link"
+    href="#kolibri-main-content"
+  >
+    Перейти к содержимому
+  </a>
+  <aside
+    aria-hidden="false"
+    aria-label="Навигация по беседам"
+    class="fixed inset-y-0 left-0 z-40 w-80 transform border-r border-border/60 bg-sidebar transition-gentle ease-gesture lg:shadow-none translate-x-0 shadow-card lg:static lg:translate-x-0"
   >
     <div
-      class="flex h-full flex-col overflow-y-auto"
+      class="flex h-full flex-col overflow-y-auto soft-scroll"
+      role="complementary"
     >
       <div
         class="flex h-full w-full flex-col gap-6 bg-sidebar px-5 pb-6 pt-8"
@@ -1160,12 +1249,16 @@ exports[`App layout snapshots > renders empty chat state 1`] = `
         </div>
       </div>
     </div>
-  </div>
+  </aside>
   <div
     class="flex min-h-screen flex-1 flex-col"
+    data-motion-region="true"
   >
-    <div
-      class="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 px-4 py-6 sm:px-6 lg:px-10"
+    <main
+      aria-live="polite"
+      class="mx-auto flex w-full flex-1 flex-col gap-6 px-4 py-6 sm:px-6 lg:px-10 max-w-5xl lg:max-w-6xl"
+      id="kolibri-main-content"
+      role="main"
     >
       <div
         class="flex-1"
@@ -1252,7 +1345,7 @@ exports[`App layout snapshots > renders empty chat state 1`] = `
               </div>
             </div>
             <div
-              class="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-text-muted"
+              class="mt-3 flex flex-wrap items-center gap-3 text-xs text-text-muted"
             >
               <span>
                 Сообщений: 
@@ -1262,6 +1355,65 @@ exports[`App layout snapshots > renders empty chat state 1`] = `
                 Обновлено: 
                 10:00
               </span>
+              <div
+                class="flex items-center gap-2"
+              >
+                <span
+                  class="hidden rounded-full border border-border/70 bg-surface-muted px-3 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.35em] text-text-muted sm:inline"
+                >
+                  Aurora
+                </span>
+                <button
+                  aria-label="Включить режим фокуса"
+                  aria-pressed="false"
+                  class="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold transition-quick border-border/70 text-text-muted hover:text-text"
+                  type="button"
+                >
+                  <svg
+                    class="lucide lucide-crosshair h-3.5 w-3.5"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <circle
+                      cx="12"
+                      cy="12"
+                      r="10"
+                    />
+                    <line
+                      x1="22"
+                      x2="18"
+                      y1="12"
+                      y2="12"
+                    />
+                    <line
+                      x1="6"
+                      x2="2"
+                      y1="12"
+                      y2="12"
+                    />
+                    <line
+                      x1="12"
+                      x2="12"
+                      y1="6"
+                      y2="2"
+                    />
+                    <line
+                      x1="12"
+                      x2="12"
+                      y1="22"
+                      y2="18"
+                    />
+                  </svg>
+                  Фокус
+                </button>
+              </div>
               <div
                 class="ml-auto flex items-center gap-2"
               >
@@ -2175,20 +2327,36 @@ exports[`App layout snapshots > renders empty chat state 1`] = `
           </div>
         </div>
       </div>
-    </div>
+    </main>
   </div>
+  <span
+    aria-live="polite"
+    class="sr-only"
+  >
+    Режим фокуса отключён.
+  </span>
 </div>
 `;
 
 exports[`App layout snapshots > renders mobile layout 1`] = `
 <div
-  class="flex min-h-screen bg-app-background text-text"
+  class="relative flex min-h-screen bg-app-background text-text"
+  data-zen-mode="false"
 >
-  <div
-    class="fixed inset-y-0 left-0 z-40 w-80 transform border-r border-border/60 bg-sidebar transition-transform duration-200 ease-out lg:static lg:h-auto lg:translate-x-0 -translate-x-full lg:translate-x-0"
+  <a
+    class="skip-link"
+    href="#kolibri-main-content"
+  >
+    Перейти к содержимому
+  </a>
+  <aside
+    aria-hidden="true"
+    aria-label="Навигация по беседам"
+    class="fixed inset-y-0 left-0 z-40 w-80 transform border-r border-border/60 bg-sidebar transition-gentle ease-gesture lg:shadow-none -translate-x-full "
   >
     <div
-      class="flex h-full flex-col overflow-y-auto"
+      class="flex h-full flex-col overflow-y-auto soft-scroll"
+      role="complementary"
     >
       <div
         class="flex h-full w-full flex-col gap-6 bg-sidebar px-5 pb-6 pt-8"
@@ -2272,12 +2440,16 @@ exports[`App layout snapshots > renders mobile layout 1`] = `
         </div>
       </div>
     </div>
-  </div>
+  </aside>
   <div
     class="flex min-h-screen flex-1 flex-col"
+    data-motion-region="true"
   >
-    <div
-      class="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 px-4 py-6 sm:px-6 lg:px-10"
+    <main
+      aria-live="polite"
+      class="mx-auto flex w-full flex-1 flex-col gap-6 px-4 py-6 sm:px-6 lg:px-10 max-w-5xl lg:max-w-6xl"
+      id="kolibri-main-content"
+      role="main"
     >
       <div
         class="flex-1"
@@ -2364,7 +2536,7 @@ exports[`App layout snapshots > renders mobile layout 1`] = `
               </div>
             </div>
             <div
-              class="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-text-muted"
+              class="mt-3 flex flex-wrap items-center gap-3 text-xs text-text-muted"
             >
               <span>
                 Сообщений: 
@@ -2374,6 +2546,65 @@ exports[`App layout snapshots > renders mobile layout 1`] = `
                 Обновлено: 
                 10:00
               </span>
+              <div
+                class="flex items-center gap-2"
+              >
+                <span
+                  class="hidden rounded-full border border-border/70 bg-surface-muted px-3 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.35em] text-text-muted sm:inline"
+                >
+                  Aurora
+                </span>
+                <button
+                  aria-label="Включить режим фокуса"
+                  aria-pressed="false"
+                  class="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold transition-quick border-border/70 text-text-muted hover:text-text"
+                  type="button"
+                >
+                  <svg
+                    class="lucide lucide-crosshair h-3.5 w-3.5"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <circle
+                      cx="12"
+                      cy="12"
+                      r="10"
+                    />
+                    <line
+                      x1="22"
+                      x2="18"
+                      y1="12"
+                      y2="12"
+                    />
+                    <line
+                      x1="6"
+                      x2="2"
+                      y1="12"
+                      y2="12"
+                    />
+                    <line
+                      x1="12"
+                      x2="12"
+                      y1="6"
+                      y2="2"
+                    />
+                    <line
+                      x1="12"
+                      x2="12"
+                      y1="22"
+                      y2="18"
+                    />
+                  </svg>
+                  Фокус
+                </button>
+              </div>
               <div
                 class="ml-auto flex items-center gap-2"
               >
@@ -3287,7 +3518,13 @@ exports[`App layout snapshots > renders mobile layout 1`] = `
           </div>
         </div>
       </div>
-    </div>
+    </main>
   </div>
+  <span
+    aria-live="polite"
+    class="sr-only"
+  >
+    Режим фокуса отключён.
+  </span>
 </div>
 `;

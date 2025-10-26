@@ -1,4 +1,7 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/inter/700.css";
 
 @tailwind base;
 @tailwind components;
@@ -6,65 +9,72 @@
 
 :root {
   color-scheme: light;
-  --color-brand: 59 130 246;
+  --color-brand: 79 70 229;
   --color-brand-foreground: 255 255 255;
-  --color-app-background: 248 250 252;
+  --color-app-background: 245 248 255;
   --color-surface: 255 255 255;
-  --color-surface-muted: 241 245 249;
-  --color-sidebar: 237 242 247;
-  --color-border: 226 232 240;
-  --color-text: 15 23 42;
-  --color-text-muted: 100 116 139;
-  --color-primary: 59 130 246;
+  --color-surface-muted: 232 238 255;
+  --color-sidebar: 233 237 254;
+  --color-border: 214 221 255;
+  --color-text: 26 35 85;
+  --color-text-muted: 92 103 152;
+  --color-primary: 79 70 229;
   --color-accent: 14 165 233;
   --color-background-card: 255 255 255;
-  --color-background-input: 241 245 249;
-  --color-background-panel: 248 250 252;
-  --color-border-strong: 209 213 219;
-  --color-text-primary: 15 23 42;
-  --color-text-secondary: 100 116 139;
+  --color-background-input: 236 241 255;
+  --color-background-panel: 244 247 255;
+  --color-border-strong: 196 205 244;
+  --color-text-primary: 26 35 85;
+  --color-text-secondary: 92 103 152;
+  --font-family-base: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-family-heading: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-size-base: 16px;
+  --font-weight-heading: 600;
+  --font-weight-body: 400;
+  --font-letter-spacing: 0.01em;
+  --font-line-height: 1.6;
+  --radius-small: 0.65rem;
+  --radius-medium: 1.25rem;
+  --radius-large: 1.75rem;
+  --radius-pill: 999px;
+  --shadow-card: 0 20px 60px -35px rgba(51, 65, 145, 0.45);
+  --shadow-overlay: 0 25px 80px -40px rgba(26, 35, 85, 0.5);
+  --motion-duration-quick: 160ms;
+  --motion-duration-gentle: 260ms;
+  --motion-duration-slow: 440ms;
+  --motion-easing-standard: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --motion-easing-emphasized: cubic-bezier(0.33, 1, 0.68, 1);
+  --motion-easing-gesture: cubic-bezier(0.16, 1, 0.3, 1);
+  --gesture-edge-zone: 28;
+  --gesture-swipe-threshold: 72;
   color: rgb(var(--color-text));
   background-color: rgb(var(--color-app-background));
-  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-}
-
-[data-theme="dark"] {
-  color-scheme: dark;
-  --color-brand: 96 165 250;
-  --color-brand-foreground: 15 23 42;
-  --color-app-background: 15 23 42;
-  --color-surface: 30 41 59;
-  --color-surface-muted: 21 31 48;
-  --color-sidebar: 17 24 39;
-  --color-border: 71 85 105;
-  --color-text: 226 232 240;
-  --color-text-muted: 148 163 184;
-  --color-primary: 96 165 250;
-  --color-accent: 56 189 248;
-  --color-background-card: 30 41 59;
-  --color-background-input: 21 31 48;
-  --color-background-panel: 30 41 59;
-  --color-border-strong: 94 109 126;
-  --color-text-primary: 226 232 240;
-  --color-text-secondary: 148 163 184;
+  font-family: var(--font-family-base);
 }
 
 body {
   min-height: 100vh;
   color: rgb(var(--color-text));
   background-color: rgb(var(--color-app-background));
-  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-base);
+  line-height: var(--font-line-height);
+  letter-spacing: var(--font-letter-spacing);
   overflow-x: hidden;
-  transition: color 180ms ease, background-color 180ms ease;
+  transition-property: color, background-color;
+  transition-duration: var(--motion-duration-gentle);
+  transition-timing-function: var(--motion-easing-standard);
 }
 
 @layer utilities {
   .glass-panel {
-    @apply rounded-2xl border border-border/70 bg-surface shadow-sm;
+    @apply rounded-2xl border border-border/70 bg-surface;
+    box-shadow: var(--shadow-card, 0 16px 48px -32px rgba(15, 23, 42, 0.35));
   }
 
   .glass-panel-strong {
-    @apply rounded-2xl border border-border/80 bg-surface-muted shadow-sm;
+    @apply rounded-2xl border border-border/80 bg-surface-muted;
+    box-shadow: var(--shadow-overlay, 0 22px 64px -36px rgba(15, 23, 42, 0.55));
   }
 
   .pill-badge {
@@ -92,4 +102,48 @@ body {
     background-color: rgba(148, 163, 184, 0.5);
     border-radius: 9999px;
   }
+
+  .transition-quick {
+    transition-duration: var(--motion-duration-quick);
+    transition-timing-function: var(--motion-easing-standard);
+  }
+
+  .transition-gentle {
+    transition-duration: var(--motion-duration-gentle);
+    transition-timing-function: var(--motion-easing-standard);
+  }
+
+  .transition-slow {
+    transition-duration: var(--motion-duration-slow);
+    transition-timing-function: var(--motion-easing-emphasized);
+  }
+
+  .ease-gesture {
+    transition-timing-function: var(--motion-easing-gesture);
+  }
+
+  .skip-link {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    transform: translate(-50%, -120%);
+    padding: 0.75rem 1.25rem;
+    border-radius: var(--radius-pill);
+    background: rgb(var(--color-primary) / 0.9);
+    color: rgb(var(--color-brand-foreground));
+    z-index: 999;
+    transition: transform var(--motion-duration-quick) var(--motion-easing-standard);
+  }
+
+  .skip-link:focus {
+    transform: translate(-50%, 20%);
+    outline: none;
+  }
+}
+
+[data-motion="reduced"] .transition-gentle,
+[data-motion="reduced"] .transition-quick,
+[data-motion="reduced"] .transition-slow {
+  transition-duration: 80ms !important;
+  transition-timing-function: linear !important;
 }
