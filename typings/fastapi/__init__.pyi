@@ -3,7 +3,12 @@ from typing import Any, Callable, Optional, TypeVar
 _T = TypeVar("_T", bound=Callable[..., Any])
 
 class Response:
-    def __init__(self, content: Any = ..., media_type: str | None = ...) -> None: ...
+    def __init__(
+        self,
+        content: Any = ...,
+        status_code: int = ...,
+        media_type: str | None = ...,
+    ) -> None: ...
 
 class HTTPException(Exception):
     status_code: int
@@ -33,6 +38,7 @@ class _StatusCodes:
     HTTP_401_UNAUTHORIZED: int
     HTTP_403_FORBIDDEN: int
     HTTP_404_NOT_FOUND: int
+    HTTP_204_NO_CONTENT: int
     HTTP_500_INTERNAL_SERVER_ERROR: int
     HTTP_502_BAD_GATEWAY: int
     HTTP_503_SERVICE_UNAVAILABLE: int
