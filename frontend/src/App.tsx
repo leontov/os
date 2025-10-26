@@ -3,7 +3,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import AnalyticsView from "./components/AnalyticsView";
 import ChatInput from "./components/ChatInput";
 import ChatView from "./components/ChatView";
-import ConversationPreferencesBar from "./components/ConversationPreferencesBar";
 import DemoPage, { DemoMetrics } from "./components/DemoPage";
 import InspectorPanel from "./components/InspectorPanel";
 import KernelControlsPanel from "./components/KernelControlsPanel";
@@ -25,7 +24,6 @@ type PanelKey =
   | "swarm"
   | "analytics"
   | "controls"
-  | "preferences"
   | "actions"
   | "settings"
   | null;
@@ -557,7 +555,6 @@ const App = () => {
           onOpenAnalytics={() => setActivePanel("analytics")}
           onOpenActions={() => setActivePanel("actions")}
           onOpenSwarm={() => setActivePanel("swarm")}
-          onOpenPreferences={() => setActivePanel("preferences")}
           onOpenSettings={() => setActivePanel("settings")}
           onRefreshKnowledge={handleRefreshKnowledge}
           onShareConversation={handleShareConversation}
@@ -568,6 +565,8 @@ const App = () => {
           isZenMode={isZenMode}
           onToggleZenMode={handleToggleZenMode}
           personaName={activePersona.name}
+          preferences={preferences}
+          onPreferencesChange={handleUpdatePreferences}
           onViewportElementChange={registerCaptureTarget}
           onMessageEdit={handleMessageEdit}
           onMessageContinue={handleMessageContinue}
@@ -673,14 +672,6 @@ const App = () => {
         </div>
       </PanelDialog>
 
-      <PanelDialog
-        title="Параметры беседы"
-        description="Управляйте приватностью, режимами обучения и голосом ассистента."
-        isOpen={activePanel === "preferences"}
-        onClose={() => setActivePanel(null)}
-      >
-        <ConversationPreferencesBar preferences={preferences} onChange={handleUpdatePreferences} />
-      </PanelDialog>
     </>
   );
 };

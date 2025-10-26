@@ -11,8 +11,6 @@ import {
   PanelsTopLeft,
   Pencil,
   RefreshCcw,
-  Settings2,
-  Share2,
   Sparkles,
   UserRoundCog,
 } from "lucide-react";
@@ -26,12 +24,17 @@ import {
   type ReactNode,
 } from "react";
 import useMediaQuery from "../core/useMediaQuery";
-import type { ConversationMetrics, ConversationSummary } from "../core/useKolibriChat";
+import type {
+  ConversationMetrics,
+  ConversationPreferences,
+  ConversationSummary,
+} from "../core/useKolibriChat";
 import type { ModeOption } from "../core/modes";
 import type { ModelId, ModelOption } from "../core/models";
 import { usePersonaTheme } from "../core/usePersonaTheme";
 import type { ChatMessage } from "../types/chat";
 import ChatMessageView from "./ChatMessageView";
+import ConversationPreferencesBar from "./ConversationPreferencesBar";
 import { MessageSkeleton } from "./loading";
 import ChatSidebar from "./sidebar/ChatSidebar";
 
@@ -47,6 +50,7 @@ interface ChatViewProps {
   modelId: ModelId;
   modelOptions: ModelOption[];
   metrics: ConversationMetrics;
+  preferences: ConversationPreferences;
   emptyState?: ReactNode;
   composer?: ReactNode;
   onConversationTitleChange: (title: string) => void;
@@ -59,7 +63,6 @@ interface ChatViewProps {
   onOpenKnowledge: () => void;
   onOpenAnalytics: () => void;
   onOpenSwarm: () => void;
-  onOpenPreferences: () => void;
   onOpenSettings: () => void;
   onOpenActions: () => void;
   onRefreshKnowledge: () => void;
@@ -71,6 +74,7 @@ interface ChatViewProps {
   isZenMode: boolean;
   onToggleZenMode: () => void;
   personaName: string;
+  onPreferencesChange: (update: Partial<ConversationPreferences>) => void;
   onViewportElementChange?: (element: HTMLElement | null) => void;
   onMessageEdit?: (message: ChatMessage) => void;
   onMessageContinue?: (options: { assistantMessage: ChatMessage; userMessage?: ChatMessage }) => void;
@@ -94,6 +98,7 @@ const ChatView = ({
   modelId,
   modelOptions,
   metrics,
+  preferences,
   emptyState,
   composer,
   onConversationTitleChange,
@@ -106,7 +111,6 @@ const ChatView = ({
   onOpenKnowledge,
   onOpenAnalytics,
   onOpenSwarm,
-  onOpenPreferences,
   onOpenSettings,
   onOpenActions,
   onRefreshKnowledge,
@@ -118,6 +122,7 @@ const ChatView = ({
   isZenMode,
   onToggleZenMode,
   personaName,
+  onPreferencesChange,
   onViewportElementChange,
   onMessageEdit,
   onMessageContinue,
@@ -299,6 +304,10 @@ const ChatView = ({
       setSidebarOpen(false);
     }
   }, [isDesktop, onConversationCreate]);
+
+  const handleToggleMemory = useCallback(() => {
+    onPreferencesChange({ learningEnabled: !preferences.learningEnabled });
+  }, [onPreferencesChange, preferences.learningEnabled]);
 
   const commitTitle = useCallback(() => {
     const trimmed = titleDraft.trim();
@@ -549,123 +558,14 @@ const ChatView = ({
               >
                 <PanelsTopLeft className="h-4 w-4" />
               </button>
-              <div ref={shareMenuRef} className="relative">
-                <button
-                  type="button"
-                  onClick={() => setActiveMenu((previous) => (previous === "share" ? null : "share"))}
-                  className={`inline-flex h-10 w-10 items-center justify-center rounded-full border transition-colors ${
-                    activeMenu === "share"
-                      ? "border-primary/60 bg-primary/10 text-primary"
-                      : "border-border/70 text-text-muted hover:text-text"
-                  }`}
-                  aria-haspopup="menu"
-                  aria-expanded={activeMenu === "share"}
-                  aria-label="Поделиться беседой"
-                >
-                  <Share2 className="h-4 w-4" />
-                </button>
-                {activeMenu === "share" ? (
-                  <div
-                    role="menu"
-                    className="absolute right-0 z-30 mt-2 w-56 rounded-2xl border border-border/70 bg-surface/95 p-1.5 shadow-card"
-                  >
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={() => {
-                        void onShareConversation();
-                        closeMenu();
-                      }}
-                      className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-text transition-colors hover:bg-background-card"
-                    >
-                      <Share2 className="h-4 w-4" />
-                      Поделиться ссылкой
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-              <div ref={exportMenuRef} className="relative">
-                <button
-                  type="button"
-                  onClick={() => setActiveMenu((previous) => (previous === "export" ? null : "export"))}
-                  className={`inline-flex h-10 w-10 items-center justify-center rounded-full border transition-colors ${
-                    activeMenu === "export"
-                      ? "border-primary/60 bg-primary/10 text-primary"
-                      : "border-border/70 text-text-muted hover:text-text"
-                  }`}
-                  aria-haspopup="menu"
-                  aria-expanded={activeMenu === "export"}
-                  aria-label="Экспортировать беседу"
-                >
-                  <Download className="h-4 w-4" />
-                </button>
-                {activeMenu === "export" ? (
-                  <div
-                    role="menu"
-                    className="absolute right-0 z-30 mt-2 w-60 rounded-2xl border border-border/70 bg-surface/95 p-1.5 shadow-card"
-                  >
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={() => {
-                        onExportConversation();
-                        closeMenu();
-                      }}
-                      className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-text transition-colors hover:bg-background-card"
-                    >
-                      <Download className="h-4 w-4" />
-                      Экспорт в Markdown
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-              <div ref={settingsMenuRef} className="relative">
-                <button
-                  type="button"
-                  onClick={() => setActiveMenu((previous) => (previous === "settings" ? null : "settings"))}
-                  className={`inline-flex h-10 w-10 items-center justify-center rounded-full border transition-colors ${
-                    activeMenu === "settings"
-                      ? "border-primary/60 bg-primary/10 text-primary"
-                      : "border-border/70 text-text-muted hover:text-text"
-                  }`}
-                  aria-haspopup="menu"
-                  aria-expanded={activeMenu === "settings"}
-                  aria-label="Открыть настройки"
-                >
-                  <Settings2 className="h-4 w-4" />
-                </button>
-                {activeMenu === "settings" ? (
-                  <div
-                    role="menu"
-                    className="absolute right-0 z-30 mt-2 w-64 rounded-2xl border border-border/70 bg-surface/95 p-1.5 shadow-card"
-                  >
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={() => {
-                        onOpenSettings();
-                        closeMenu();
-                      }}
-                      className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-text transition-colors hover:bg-background-card"
-                    >
-                      <Database className="h-4 w-4" />
-                      Память Kolibri
-                    </button>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={() => {
-                        onOpenPreferences();
-                        closeMenu();
-                      }}
-                      className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-text transition-colors hover:bg-background-card"
-                    >
-                      <Settings2 className="h-4 w-4" />
-                      Настройки беседы
-                    </button>
-                  </div>
-                ) : null}
-              </div>
+              <button
+                type="button"
+                onClick={onOpenSettings}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border/70 text-text-muted transition-colors hover:text-text"
+                aria-label="Открыть память"
+              >
+                <Database className="h-4 w-4" />
+              </button>
             </div>
           </div>
 
@@ -714,6 +614,12 @@ const ChatView = ({
             </div>
           </div>
         </header>
+
+        <div className="border-b border-border/60 bg-surface/70">
+          <div className="mx-auto w-full max-w-4xl px-4 py-4 sm:px-6 lg:px-8">
+            <ConversationPreferencesBar preferences={preferences} onChange={onPreferencesChange} />
+          </div>
+        </div>
 
         <main className="relative flex-1 overflow-hidden">
           <div
@@ -766,10 +672,8 @@ const ChatView = ({
                       <ChatMessageView
                         message={item.message}
                         latestUserMessage={item.contextUserMessage}
-                        onEditMessage={onMessageEdit}
-                        onContinueMessage={onMessageContinue}
-                        onRegenerateMessage={onMessageRegenerate}
-                        onCopyLink={onMessageCopyLink}
+                        memoryEnabled={preferences.learningEnabled}
+                        onToggleMemory={handleToggleMemory}
                       />
                     </motion.div>
                   );
