@@ -17,12 +17,7 @@ import useKolibriChat from "./core/useKolibriChat";
 import { MODE_OPTIONS, findModeLabel } from "./core/modes";
 import { usePersonaTheme } from "./core/usePersonaTheme";
 import useInspectorSession from "./core/useInspectorSession";
-import {
-  fetchBackendHealth,
-  getHealthErrorMessage,
-  isAbortError,
-  type BackendHealthSnapshot,
-} from "./core/health";
+import { useBackendHealth } from "./core/useBackendHealth";
 import type { ModelId } from "./core/models";
 import { MODEL_OPTIONS } from "./core/models";
 import { fetchPopularGpts, fetchWhatsNewHighlights } from "./core/recommendations";
@@ -129,6 +124,13 @@ const App = () => {
   const [whatsNewHighlights, setWhatsNewHighlights] = useState<WhatsNewHighlight[]>([]);
   const [popularLoading, setPopularLoading] = useState(true);
   const [whatsNewLoading, setWhatsNewLoading] = useState(true);
+  const {
+    snapshot: backendHealth,
+    error: backendHealthError,
+    checkedAt: backendHealthCheckedAt,
+    isLoading: isBackendHealthLoading,
+    refresh: refreshBackendHealth,
+  } = useBackendHealth();
   const [backendHealth, setBackendHealth] = useState<BackendHealthSnapshot | null>(null);
   const [backendHealthError, setBackendHealthError] = useState<string | null>(null);
   const [backendHealthCheckedAt, setBackendHealthCheckedAt] = useState<string | null>(null);
@@ -148,91 +150,17 @@ const App = () => {
     [editingState],
   );
 
-  const loadBackendHealth = useCallback(
-    async ({ signal, suppressLoading }: { signal?: AbortSignal; suppressLoading?: boolean } = {}) => {
-      if (!suppressLoading) {
-        setBackendHealthLoading(true);
-        setBackendHealthError(null);
-      }
-
-      try {
-        const snapshot = await fetchBackendHealth({ signal });
-        if (signal?.aborted) {
-          return;
-        }
-        setBackendHealth(snapshot);
-        setBackendHealthError(null);
-      } catch (error) {
-        if (isAbortError(error) || signal?.aborted) {
-          return;
-        }
-        setBackendHealth(null);
-        setBackendHealthError(getHealthErrorMessage(error));
-      } finally {
-        if (signal?.aborted) {
-          return;
-        }
-        if (!suppressLoading) {
-          setBackendHealthLoading(false);
-        }
-        setBackendHealthCheckedAt(new Date().toISOString());
-      }
-    },
-    [],
-  );
-
   useEffect(() => {
     const controller = new AbortController();
-    void loadBackendHealth({ signal: controller.signal });
+    void refreshBackendHealth({ signal: controller.signal });
     return () => {
       controller.abort();
     };
-  }, [loadBackendHealth]);
+  }, [refreshBackendHealth]);
 
   useEffect(() => {
     setEditingState(null);
   }, [conversationId]);
-
-  const loadBackendHealth = useCallback(
-    async ({ signal, suppressLoading }: { signal?: AbortSignal; suppressLoading?: boolean } = {}) => {
-      if (!suppressLoading) {
-        setBackendHealthLoading(true);
-        setBackendHealthError(null);
-      }
-
-      try {
-        const snapshot = await fetchBackendHealth({ signal });
-        if (signal?.aborted) {
-          return;
-        }
-        setBackendHealth(snapshot);
-        setBackendHealthError(null);
-      } catch (error) {
-        if (isAbortError(error) || signal?.aborted) {
-          return;
-        }
-        setBackendHealth(null);
-        setBackendHealthError(getHealthErrorMessage(error));
-      } finally {
-        if (signal?.aborted) {
-          return;
-        }
-        if (!suppressLoading) {
-          setBackendHealthLoading(false);
-        }
-        setBackendHealthCheckedAt(new Date().toISOString());
-      }
-    },
-    [],
-  );
-
-  useEffect(() => {
-    const controller = new AbortController();
-    void loadBackendHealth({ signal: controller.signal });
-    return () => {
-      controller.abort();
-    };
-  }, [loadBackendHealth]);
 
   const handleSuggestionSelect = useCallback(
     (suggestion: string) => {
@@ -370,8 +298,8 @@ const App = () => {
 
   const handleBackendHealthRefresh = useCallback(() => {
     logInspectorAction("system.health.refresh", "Проверка статуса backend");
-    void loadBackendHealth();
-  }, [loadBackendHealth, logInspectorAction]);
+    void refreshBackendHealth();
+  }, [logInspectorAction, refreshBackendHealth]);
 
   const handleUpdatePreferences = useCallback(
     (next: Partial<typeof preferences>) => {
