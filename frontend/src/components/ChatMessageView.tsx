@@ -4,11 +4,13 @@ import {
   Check,
   Copy,
   Link2,
-  Paperclip,
   ThumbsDown,
   ThumbsUp,
 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
+import AttachmentPreviewList, {
+  type AttachmentPreviewItem,
+} from "./attachments/AttachmentPreviewList";
 import type { ChatMessage as ChatMessageModel } from "../types/chat";
 
 const formatScore = (value: number): string => {
@@ -18,25 +20,12 @@ const formatScore = (value: number): string => {
   return value.toFixed(2);
 };
 
-const formatAttachmentSize = (bytes: number): string => {
-  if (!Number.isFinite(bytes) || bytes < 0) {
-    return "—";
-  }
-  if (bytes >= 1024 * 1024) {
-    return `${(bytes / (1024 * 1024)).toFixed(1)} МБ`;
-  }
-  if (bytes >= 1024) {
-    return `${(bytes / 1024).toFixed(1)} КБ`;
-  }
-  return `${bytes} Б`;
-};
-
 interface ChatMessageProps {
   message: ChatMessageModel;
   latestUserMessage?: ChatMessageModel;
 }
 
-const ChatMessage = ({ message, latestUserMessage }: ChatMessageProps) => {
+const ChatMessageView = ({ message, latestUserMessage }: ChatMessageProps) => {
   const isUser = message.role === "user";
   const [isContextExpanded, setIsContextExpanded] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
@@ -44,6 +33,28 @@ const ChatMessage = ({ message, latestUserMessage }: ChatMessageProps) => {
   const [isPinned, setIsPinned] = useState(false);
   const hasContext = !isUser && Boolean(message.context?.length);
   const contextCount = message.context?.length ?? 0;
+
+  const attachmentItems = useMemo<AttachmentPreviewItem[]>(() => {
+    if (!message.attachments?.length) {
+      return [];
+    }
+
+    return message.attachments.map((attachment) => {
+      const previewUrl =
+        attachment.dataBase64 && attachment.type.startsWith("image/")
+          ? `data:${attachment.type};base64,${attachment.dataBase64}`
+          : undefined;
+
+      return {
+        id: attachment.id,
+        name: attachment.name,
+        size: attachment.size,
+        status: "success",
+        progress: 100,
+        previewUrl,
+      } satisfies AttachmentPreviewItem;
+    });
+  }, [message.attachments]);
 
   const isoDate = useMemo(() => {
     if (!message.isoTimestamp) {
@@ -137,24 +148,13 @@ const ChatMessage = ({ message, latestUserMessage }: ChatMessageProps) => {
             </p>
           )}
 
-          {message.attachments?.length ? (
-            <div className="mt-4 space-y-2">
-              {message.attachments.map((attachment) => (
-                <div
-                  key={attachment.id}
-                  className={`flex items-center gap-3 rounded-2xl border px-3 py-2 text-[0.8rem] ${
-                    isUser
-                      ? "border-white/25 bg-white/10 text-white/90"
-                      : "border-border-strong bg-background-card/80 text-text-secondary"
-                  }`}
-                >
-                  <Paperclip className={`h-3.5 w-3.5 ${isUser ? "text-white" : "text-primary"}`} />
-                  <span className="truncate" title={attachment.name}>
-                    {attachment.name}
-                  </span>
-                  <span className="ml-auto whitespace-nowrap">{formatAttachmentSize(attachment.size)}</span>
-                </div>
-              ))}
+          {attachmentItems.length ? (
+            <div className="mt-4 w-full">
+              <AttachmentPreviewList
+                items={attachmentItems}
+                tone={isUser ? "user" : "assistant"}
+                readOnly
+              />
             </div>
           ) : null}
 
@@ -274,4 +274,4 @@ const ChatMessage = ({ message, latestUserMessage }: ChatMessageProps) => {
   );
 };
 
-export default ChatMessage;
+export default ChatMessageView;

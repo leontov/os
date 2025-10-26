@@ -12,7 +12,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { ConversationMetrics } from "../core/useKolibriChat";
 import type { ChatMessage } from "../types/chat";
-import ChatMessageView from "./ChatMessage";
+import ChatMessageView from "./ChatMessageView";
 
 interface ChatViewProps {
   messages: ChatMessage[];

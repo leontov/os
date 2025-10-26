@@ -9,6 +9,7 @@ import { basename, extname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const protocolPattern = /^[a-z][a-z0-9+.-]*:\/\//i;
+const frontendRoot = fileURLToPath(new URL(".", import.meta.url));
 
 const normaliseBase = (value: string | null | undefined): string => {
   if (!value) {
@@ -687,5 +688,8 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
+    alias: {
+      html2canvas: resolve(frontendRoot, "src/test/stubs/html2canvas.ts"),
+    },
   },
 });
