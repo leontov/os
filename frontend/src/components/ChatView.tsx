@@ -15,8 +15,7 @@ import useMediaQuery from "../core/useMediaQuery";
 import type { ConversationMetrics, ConversationSummary } from "../core/useKolibriChat";
 import type { ModeOption } from "../core/modes";
 import type { ChatMessage } from "../types/chat";
-import ChatMessageView from "./ChatMessage";
-import ChatSidebar from "./sidebar/ChatSidebar";
+import ChatMessageView from "./ChatMessageView";
 
 interface ChatViewProps {
   messages: ChatMessage[];

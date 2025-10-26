@@ -143,6 +143,9 @@ const DEFAULT_TITLE = "Новая беседа";
 const STORAGE_KEY = "kolibri:conversations";
 const MODEL_STORAGE_KEY = "kolibri:model";
 const BASE64_CHUNK_SIZE = 8192;
+const MAX_ATTACHMENT_COUNT = 5;
+const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024; // 10 МБ
+const MAX_TOTAL_ATTACHMENT_BYTES = 25 * 1024 * 1024; // 25 МБ
 const DEFAULT_MODE_VALUE = MODE_OPTIONS[0]?.value ?? "neutral";
 const DEFAULT_KERNEL_CONTROLS: KernelControlsState = {
   b0: 0.5,
@@ -172,32 +175,91 @@ const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
   return btoa(binary);
 };
 
+const readFileAsSerializedAttachment = (
+  id: string,
+  file: File,
+  onProgress?: (value: number) => void,
+): Promise<SerializedAttachment> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onerror = () => {
+      reject(reader.error ?? new Error("Не удалось прочитать вложение."));
+    };
+
+    reader.onprogress = (event) => {
+      if (!onProgress || !event.lengthComputable || event.total <= 0) {
+        return;
+      }
+      const progress = Math.round((event.loaded / event.total) * 100);
+      onProgress(Math.min(100, Math.max(0, progress)));
+    };
+
+    reader.onload = () => {
+      if (!(reader.result instanceof ArrayBuffer)) {
+        reject(new Error("Получено неожиданное содержимое при чтении вложения."));
+        return;
+      }
+
+      const dataBase64 = arrayBufferToBase64(reader.result);
+      onProgress?.(100);
+      resolve({
+        id,
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        dataBase64,
+      });
+    };
+
+    reader.readAsArrayBuffer(file);
+  });
+
 const serializeAttachments = async (attachments: PendingAttachment[]): Promise<SerializedAttachment[]> => {
   if (!attachments.length) {
     return [];
   }
 
   const serialized = await Promise.all(
-    attachments.map(async ({ id, file }) => {
-      let dataBase64: string | undefined;
-      try {
-        const buffer = await file.arrayBuffer();
-        dataBase64 = arrayBufferToBase64(buffer);
-      } catch (error) {
-        console.error("Не удалось прочитать вложение", error);
+    attachments.map(async ({ id, file, serialized }) => {
+      if (serialized) {
+        return serialized;
       }
 
-      return {
-        id,
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        dataBase64,
-      } satisfies SerializedAttachment;
+      try {
+        const buffer = await file.arrayBuffer();
+        return {
+          id,
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          dataBase64: arrayBufferToBase64(buffer),
+        } satisfies SerializedAttachment;
+      } catch (error) {
+        console.error("Не удалось прочитать вложение", error);
+        return {
+          id,
+          name: file.name,
+          size: file.size,
+          type: file.type,
+        } satisfies SerializedAttachment;
+      }
     }),
   );
 
   return serialized;
+};
+
+const createFileSignature = (file: File): string => `${file.name}:${file.size}:${file.lastModified}`;
+
+const revokeAttachmentPreview = (attachment: PendingAttachment): void => {
+  if (attachment.previewUrl && attachment.previewUrl.startsWith("blob:")) {
+    URL.revokeObjectURL(attachment.previewUrl);
+  }
+};
+
+const revokeAttachmentPreviews = (attachments: PendingAttachment[]): void => {
+  attachments.forEach(revokeAttachmentPreview);
 };
 
 const formatPromptWithContext = (question: string, context: KnowledgeSnippet[]): string => {
@@ -913,6 +975,171 @@ const useKolibriChat = (): UseKolibriChatResult => {
     }
   }, [conversations]);
 
+  const clearAttachments = useCallback(() => {
+    setAttachments((prev) => {
+      if (!prev.length) {
+        return prev;
+      }
+      revokeAttachmentPreviews(prev);
+      return [];
+    });
+  }, []);
+
+  const removeAttachment = useCallback((id: string) => {
+    setAttachments((prev) => {
+      const target = prev.find((item) => item.id === id);
+      if (!target) {
+        return prev;
+      }
+      revokeAttachmentPreview(target);
+      return prev.filter((item) => item.id !== id);
+    });
+  }, []);
+
+  const appendAssistantNotice = useCallback((content: string) => {
+    const moment = nowPair();
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content,
+        timestamp: moment.display,
+        isoTimestamp: moment.iso,
+        modeLabel: "Сервис",
+        modeValue: "system",
+      },
+    ]);
+  }, []);
+
+  const startAttachmentUpload = useCallback(
+    (attachmentId: string, file: File) => {
+      const updateProgress = (value: number) => {
+        setAttachments((prev) =>
+          prev.map((item) => (item.id === attachmentId ? { ...item, progress: value } : item)),
+        );
+      };
+
+      void readFileAsSerializedAttachment(attachmentId, file, updateProgress)
+        .then((serialized) => {
+          setAttachments((prev) => {
+            let updated = false;
+            const next = prev.map((item) => {
+              if (item.id !== attachmentId) {
+                return item;
+              }
+              updated = true;
+              return {
+                ...item,
+                status: "success",
+                progress: 100,
+                error: undefined,
+                serialized,
+              };
+            });
+            return updated ? next : prev;
+          });
+        })
+        .catch((error) => {
+          const message =
+            error instanceof Error && error.message ? error.message : "Не удалось загрузить файл.";
+          let shouldNotify = true;
+          setAttachments((prev) => {
+            let updated = false;
+            const next = prev.map((item) => {
+              if (item.id !== attachmentId) {
+                return item;
+              }
+              updated = true;
+              return {
+                ...item,
+                status: "fail",
+                error: message,
+                progress: 100,
+                serialized: undefined,
+              };
+            });
+            if (!updated) {
+              shouldNotify = false;
+              return prev;
+            }
+            return next;
+          });
+          if (shouldNotify) {
+            appendAssistantNotice(`Не удалось загрузить вложение «${file.name}»: ${message}`);
+          }
+        });
+    },
+    [appendAssistantNotice],
+  );
+
+  const attachFiles = useCallback(
+    (files: File[]) => {
+      if (!files.length) {
+        return;
+      }
+
+      const accepted: PendingAttachment[] = [];
+      const notices: string[] = [];
+
+      setAttachments((prev) => {
+        const existingSignatures = new Set(prev.map((item) => createFileSignature(item.file)));
+        let totalSize = prev.reduce((sum, item) => sum + item.file.size, 0);
+        const next = [...prev];
+
+        for (const file of files) {
+          if (next.length + accepted.length >= MAX_ATTACHMENT_COUNT) {
+            if (!notices.some((notice) => notice.includes("не более"))) {
+              notices.push(`Можно прикрепить не более ${MAX_ATTACHMENT_COUNT} файлов за сообщение.`);
+            }
+            break;
+          }
+
+          if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
+            notices.push(`Файл «${file.name}» превышает лимит в 10 МБ и не был добавлен.`);
+            continue;
+          }
+
+          if (totalSize + file.size > MAX_TOTAL_ATTACHMENT_BYTES) {
+            notices.push("Общий размер вложений превышает 25 МБ. Часть файлов не была добавлена.");
+            continue;
+          }
+
+          const signature = createFileSignature(file);
+          if (existingSignatures.has(signature)) {
+            notices.push(`Файл «${file.name}» уже прикреплён и был пропущен.`);
+            continue;
+          }
+
+          const previewUrl = file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined;
+          const attachment: PendingAttachment = {
+            id: crypto.randomUUID(),
+            file,
+            status: "loading",
+            progress: 0,
+            previewUrl,
+          };
+          accepted.push(attachment);
+          existingSignatures.add(signature);
+          totalSize += file.size;
+          next.push(attachment);
+        }
+
+        return next;
+      });
+
+      if (notices.length) {
+        const uniqueNotices = Array.from(new Set(notices));
+        appendAssistantNotice(uniqueNotices.join("\n"));
+      }
+
+      accepted.forEach((attachment) => {
+        startAttachmentUpload(attachment.id, attachment.file);
+      });
+    },
+    [appendAssistantNotice, startAttachmentUpload],
+  );
+
   const beginNewConversation = useCallback((): ConversationRecord => {
     const record = createConversationRecord();
     setConversations((prev) => [record, ...prev]);
@@ -921,39 +1148,10 @@ const useKolibriChat = (): UseKolibriChatResult => {
     setMessages([]);
     setDraft("");
     setMode(DEFAULT_MODE_VALUE);
-    setAttachments([]);
+    clearAttachments();
     setPreferences(DEFAULT_PREFERENCES);
     return record;
-  }, []);
-
-  const setModelId = useCallback((next: ModelId) => {
-    if (!MODEL_OPTIONS.some((option) => option.id === next)) {
-      setModelIdState(DEFAULT_MODEL_ID);
-      return;
-    }
-    setModelIdState(next);
-  }, []);
-
-  const attachFiles = useCallback((files: File[]) => {
-    if (!files.length) {
-      return;
-    }
-    setAttachments((prev) => [
-      ...prev,
-      ...files.map((file) => ({
-        id: crypto.randomUUID(),
-        file,
-      })),
-    ]);
-  }, []);
-
-  const removeAttachment = useCallback((id: string) => {
-    setAttachments((prev) => prev.filter((item) => item.id !== id));
-  }, []);
-
-  const clearAttachments = useCallback(() => {
-    setAttachments([]);
-  }, []);
+  }, [clearAttachments]);
 
   const updateKernelControls = useCallback((controls: Partial<KernelControlsState>) => {
     setKernelControlsState((prev) => ({
@@ -983,22 +1181,6 @@ const useKolibriChat = (): UseKolibriChatResult => {
       return merged;
     });
   }, [conversationId]);
-
-  const appendAssistantNotice = useCallback((content: string) => {
-    const moment = nowPair();
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content,
-        timestamp: moment.display,
-        isoTimestamp: moment.iso,
-        modeLabel: "Сервис",
-        modeValue: "system",
-      },
-    ]);
-  }, []);
 
   const describePreferences = useCallback(
     (prefs: ConversationPreferences): string => {
@@ -1329,7 +1511,9 @@ const useKolibriChat = (): UseKolibriChatResult => {
 
   const sendMessage = useCallback(async () => {
     const content = draft.trim();
-    if (!content && attachments.length === 0) {
+    const hasReadyAttachments = attachments.some((item) => item.status === "success");
+
+    if (!content && !hasReadyAttachments) {
       return;
     }
     if (isProcessing || !bridgeReady) {
@@ -1346,11 +1530,47 @@ const useKolibriChat = (): UseKolibriChatResult => {
     }
 
     const pendingAttachments = attachments;
+    const loadingAttachments = pendingAttachments.filter((item) => item.status === "loading");
+    if (loadingAttachments.length) {
+      appendAssistantNotice("Дождитесь завершения загрузки вложений, прежде чем отправлять сообщение.");
+      return;
+    }
+
+    const failedAttachments = pendingAttachments.filter((item) => item.status === "fail");
+    if (failedAttachments.length) {
+      const failedNames = failedAttachments.map((item) => item.file.name).join(", ");
+      appendAssistantNotice(
+        failedNames
+          ? `Не удалось загрузить следующие файлы: ${failedNames}. Они будут удалены из очереди.`
+          : "Некоторые вложения не удалось загрузить и они будут удалены.",
+      );
+      setAttachments((prev) => {
+        if (!prev.length) {
+          return prev;
+        }
+        const next: PendingAttachment[] = [];
+        prev.forEach((item) => {
+          if (item.status === "fail") {
+            revokeAttachmentPreview(item);
+          } else {
+            next.push(item);
+          }
+        });
+        return next;
+      });
+      if (!content && !pendingAttachments.some((item) => item.status === "success")) {
+        return;
+      }
+    }
+
+    const successfulAttachments = pendingAttachments.filter((item) => item.status === "success");
     let serializedAttachments: SerializedAttachment[] = [];
-    try {
-      serializedAttachments = await serializeAttachments(pendingAttachments);
-    } catch (error) {
-      console.error("Не удалось сериализовать вложения", error);
+    if (successfulAttachments.length) {
+      try {
+        serializedAttachments = await serializeAttachments(successfulAttachments);
+      } catch (error) {
+        console.error("Не удалось сериализовать вложения", error);
+      }
     }
 
     const timestamp = nowPair();
@@ -1432,6 +1652,7 @@ const useKolibriChat = (): UseKolibriChatResult => {
       void refreshKnowledgeStatus();
     }
   }, [
+    appendAssistantNotice,
     attachments,
     bridgeReady,
     clearAttachments,
@@ -1439,7 +1660,6 @@ const useKolibriChat = (): UseKolibriChatResult => {
     executeQuickCommand,
     isProcessing,
     mode,
-    modelId,
     refreshKnowledgeStatus,
   ]);
 
@@ -1512,10 +1732,10 @@ const useKolibriChat = (): UseKolibriChatResult => {
       setMessages(record.messages);
       setDraft(record.draft);
       setMode(record.mode);
-      setAttachments([]);
+      clearAttachments();
       setPreferences(record.preferences ?? DEFAULT_PREFERENCES);
     },
-    [],
+    [clearAttachments],
   );
 
   const latestAssistantMessage = useMemo(() => {

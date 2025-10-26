@@ -1,7 +1,19 @@
-import { Keyboard, Paperclip, Plus, RefreshCw, SendHorizontal, SlidersHorizontal, X } from "lucide-react";
+import {
+  AlertCircle,
+  Keyboard,
+  Paperclip,
+  Plus,
+  RefreshCw,
+  SendHorizontal,
+  SlidersHorizontal,
+  X,
+} from "lucide-react";
 import { useEffect, useId, useMemo, useRef } from "react";
 import { MODE_OPTIONS, findModeLabel } from "../core/modes";
 import type { PendingAttachment } from "../types/attachments";
+import AttachmentPreviewList, {
+  type AttachmentPreviewItem,
+} from "./attachments/AttachmentPreviewList";
 
 interface ChatInputProps {
   value: string;
@@ -19,23 +31,6 @@ interface ChatInputProps {
 }
 
 const MAX_LENGTH = 4000;
-
-const formatFileSize = (bytes: number): string => {
-  if (bytes < 1024) {
-    return `${bytes} Б`;
-  }
-  const units = ["КБ", "МБ", "ГБ", "ТБ"];
-  let size = bytes;
-  let unitIndex = 0;
-
-  while (size >= 1024 && unitIndex < units.length - 1) {
-    size /= 1024;
-    unitIndex += 1;
-  }
-
-  const precision = size >= 10 || unitIndex === 0 ? 0 : 1;
-  return `${size.toFixed(precision)} ${units[unitIndex] ?? "КБ"}`;
-};
 
 const ChatInput = ({
   value,
@@ -57,6 +52,36 @@ const ChatInput = ({
 
   const trimmedLength = useMemo(() => value.trim().length, [value]);
   const remaining = Math.max(0, MAX_LENGTH - value.length);
+
+  const attachmentItems = useMemo<AttachmentPreviewItem[]>(
+    () =>
+      attachments.map((attachment) => ({
+        id: attachment.id,
+        name: attachment.file.name,
+        size: attachment.file.size,
+        status: attachment.status,
+        progress: attachment.progress,
+        previewUrl: attachment.previewUrl,
+        error: attachment.error,
+      })),
+    [attachments],
+  );
+
+  const hasReadyAttachments = useMemo(
+    () => attachments.some((attachment) => attachment.status === "success"),
+    [attachments],
+  );
+  const hasPendingUploads = useMemo(
+    () => attachments.some((attachment) => attachment.status === "loading"),
+    [attachments],
+  );
+  const hasFailedAttachments = useMemo(
+    () => attachments.some((attachment) => attachment.status === "fail"),
+    [attachments],
+  );
+
+  const canSend = value.trim().length > 0 || hasReadyAttachments;
+  const sendDisabled = isBusy || hasPendingUploads || !canSend;
 
   useEffect(() => {
     if (attachments.length === 0 && fileInputRef.current) {
@@ -100,14 +125,14 @@ const ChatInput = ({
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
-      if (!isBusy && (value.trim() || attachments.length)) {
+      if (!sendDisabled) {
         void onSubmit();
       }
     }
   };
 
   const handleSubmitClick = () => {
-    if (isBusy || (!value.trim() && attachments.length === 0)) {
+    if (sendDisabled) {
       return;
     }
     void onSubmit();
@@ -180,30 +205,32 @@ const ChatInput = ({
           placeholder="Сообщение для Колибри"
           className="max-h-[320px] w-full resize-none rounded-xl border border-border/60 bg-surface-muted px-4 py-3 text-sm text-text placeholder:text-text-muted focus:border-brand focus:outline-none"
         />
-        {attachments.length > 0 ? (
+        {attachmentItems.length > 0 ? (
           <div className="space-y-3 rounded-xl border border-dashed border-border/70 bg-surface px-4 py-3 text-sm text-text-muted">
-            <p className="font-semibold text-text">Прикреплённые файлы</p>
-            <ul className="soft-scroll max-h-52 space-y-3 overflow-y-auto pr-1">
-              {attachments.map((attachment) => (
-                <li key={attachment.id} className="flex items-center justify-between gap-3">
-                  <div className="truncate">
-                    <p className="truncate text-text">{attachment.file.name}</p>
-                    <p className="text-xs">{formatFileSize(attachment.file.size)}</p>
-                  </div>
-                  {onRemoveAttachment ? (
-                    <button
-                      type="button"
-                      onClick={() => onRemoveAttachment(attachment.id)}
-                      className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border/70 text-text-muted transition-colors hover:text-text"
-                      disabled={isBusy}
-                    >
-                      <X className="h-4 w-4" />
-                      <span className="sr-only">Удалить вложение</span>
-                    </button>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="font-semibold text-text">Прикреплённые файлы</p>
+              {hasPendingUploads ? (
+                <span className="text-xs uppercase tracking-[0.3em] text-text-muted">
+                  Идёт загрузка…
+                </span>
+              ) : hasFailedAttachments ? (
+                <span className="inline-flex items-center gap-1 text-xs text-accent">
+                  <AlertCircle className="h-3.5 w-3.5" /> Есть ошибки загрузки
+                </span>
+              ) : null}
+            </div>
+            <AttachmentPreviewList
+              items={attachmentItems}
+              onRemove={isBusy ? undefined : onRemoveAttachment}
+              tone="surface"
+              compact
+              readOnly={isBusy || !onRemoveAttachment}
+            />
+            {hasFailedAttachments ? (
+              <p className="flex items-center gap-2 text-xs text-accent">
+                <AlertCircle className="h-3.5 w-3.5" /> Удалите или снова прикрепите файлы с ошибкой.
+              </p>
+            ) : null}
           </div>
         ) : null}
         <p className="text-[0.7rem] text-text-muted">
@@ -252,7 +279,7 @@ const ChatInput = ({
               type="button"
               onClick={handleSubmitClick}
               className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-brand-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={isBusy || (!value.trim() && attachments.length === 0)}
+              disabled={sendDisabled}
             >
               <SendHorizontal className="h-4 w-4" />
               Отправить
