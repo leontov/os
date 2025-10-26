@@ -674,6 +674,10 @@ const ChatView = ({
                         latestUserMessage={item.contextUserMessage}
                         memoryEnabled={preferences.learningEnabled}
                         onToggleMemory={handleToggleMemory}
+                        onEditMessage={onMessageEdit}
+                        onContinueMessage={onMessageContinue}
+                        onRegenerateMessage={onMessageRegenerate}
+                        onCopyLink={onMessageCopyLink}
                       />
                     </motion.div>
                   );
