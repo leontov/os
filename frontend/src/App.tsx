@@ -182,7 +182,7 @@ const App = () => {
     [logInspectorAction, mode, setMode],
   );
 
-  const handleSendMessage = useCallback(async () => {
+  const handleSendMessage = async () => {
     if (editingState) {
       const trimmed = draft.trim();
       if (!trimmed) {
@@ -205,13 +205,13 @@ const App = () => {
       attachments: attachments.length,
     });
     await sendMessage();
-  }, [attachments.length, clearAttachments, draft, editingState, logInspectorAction, resendMessage, sendMessage, setDraft]);
+  };
 
-  const handleResetConversation = useCallback(async () => {
+  const handleResetConversation = async () => {
     logInspectorAction("conversation.reset", "Начат новый диалог", { conversationId });
     setEditingState(null);
     await resetConversation();
-  }, [clearAttachments, conversationId, logInspectorAction, resetConversation, setDraft]);
+  };
 
   const handleAttachFiles = useCallback(
     (files: File[]) => {
