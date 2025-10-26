@@ -7,10 +7,12 @@ import {
   Database,
   Download,
   ListChecks,
+  Loader2,
   Menu,
   PanelsTopLeft,
   Pencil,
   RefreshCcw,
+  Share2,
   Sparkles,
   UserRoundCog,
 } from "lucide-react";
@@ -80,6 +82,10 @@ interface ChatViewProps {
   onMessageContinue?: (options: { assistantMessage: ChatMessage; userMessage?: ChatMessage }) => void;
   onMessageRegenerate?: (options: { assistantMessage: ChatMessage; userMessage?: ChatMessage }) => void;
   onMessageCopyLink?: (message: ChatMessage) => void;
+  editingMessage?: {
+    id: string;
+    originalContent: string;
+  };
 }
 
 type TimelineItem =
@@ -128,6 +134,7 @@ const ChatView = ({
   onMessageContinue,
   onMessageRegenerate,
   onMessageCopyLink,
+  editingMessage,
 }: ChatViewProps) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const titleInputRef = useRef<HTMLInputElement | null>(null);
@@ -137,6 +144,7 @@ const ChatView = ({
   const [isRenamingTitle, setIsRenamingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(conversationTitle);
   const [activeMenu, setActiveMenu] = useState<null | "model" | "share" | "export" | "settings">(null);
+  const [isSharePending, setIsSharePending] = useState(false);
   const { resolvedMotion } = usePersonaTheme();
   const prefersReducedMotion = useReducedMotion();
   const shouldReduceMotion = resolvedMotion === "reduced" || Boolean(prefersReducedMotion);
@@ -169,6 +177,22 @@ const ChatView = ({
       titleInputRef.current?.select();
     }
   }, [isRenamingTitle]);
+
+  useEffect(() => {
+    if (!editingMessage) {
+      return;
+    }
+    const element = document.getElementById(`message-${editingMessage.id}`);
+    if (!element) {
+      return;
+    }
+    const behavior = shouldReduceMotion ? "auto" : "smooth";
+    try {
+      element.scrollIntoView({ behavior, block: "center" });
+    } catch {
+      element.scrollIntoView({ block: "center" });
+    }
+  }, [editingMessage, shouldReduceMotion]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -385,6 +409,26 @@ const ChatView = ({
     [closeMenu, onModelChange],
   );
 
+  const handleShareConversationClick = useCallback(async () => {
+    if (isSharePending) {
+      return;
+    }
+    setIsSharePending(true);
+    try {
+      await onShareConversation();
+    } catch (error) {
+      console.warn("[chat-view] Failed to share conversation", error);
+    } finally {
+      setIsSharePending(false);
+      closeMenu();
+    }
+  }, [closeMenu, isSharePending, onShareConversation]);
+
+  const handleExportConversationClick = useCallback(() => {
+    onExportConversation();
+    closeMenu();
+  }, [closeMenu, onExportConversation]);
+
   return (
     <div ref={rootRef} className="flex h-full min-h-screen w-full bg-app-background text-text" data-zen-mode={isZenMode}>
       <aside
@@ -510,6 +554,85 @@ const ChatView = ({
                         );
                       })}
                     </div>
+                  </div>
+                ) : null}
+              </div>
+              <div ref={shareMenuRef} className="relative">
+                <button
+                  type="button"
+                  onClick={() => setActiveMenu((previous) => (previous === "share" ? null : "share"))}
+                  className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-semibold transition-colors ${
+                    activeMenu === "share"
+                      ? "border-primary/60 bg-primary/10 text-primary"
+                      : "border-border/60 bg-surface text-text-muted hover:border-primary/50 hover:text-text"
+                  }`}
+                  aria-haspopup="menu"
+                  aria-expanded={activeMenu === "share"}
+                  aria-busy={isSharePending}
+                >
+                  <Share2 className={`h-3.5 w-3.5 ${isSharePending ? "animate-pulse" : ""}`} />
+                  Поделиться
+                </button>
+                {activeMenu === "share" ? (
+                  <div
+                    role="menu"
+                    className="absolute right-0 z-30 mt-2 w-64 rounded-2xl border border-border/70 bg-surface/95 p-2 shadow-card"
+                  >
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        void handleShareConversationClick();
+                      }}
+                      className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition-colors hover:bg-background-card focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-60"
+                      disabled={isSharePending}
+                      aria-busy={isSharePending}
+                    >
+                      {isSharePending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Share2 className="h-4 w-4" />
+                      )}
+                      Поделиться ссылкой
+                    </button>
+                    <p className="px-3 pt-1 text-[0.65rem] uppercase tracking-[0.28em] text-text-muted/70">
+                      Ссылка указывает на текущий диалог
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+              <div ref={exportMenuRef} className="relative">
+                <button
+                  type="button"
+                  onClick={() => setActiveMenu((previous) => (previous === "export" ? null : "export"))}
+                  className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-semibold transition-colors ${
+                    activeMenu === "export"
+                      ? "border-primary/60 bg-primary/10 text-primary"
+                      : "border-border/60 bg-surface text-text-muted hover:border-primary/50 hover:text-text"
+                  }`}
+                  aria-haspopup="menu"
+                  aria-expanded={activeMenu === "export"}
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  Экспорт
+                </button>
+                {activeMenu === "export" ? (
+                  <div
+                    role="menu"
+                    className="absolute right-0 z-30 mt-2 w-64 rounded-2xl border border-border/70 bg-surface/95 p-2 shadow-card"
+                  >
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={handleExportConversationClick}
+                      className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition-colors hover:bg-background-card focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    >
+                      <Download className="h-4 w-4" />
+                      Скачать Markdown
+                    </button>
+                    <p className="px-3 pt-1 text-[0.65rem] uppercase tracking-[0.28em] text-text-muted/70">
+                      Экспортируйте беседу в файл
+                    </p>
                   </div>
                 ) : null}
               </div>
@@ -678,6 +801,7 @@ const ChatView = ({
                         onContinueMessage={onMessageContinue}
                         onRegenerateMessage={onMessageRegenerate}
                         onCopyLink={onMessageCopyLink}
+                        isEditing={editingMessage?.id === item.message.id}
                       />
                     </motion.div>
                   );
