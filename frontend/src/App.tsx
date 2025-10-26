@@ -16,6 +16,7 @@ import PanelDialog from "./components/layout/PanelDialog";
 import useKolibriChat from "./core/useKolibriChat";
 import { findModeLabel } from "./core/modes";
 import useMediaQuery from "./core/useMediaQuery";
+import { usePersonaTheme } from "./core/usePersonaTheme";
 import useInspectorSession from "./core/useInspectorSession";
 
 type PanelKey = "knowledge" | "swarm" | "analytics" | "controls" | "preferences" | null;
@@ -83,6 +84,7 @@ const App = () => {
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [activePanel, setActivePanel] = useState<PanelKey>(null);
   const [isDemoMode, setDemoMode] = useState(false);
+  const [isZenMode, setZenMode] = useState(false);
   const [demoMetrics, setDemoMetrics] = useState<DemoMetrics>({
     coldStartMs: null,
     wasmBytes: null,
@@ -90,6 +92,7 @@ const App = () => {
     degradedReason: null,
   });
   const isDesktop = useMediaQuery("(min-width: 1024px)");
+  const { motion, activePersona } = usePersonaTheme();
 
   const modeLabel = useMemo(() => findModeLabel(mode), [mode]);
 
@@ -222,6 +225,12 @@ const App = () => {
   }, [isDesktop]);
 
   useEffect(() => {
+    if (isZenMode) {
+      setSidebarOpen(false);
+    }
+  }, [isZenMode]);
+
+  useEffect(() => {
     if (typeof window === "undefined") {
       return undefined;
     }
@@ -303,6 +312,21 @@ const App = () => {
     setDemoMode(false);
   }, []);
 
+  const handleCreateConversation = useCallback(() => {
+    void createConversation();
+  }, [createConversation]);
+
+  const handleToggleZenMode = useCallback(() => {
+    setZenMode((previous) => !previous);
+  }, []);
+
+  const handleSelectConversation = useCallback(
+    (id: string) => {
+      selectConversation(id);
+    },
+    [selectConversation],
+  );
+
   if (isDemoMode) {
     return <DemoPage metrics={demoMetrics} onLaunchApp={handleExitDemo} />;
   }
@@ -366,6 +390,9 @@ const App = () => {
             ) : null}
           </div>
         }
+        isZenMode={isZenMode}
+        motionPattern={motion}
+        sidebarLabel="Навигация по беседам"
       >
         <ChatView
           messages={messages}
@@ -384,6 +411,9 @@ const App = () => {
           onRefreshKnowledge={handleRefreshKnowledge}
           isKnowledgeLoading={statusLoading}
           bridgeReady={bridgeReady}
+          isZenMode={isZenMode}
+          onToggleZenMode={handleToggleZenMode}
+          personaName={activePersona.name}
           onViewportElementChange={registerCaptureTarget}
         />
       </ChatLayout>
