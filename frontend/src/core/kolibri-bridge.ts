@@ -523,8 +523,9 @@ class KolibriScriptBridge implements KolibriBridge {
     mode: string = DEFAULT_MODE_LABEL,
     context: KnowledgeSnippet[] = [],
     attachments: SerializedAttachment[] = [],
-    _options?: { model?: string },
+    options?: { model?: string },
   ): Promise<string> {
+    void options;
     if (attachments.length) {
       console.info(
         `[kolibri-bridge] KolibriScript пока игнорирует ${attachments.length} вложения(ий).`,
@@ -558,8 +559,9 @@ class KolibriFallbackBridge implements KolibriBridge {
     _mode?: string,
     _context?: KnowledgeSnippet[],
     attachments: SerializedAttachment[] = [],
-    _options?: { model?: string },
+    options?: { model?: string },
   ): Promise<string> {
+    void options;
     if (attachments.length) {
       console.info(
         `[kolibri-bridge] Получено ${attachments.length} вложения(ий), но KolibriScript недоступен.`,
