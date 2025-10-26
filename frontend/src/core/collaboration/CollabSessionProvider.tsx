@@ -395,22 +395,53 @@ const CollabSessionProvider = ({ roomId, endpoint, children }: PropsWithChildren
     if (!runtime) {
       return;
     }
+
     runtime.doc.transact(() => {
+      const seenIds = new Set<string>();
       snapshots.forEach((snapshot) => {
         const id = snapshot.id;
-        if (!runtime.messagesMap.has(id)) {
-          const message = new Y.Map<unknown>();
-          message.set("id", id);
-          message.set("content", snapshot.content);
-          message.set("role", snapshot.role ?? "assistant");
-          message.set("createdAtIso", new Date().toISOString());
-          message.set("author", snapshot.author ?? snapshot.role ?? "participant");
-          message.set("parentId", null);
-          message.set("reactions", new Y.Map<number>());
-          runtime.messagesMap.set(id, message);
-          runtime.messagesOrder.push([id]);
+        seenIds.add(id);
+        const existing = runtime.messagesMap.get(id);
+        if (existing) {
+          existing.set("content", snapshot.content);
+          existing.set("role", snapshot.role ?? "assistant");
+          existing.set("author", snapshot.author ?? snapshot.role ?? "participant");
+          if (!existing.get("reactions")) {
+            existing.set("reactions", new Y.Map<number>());
+          }
+          return;
+        }
+
+        const message = new Y.Map<unknown>();
+        message.set("id", id);
+        message.set("content", snapshot.content);
+        message.set("role", snapshot.role ?? "assistant");
+        message.set("createdAtIso", new Date().toISOString());
+        message.set("author", snapshot.author ?? snapshot.role ?? "participant");
+        message.set("parentId", null);
+        message.set("reactions", new Y.Map<number>());
+        runtime.messagesMap.set(id, message);
+      });
+
+      runtime.messagesMap.forEach((_, messageId) => {
+        if (!seenIds.has(messageId)) {
+          runtime.messagesMap.delete(messageId);
         }
       });
+
+      const desiredOrder = snapshots.map((snapshot) => snapshot.id);
+      const currentOrder = runtime.messagesOrder.toArray();
+      const orderChanged =
+        currentOrder.length !== desiredOrder.length || currentOrder.some((value, index) => value !== desiredOrder[index]);
+
+      if (orderChanged) {
+        if (runtime.messagesOrder.length > 0) {
+          runtime.messagesOrder.delete(0, runtime.messagesOrder.length);
+        }
+        if (desiredOrder.length > 0) {
+          runtime.messagesOrder.insert(0, desiredOrder);
+        }
+      }
     });
   }, []);
 
