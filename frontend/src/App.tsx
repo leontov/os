@@ -12,12 +12,22 @@ import SwarmView from "./components/SwarmView";
 import ActionsPanel from "./features/actions/ActionsPanel";
 import WelcomeScreen from "./components/WelcomeScreen";
 import PanelDialog from "./components/layout/PanelDialog";
+import SettingsPanel from "./components/settings/SettingsPanel";
 import useKolibriChat from "./core/useKolibriChat";
 import { MODE_OPTIONS, findModeLabel } from "./core/modes";
 import { usePersonaTheme } from "./core/usePersonaTheme";
 import useInspectorSession from "./core/useInspectorSession";
+import type { ModelId } from "./core/models";
 
-type PanelKey = "knowledge" | "swarm" | "analytics" | "controls" | "preferences" | "actions" | null;
+type PanelKey =
+  | "knowledge"
+  | "swarm"
+  | "analytics"
+  | "controls"
+  | "preferences"
+  | "actions"
+  | "settings"
+  | null;
 
 const DEFAULT_SUGGESTIONS = [
   "Сформулируй краткое резюме беседы",
@@ -36,6 +46,7 @@ const App = () => {
     conversationId,
     conversationTitle,
     conversationSummaries,
+    archivedConversations,
     knowledgeStatus,
     knowledgeError,
     statusLoading,
@@ -51,6 +62,8 @@ const App = () => {
     updateKernelControls,
     preferences,
     updatePreferences,
+    modelId,
+    setModelId,
     renameConversation,
     deleteConversation,
     attachFiles,
@@ -61,6 +74,9 @@ const App = () => {
     selectConversation,
     createConversation,
     refreshKnowledgeStatus,
+    archiveConversation,
+    clearConversationHistory,
+    exportConversationAsMarkdown,
   } = useKolibriChat();
 
   const inspectorSession = useInspectorSession({
@@ -211,6 +227,70 @@ const App = () => {
     },
     [logInspectorAction, updatePreferences],
   );
+
+  const handleModelChange = useCallback(
+    (nextModel: ModelId) => {
+      if (nextModel === modelId) {
+        return;
+      }
+      logInspectorAction("model.change", "Изменена модель Kolibri", {
+        from: modelId,
+        to: nextModel,
+      });
+      setModelId(nextModel);
+    },
+    [logInspectorAction, modelId, setModelId],
+  );
+
+  const handleArchiveConversation = useCallback(() => {
+    logInspectorAction("conversation.archive", "Беседа перемещена в архив", {
+      conversationId,
+      title: conversationTitle,
+    });
+    archiveConversation();
+  }, [archiveConversation, conversationId, conversationTitle, logInspectorAction]);
+
+  const handleClearHistory = useCallback(async () => {
+    logInspectorAction("conversation.history.clear", "Локальная история бесед очищена");
+    await clearConversationHistory();
+  }, [clearConversationHistory, logInspectorAction]);
+
+  const handleExportConversation = useCallback(() => {
+    const markdown = exportConversationAsMarkdown();
+    if (!markdown) {
+      logInspectorAction("conversation.export.failed", "Не удалось экспортировать беседу", {
+        conversationId,
+      });
+      return;
+    }
+
+    logInspectorAction("conversation.export", "Экспорт беседы в Markdown", {
+      conversationId,
+      title: conversationTitle,
+      size: markdown.length,
+    });
+
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    try {
+      const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
+      const url = window.URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      const safeTitle = conversationTitle.trim()
+        ? conversationTitle.trim().replace(/[\s/\\:]+/g, "-")
+        : "conversation";
+      anchor.href = url;
+      anchor.download = `${safeTitle}-${new Date().toISOString().slice(0, 10)}.md`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.warn("[kolibri-export] Не удалось сохранить беседу", error);
+    }
+  }, [conversationId, conversationTitle, exportConversationAsMarkdown, logInspectorAction]);
 
   const quickSuggestions = useMemo(() => {
     const suggestions = new Set<string>();
@@ -397,6 +477,7 @@ const App = () => {
           onOpenActions={() => setActivePanel("actions")}
           onOpenSwarm={() => setActivePanel("swarm")}
           onOpenPreferences={() => setActivePanel("preferences")}
+          onOpenSettings={() => setActivePanel("settings")}
           onRefreshKnowledge={handleRefreshKnowledge}
           isKnowledgeLoading={statusLoading}
           bridgeReady={bridgeReady}
@@ -406,6 +487,25 @@ const App = () => {
           onViewportElementChange={registerCaptureTarget}
         />
       </div>
+
+      <PanelDialog
+        title="Настройки Kolibri"
+        description="Переключайте модель и управляйте локальной историей бесед."
+        isOpen={activePanel === "settings"}
+        onClose={() => setActivePanel(null)}
+      >
+        <SettingsPanel
+          modelId={modelId}
+          onModelChange={handleModelChange}
+          currentConversationTitle={conversationTitle}
+          onArchiveConversation={handleArchiveConversation}
+          onExportConversation={handleExportConversation}
+          onClearHistory={() => {
+            void handleClearHistory();
+          }}
+          archivedConversations={archivedConversations}
+        />
+      </PanelDialog>
 
       <PanelDialog
         title="Память Kolibri"

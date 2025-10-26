@@ -7,6 +7,7 @@ import {
   PanelsTopLeft,
   RefreshCcw,
   Settings2,
+  Database,
   Sparkles,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -39,6 +40,7 @@ interface ChatViewProps {
   onOpenAnalytics: () => void;
   onOpenSwarm: () => void;
   onOpenPreferences: () => void;
+  onOpenSettings: () => void;
   onOpenActions: () => void;
   onRefreshKnowledge: () => void;
   isKnowledgeLoading: boolean;
@@ -71,6 +73,7 @@ const ChatView = ({
   onOpenAnalytics,
   onOpenSwarm,
   onOpenPreferences,
+  onOpenSettings,
   onOpenActions,
   onRefreshKnowledge,
   isKnowledgeLoading,
@@ -339,16 +342,114 @@ const ChatView = ({
               <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium ${
                 bridgeReady ? "border-brand/30 bg-brand/10 text-text" : "border-border/70 bg-surface-muted text-text-muted"
               }`}
-              >
-                <span className={`h-2 w-2 rounded-full ${bridgeReady ? "bg-brand" : "bg-text-muted"}`} />
-                {bridgeReady ? "Ядро готово" : "Ожидание"}
-              </span>
-              <span className="hidden text-xs text-text-muted sm:inline">{modeLabel}</span>
-              <span className="hidden rounded-full border border-border/70 bg-surface-muted px-3 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.35em] text-text-muted sm:inline">
-                {personaName}
-              </span>
-              <span>Сообщений: {totalMessages}</span>
-              <span>Обновлено: {formatIsoTime(metrics.lastUpdatedIso)}</span>
+            >
+              <span className={`h-2 w-2 rounded-full ${bridgeReady ? "bg-brand" : "bg-text-muted"}`} />
+              {bridgeReady ? "Ядро готово" : "Ожидание"}
+            </span>
+            <span className="hidden text-xs text-text-muted sm:inline">{modeLabel}</span>
+          </div>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-text-muted">
+          <span>Сообщений: {totalMessages}</span>
+          <span>Обновлено: {formatIsoTime(metrics.lastUpdatedIso)}</span>
+          <div className="flex items-center gap-2">
+            <span className="hidden rounded-full border border-border/70 bg-surface-muted px-3 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.35em] text-text-muted sm:inline">
+              {personaName}
+            </span>
+            <button
+              type="button"
+              onClick={onToggleZenMode}
+              className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold transition-quick ${
+                isZenMode
+                  ? "border-primary/70 bg-primary/15 text-primary"
+                  : "border-border/70 text-text-muted hover:text-text"
+              }`}
+              aria-pressed={isZenMode}
+              aria-label={isZenMode ? "Отключить режим фокуса" : "Включить режим фокуса"}
+            >
+              <Crosshair className="h-3.5 w-3.5" />
+              Фокус
+            </button>
+          </div>
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onRefreshKnowledge}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/70 text-text-muted transition-colors hover:text-text"
+              aria-label="Обновить память"
+              disabled={isKnowledgeLoading}
+            >
+              <RefreshCcw className={`h-4 w-4 ${isKnowledgeLoading ? "animate-spin" : ""}`} />
+            </button>
+            <button
+              type="button"
+              onClick={onOpenKnowledge}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/70 text-text-muted transition-colors hover:text-text"
+              aria-label="Открыть знания"
+            >
+              <Sparkles className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={onOpenAnalytics}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/70 text-text-muted transition-colors hover:text-text"
+              aria-label="Открыть аналитику"
+            >
+              <BarChart3 className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={onOpenActions}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/70 text-text-muted transition-colors hover:text-text"
+              aria-label="Открыть действия"
+            >
+              <ListChecks className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={onOpenSwarm}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/70 text-text-muted transition-colors hover:text-text"
+              aria-label="Открыть swarm"
+            >
+              <PanelsTopLeft className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={onOpenSettings}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/70 text-text-muted transition-colors hover:text-text"
+              aria-label="Настройки модели и памяти"
+            >
+              <Database className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={onOpenPreferences}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/70 text-text-muted transition-colors hover:text-text"
+              aria-label="Настройки беседы"
+            >
+              <Settings2 className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-border/60 bg-surface px-1 py-4 shadow-sm">
+        <div className="relative flex-1">
+          <div className="soft-scroll absolute inset-0 space-y-6 overflow-y-auto px-1 pb-8" ref={containerRef}>
+            {renderedMessages.length === 0 && !isLoading ? (
+              <div className="px-3 py-6 text-sm text-text-muted">{emptyState}</div>
+            ) : (
+              renderedMessages
+            )}
+            {isLoading ? (
+              <div className="mx-2 flex items-center gap-2 rounded-xl border border-dashed border-brand/40 bg-brand/10 px-4 py-3 text-sm text-text">
+                <span className="h-2 w-2 animate-pulse rounded-full bg-brand" />
+                Колибри формирует ответ...
+              </div>
+            ) : null}
+          </div>
+          {!isNearBottom ? (
+            <div className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center">
               <button
                 type="button"
                 onClick={onToggleZenMode}
