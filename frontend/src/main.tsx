@@ -1,10 +1,20 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
+import { initializeTelemetry } from "./telemetry";
 import "./styles/tailwind.css";
 import { wasmUrl, wasmInfoUrl, wasmAvailable, wasmIsStub } from "virtual:kolibri-wasm";
 import { knowledgeUrl as knowledgeBundleUrl, knowledgeAvailable as knowledgeBundleAvailable } from "virtual:kolibri-knowledge";
 import { knowledgeStrategy } from "./core/knowledge";
+
+if (typeof window !== "undefined") {
+  initializeTelemetry({
+    serviceName: "kolibri-frontend",
+    traceEndpoint: import.meta.env.VITE_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
+    metricsEndpoint: import.meta.env.VITE_TELEMETRY_EVENTS_ENDPOINT,
+    dashboardChannel: import.meta.env.VITE_TELEMETRY_DASHBOARD,
+  });
+}
 
 const resolveBaseUrl = (): URL => {
   const base = import.meta.env.BASE_URL ?? "/";

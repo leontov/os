@@ -5,6 +5,10 @@ import type { KnowledgeSnippet } from "../types/knowledge";
 import { fetchKnowledgeStatus, searchKnowledge } from "./knowledge";
 import kolibriBridge, { type KernelCapabilities, type KernelControlPayload } from "./kolibri-bridge";
 import { MODE_OPTIONS, findModeLabel } from "./modes";
+import { markPerformance, recordUxJourneyStep, startPerformanceTimer } from "../telemetry";
+
+const isAbortError = (error: unknown): error is DOMException =>
+  error instanceof DOMException && error.name === "AbortError";
 
 export interface KernelControlsState {
   b0: number;
@@ -1228,11 +1232,48 @@ const useKolibriChat = (): UseKolibriChatResult => {
       }
     }
 
+    recordUxJourneyStep("chat:message:start", {
+      conversationId,
+      mode,
+      attachments: attachments.length,
+    });
+    const finishTurnTimer = startPerformanceTimer("chat:turn", {
+      conversationId,
+      mode,
+      attachments: attachments.length,
+    });
+    let turnReported = false;
+    const completeTurn = (detail: Record<string, unknown>) => {
+      if (turnReported) {
+        return;
+      }
+      turnReported = true;
+      finishTurnTimer(detail);
+    };
+
     const pendingAttachments = attachments;
     let serializedAttachments: SerializedAttachment[] = [];
+    const attachmentsTimer = pendingAttachments.length
+      ? startPerformanceTimer("attachments:serialize", {
+          conversationId,
+          count: pendingAttachments.length,
+        })
+      : null;
     try {
       serializedAttachments = await serializeAttachments(pendingAttachments);
+      attachmentsTimer?.({ status: "success", count: serializedAttachments.length });
+      if (pendingAttachments.length) {
+        recordUxJourneyStep("attachments:serialized", {
+          conversationId,
+          count: serializedAttachments.length,
+        });
+      }
     } catch (error) {
+      attachmentsTimer?.({ status: "error" });
+      recordUxJourneyStep("attachments:serialize:error", {
+        conversationId,
+        message: error instanceof Error ? error.message : String(error),
+      });
       console.error("Не удалось сериализовать вложения", error);
     }
 
@@ -1250,6 +1291,12 @@ const useKolibriChat = (): UseKolibriChatResult => {
     setDraft("");
     clearAttachments();
     setIsProcessing(true);
+    recordUxJourneyStep("chat:message:sent", {
+      conversationId,
+      mode,
+      attachments: serializedAttachments.length,
+    });
+    markPerformance("chat:user_message_enqueued", { conversationId, mode });
 
     knowledgeSearchAbortRef.current?.abort();
     const controller = new AbortController();
@@ -1259,14 +1306,29 @@ const useKolibriChat = (): UseKolibriChatResult => {
     let contextError: string | undefined;
     let aborted = false;
 
+    const knowledgeTimer = startPerformanceTimer("knowledge:search", { conversationId });
+    recordUxJourneyStep("knowledge:search:start", { conversationId });
+
     try {
       knowledgeContext = await searchKnowledge(content || "", { topK: 3, signal: controller.signal });
+      knowledgeTimer({ status: "success", results: knowledgeContext.length });
+      recordUxJourneyStep("knowledge:search:complete", {
+        conversationId,
+        results: knowledgeContext.length,
+      });
     } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") {
+      if (isAbortError(error)) {
         aborted = true;
+        knowledgeTimer({ status: "cancelled" });
+        recordUxJourneyStep("knowledge:search:cancel", { conversationId });
       } else {
+        knowledgeTimer({ status: "error" });
         contextError =
           error instanceof Error && error.message ? error.message : "Не удалось получить контекст из памяти.";
+        recordUxJourneyStep("knowledge:search:error", {
+          conversationId,
+          message: contextError,
+        });
       }
     } finally {
       knowledgeSearchAbortRef.current = null;
@@ -1274,6 +1336,9 @@ const useKolibriChat = (): UseKolibriChatResult => {
 
     if (aborted) {
       setIsProcessing(false);
+      completeTurn({ status: "cancelled" });
+      markPerformance("chat:message:cancelled", { conversationId, mode });
+      recordUxJourneyStep("chat:message:cancelled", { conversationId });
       void refreshKnowledgeStatus();
       return;
     }
@@ -1295,6 +1360,13 @@ const useKolibriChat = (): UseKolibriChatResult => {
         contextError,
       };
       setMessages((prev) => [...prev, assistantMessage]);
+      markPerformance("chat:response:received", { conversationId, mode, context: knowledgeContext.length });
+      recordUxJourneyStep("chat:response:received", {
+        conversationId,
+        mode,
+        context: knowledgeContext.length,
+      });
+      completeTurn({ status: "success", context: knowledgeContext.length });
     } catch (error) {
       const moment = nowPair();
       const assistantMessage: ChatMessage = {
@@ -1308,11 +1380,34 @@ const useKolibriChat = (): UseKolibriChatResult => {
         isoTimestamp: moment.iso,
       };
       setMessages((prev) => [...prev, assistantMessage]);
+      markPerformance("chat:response:error", { conversationId, mode });
+      recordUxJourneyStep("chat:response:error", {
+        conversationId,
+        mode,
+        message: error instanceof Error ? error.message : String(error),
+      });
+      completeTurn({ status: "error" });
     } finally {
+      if (!turnReported) {
+        completeTurn({ status: "completed" });
+      }
       setIsProcessing(false);
       void refreshKnowledgeStatus();
     }
-  }, [attachments, bridgeReady, clearAttachments, draft, executeQuickCommand, isProcessing, mode, refreshKnowledgeStatus]);
+  }, [
+    attachments,
+    bridgeReady,
+    clearAttachments,
+    conversationId,
+    draft,
+    executeQuickCommand,
+    isProcessing,
+    mode,
+    markPerformance,
+    recordUxJourneyStep,
+    refreshKnowledgeStatus,
+    startPerformanceTimer,
+  ]);
 
   const renameConversation = useCallback((nextTitle: string) => {
     const trimmed = nextTitle.trim();

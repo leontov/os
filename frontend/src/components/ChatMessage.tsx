@@ -5,11 +5,14 @@ import {
   Copy,
   Link2,
   Paperclip,
+  ShieldAlert,
   ThumbsDown,
   ThumbsUp,
 } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ChatMessage as ChatMessageModel } from "../types/chat";
+import { collectPolicyHints, recordEmotionFeedback } from "../telemetry";
+import type { PolicyHint } from "../telemetry";
 
 const formatScore = (value: number): string => {
   if (!Number.isFinite(value)) {
@@ -31,6 +34,18 @@ const formatAttachmentSize = (bytes: number): string => {
   return `${bytes} Б`;
 };
 
+const POLICY_SEVERITY_LABELS: Record<PolicyHint["severity"], string> = {
+  info: "Памятка",
+  warn: "Внимание",
+  block: "Ограничение",
+};
+
+const POLICY_SEVERITY_STYLES: Record<PolicyHint["severity"], string> = {
+  info: "bg-primary/15 text-primary",
+  warn: "bg-amber-500/20 text-amber-500",
+  block: "bg-accent/20 text-accent",
+};
+
 interface ChatMessageProps {
   message: ChatMessageModel;
   latestUserMessage?: ChatMessageModel;
@@ -42,6 +57,7 @@ const ChatMessage = ({ message, latestUserMessage }: ChatMessageProps) => {
   const [isCopied, setIsCopied] = useState(false);
   const [reaction, setReaction] = useState<"up" | "down" | null>(null);
   const [isPinned, setIsPinned] = useState(false);
+  const [policyHints, setPolicyHints] = useState<PolicyHint[]>([]);
   const hasContext = !isUser && Boolean(message.context?.length);
   const contextCount = message.context?.length ?? 0;
 
@@ -60,6 +76,14 @@ const ChatMessage = ({ message, latestUserMessage }: ChatMessageProps) => {
     }
   }, [message.isoTimestamp]);
 
+  useEffect(() => {
+    if (!message.content?.trim()) {
+      setPolicyHints([]);
+      return;
+    }
+    setPolicyHints(collectPolicyHints(message.id, message.role, message.content));
+  }, [collectPolicyHints, message.content, message.id, message.role]);
+
   const actorLabel = isUser ? "Вы" : "Kolibri Σ";
   const avatarLabel = isUser ? "Вы" : "Σ";
 
@@ -76,9 +100,19 @@ const ChatMessage = ({ message, latestUserMessage }: ChatMessageProps) => {
     }
   }, [message.content]);
 
-  const handleReaction = useCallback((value: "up" | "down") => {
-    setReaction((previous) => (previous === value ? null : value));
-  }, []);
+  const handleReaction = useCallback(
+    (value: "up" | "down") => {
+      setReaction((previous) => {
+        const next = previous === value ? null : value;
+        recordEmotionFeedback(message.id, message.role, next, {
+          mode: message.modeValue ?? message.modeLabel,
+          context: message.context?.length ?? 0,
+        });
+        return next;
+      });
+    },
+    [message.context, message.id, message.modeLabel, message.modeValue, message.role, recordEmotionFeedback],
+  );
 
   const togglePinned = useCallback(() => {
     setIsPinned((previous) => !previous);
@@ -100,6 +134,11 @@ const ChatMessage = ({ message, latestUserMessage }: ChatMessageProps) => {
   const bubbleClasses = isUser
     ? "border-primary/50 bg-gradient-to-br from-primary/85 via-primary/70 to-primary/60 text-white shadow-[0_28px_60px_-32px_rgba(99,102,241,0.8)]"
     : "border-border-strong/70 bg-background-input/85 text-text-primary";
+
+  const policyContainerClasses = isUser
+    ? "border-white/40 bg-white/10 text-white/90"
+    : "border-accent/40 bg-accent/10 text-accent";
+  const policyDescriptionClasses = isUser ? "text-white/80" : "text-accent/90";
 
   return (
     <article className={`flex w-full gap-4 ${isUser ? "justify-end" : "justify-start"}`}>
@@ -126,6 +165,39 @@ const ChatMessage = ({ message, latestUserMessage }: ChatMessageProps) => {
               </button>
             </div>
           </header>
+
+          {policyHints.length > 0 && (
+            <div
+              className={`mb-4 space-y-2 rounded-2xl border px-4 py-3 text-xs ${policyContainerClasses}`}
+            >
+              <div className="flex items-center gap-2 text-[0.7rem] font-semibold uppercase tracking-[0.3em]">
+                <ShieldAlert className="h-3.5 w-3.5" />
+                Чувствительный контент
+              </div>
+              <ul className="space-y-2 text-[0.75rem]">
+                {policyHints.map((hint) => (
+                  <li
+                    key={hint.code}
+                    className={`rounded-xl border px-3 py-2 ${
+                      isUser ? "border-white/25 bg-white/5" : "border-accent/30 bg-accent/5"
+                    }`}
+                  >
+                    <p className="flex flex-wrap items-center gap-2 text-[0.7rem] font-semibold uppercase tracking-[0.3em]">
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[0.65rem] font-semibold ${POLICY_SEVERITY_STYLES[hint.severity]}`}
+                      >
+                        {POLICY_SEVERITY_LABELS[hint.severity]}
+                      </span>
+                      {hint.label}
+                    </p>
+                    <p className={`mt-1 text-[0.75rem] leading-relaxed ${policyDescriptionClasses}`}>
+                      {hint.explanation}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {message.content && (
             <p

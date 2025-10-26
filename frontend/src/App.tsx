@@ -16,6 +16,7 @@ import PanelDialog from "./components/layout/PanelDialog";
 import useKolibriChat from "./core/useKolibriChat";
 import { findModeLabel } from "./core/modes";
 import useMediaQuery from "./core/useMediaQuery";
+import { markPerformance, recordUxJourneyStep } from "./telemetry";
 
 type PanelKey = "knowledge" | "swarm" | "analytics" | "controls" | "preferences" | null;
 
@@ -64,6 +65,11 @@ const App = () => {
 
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [activePanel, setActivePanel] = useState<PanelKey>(null);
+  useEffect(() => {
+    markPerformance("app:mounted");
+    recordUxJourneyStep("app:mounted");
+  }, []);
+
   const [isDemoMode, setDemoMode] = useState(false);
   const [demoMetrics, setDemoMetrics] = useState<DemoMetrics>({
     coldStartMs: null,
@@ -80,8 +86,9 @@ const App = () => {
       const trimmedDraft = draft.trimEnd();
       const prefix = trimmedDraft.length > 0 ? `${trimmedDraft}\n\n` : "";
       setDraft(`${prefix}${suggestion}`);
+      recordUxJourneyStep("suggestion:apply", { suggestion });
     },
-    [draft, setDraft],
+    [draft, recordUxJourneyStep, setDraft],
   );
 
   const quickSuggestions = useMemo(() => {
@@ -105,6 +112,33 @@ const App = () => {
 
     return Array.from(suggestions).slice(0, 4);
   }, [messages, modeLabel]);
+
+  useEffect(() => {
+    if (conversationId) {
+      recordUxJourneyStep("conversation:focus", { conversationId });
+    }
+  }, [conversationId]);
+
+  useEffect(() => {
+    recordUxJourneyStep("mode:update", { mode });
+  }, [mode]);
+
+  useEffect(() => {
+    recordUxJourneyStep(isProcessing ? "conversation:processing" : "conversation:idle", {
+      conversationId,
+      bridgeReady,
+    });
+  }, [isProcessing, conversationId, bridgeReady]);
+
+  useEffect(() => {
+    recordUxJourneyStep("demo:mode", { active: isDemoMode });
+  }, [isDemoMode]);
+
+  useEffect(() => {
+    if (activePanel) {
+      recordUxJourneyStep("panel:open", { panel: activePanel });
+    }
+  }, [activePanel]);
 
   useEffect(() => {
     if (isDesktop) {
@@ -195,14 +229,28 @@ const App = () => {
   }, []);
 
   const handleCreateConversation = useCallback(() => {
+    recordUxJourneyStep("conversation:create", { source: "sidebar" });
     void createConversation();
-  }, [createConversation]);
+  }, [createConversation, recordUxJourneyStep]);
+
+  const handleSubmitMessage = useCallback(() => {
+    recordUxJourneyStep("chat:submit", { conversationId, mode });
+    markPerformance("chat:submit", { conversationId, mode });
+    void sendMessage();
+  }, [conversationId, markPerformance, mode, recordUxJourneyStep, sendMessage]);
+
+  const handleResetConversation = useCallback(() => {
+    recordUxJourneyStep("conversation:reset", { conversationId });
+    markPerformance("conversation:reset", { conversationId });
+    void resetConversation();
+  }, [conversationId, markPerformance, recordUxJourneyStep, resetConversation]);
 
   const handleSelectConversation = useCallback(
     (id: string) => {
+      recordUxJourneyStep("conversation:select", { conversationId: id });
       selectConversation(id);
     },
-    [selectConversation],
+    [recordUxJourneyStep, selectConversation],
   );
 
   if (isDemoMode) {
@@ -231,12 +279,8 @@ const App = () => {
               attachments={attachments}
               onChange={setDraft}
               onModeChange={setMode}
-              onSubmit={() => {
-                void sendMessage();
-              }}
-              onReset={() => {
-                void resetConversation();
-              }}
+              onSubmit={handleSubmitMessage}
+              onReset={handleResetConversation}
               onAttach={attachFiles}
               onRemoveAttachment={removeAttachment}
               onClearAttachments={clearAttachments}
