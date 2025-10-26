@@ -9,7 +9,7 @@ describe("personaThemeRegistry", () => {
     personaThemeRegistry.apply(aurora.id, "light", motion);
 
     expect(document.documentElement.getAttribute("data-persona")).toBe(aurora.id);
-    expect(document.documentElement.style.getPropertyValue("--color-brand")).toContain("79 70 229");
+    expect(document.documentElement.style.getPropertyValue("--color-brand")).toContain("16 163 127");
     expect(document.documentElement.style.getPropertyValue("--motion-duration-quick")).toBe(`${motion.durations.quick}ms`);
   });
 

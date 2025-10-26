@@ -8,15 +8,12 @@ import DemoPage, { DemoMetrics } from "./components/DemoPage";
 import InspectorPanel from "./components/InspectorPanel";
 import KernelControlsPanel from "./components/KernelControlsPanel";
 import KnowledgeView from "./components/KnowledgeView";
-import Sidebar from "./components/Sidebar";
 import SwarmView from "./components/SwarmView";
 import ActionsPanel from "./features/actions/ActionsPanel";
 import WelcomeScreen from "./components/WelcomeScreen";
-import ChatLayout from "./components/layout/ChatLayout";
 import PanelDialog from "./components/layout/PanelDialog";
 import useKolibriChat from "./core/useKolibriChat";
-import { findModeLabel } from "./core/modes";
-import useMediaQuery from "./core/useMediaQuery";
+import { MODE_OPTIONS, findModeLabel } from "./core/modes";
 import { usePersonaTheme } from "./core/usePersonaTheme";
 import useInspectorSession from "./core/useInspectorSession";
 
@@ -55,6 +52,7 @@ const App = () => {
     preferences,
     updatePreferences,
     renameConversation,
+    deleteConversation,
     attachFiles,
     removeAttachment,
     clearAttachments,
@@ -82,7 +80,6 @@ const App = () => {
     registerCaptureTarget,
   } = inspectorSession;
 
-  const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [activePanel, setActivePanel] = useState<PanelKey>(null);
   const [isDemoMode, setDemoMode] = useState(false);
   const [isZenMode, setZenMode] = useState(false);
@@ -92,8 +89,7 @@ const App = () => {
     offlineFallback: false,
     degradedReason: null,
   });
-  const isDesktop = useMediaQuery("(min-width: 1024px)");
-  const { motion, activePersona } = usePersonaTheme();
+  const { activePersona } = usePersonaTheme();
 
   const modeLabel = useMemo(() => findModeLabel(mode), [mode]);
 
@@ -184,6 +180,25 @@ const App = () => {
     [conversationId, logInspectorAction, renameConversation],
   );
 
+  const handleRenameConversationById = useCallback(
+    (id: string, title: string) => {
+      logInspectorAction("conversation.title", "Обновлено название беседы", {
+        title,
+        conversationId: id,
+      });
+      renameConversation(title, id);
+    },
+    [logInspectorAction, renameConversation],
+  );
+
+  const handleDeleteConversation = useCallback(
+    (id: string) => {
+      logInspectorAction("conversation.delete", "Удалена беседа", { conversationId: id });
+      deleteConversation(id);
+    },
+    [deleteConversation, logInspectorAction],
+  );
+
   const handleRefreshKnowledge = useCallback(() => {
     logInspectorAction("knowledge.refresh", "Запрошено обновление памяти");
     void refreshKnowledgeStatus();
@@ -219,17 +234,52 @@ const App = () => {
     return Array.from(suggestions).slice(0, 4);
   }, [messages, modeLabel]);
 
-  useEffect(() => {
-    if (isDesktop) {
-      setSidebarOpen(false);
-    }
-  }, [isDesktop]);
-
-  useEffect(() => {
-    if (isZenMode) {
-      setSidebarOpen(false);
-    }
-  }, [isZenMode]);
+  const composer = (
+    <div className="flex flex-col gap-4">
+      <ChatInput
+        value={draft}
+        mode={mode}
+        isBusy={isProcessing || !bridgeReady}
+        attachments={attachments}
+        onChange={setDraft}
+        onModeChange={handleModeChange}
+        onSubmit={() => {
+          void handleSendMessage();
+        }}
+        onReset={() => {
+          void handleResetConversation();
+        }}
+        onAttach={handleAttachFiles}
+        onRemoveAttachment={handleRemoveAttachment}
+        onClearAttachments={handleClearAttachments}
+        onOpenControls={() => setActivePanel("controls")}
+      />
+      {quickSuggestions.length > 0 ? (
+        <div className="rounded-2xl border border-border/60 bg-surface px-4 py-3 text-sm text-text-muted shadow-sm">
+          <div className="flex items-center justify-between text-[0.7rem] uppercase tracking-[0.3em]">
+            <span>Быстрые подсказки</span>
+            <span className="inline-flex items-center gap-2 text-text">
+              <Sparkles className="h-4 w-4" />
+              Фокус: {modeLabel}
+            </span>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {quickSuggestions.map((suggestion) => (
+              <button
+                key={suggestion}
+                type="button"
+                onClick={() => handleSuggestionSelect(suggestion)}
+                className="rounded-full border border-border/70 bg-surface-muted px-4 py-2 text-xs font-semibold text-text-muted transition-colors hover:text-text disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={isProcessing || !bridgeReady}
+              >
+                {suggestion}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -313,20 +363,9 @@ const App = () => {
     setDemoMode(false);
   }, []);
 
-  const handleCreateConversation = useCallback(() => {
-    void createConversation();
-  }, [createConversation]);
-
   const handleToggleZenMode = useCallback(() => {
     setZenMode((previous) => !previous);
   }, []);
-
-  const handleSelectConversation = useCallback(
-    (id: string) => {
-      selectConversation(id);
-    },
-    [selectConversation],
-  );
 
   if (isDemoMode) {
     return <DemoPage metrics={demoMetrics} onLaunchApp={handleExitDemo} />;
@@ -334,77 +373,25 @@ const App = () => {
 
   return (
     <>
-      <ChatLayout
-        sidebar={
-          <Sidebar
-            conversations={conversationSummaries}
-            activeConversationId={conversationId}
-            onConversationSelect={handleSelectConversation}
-            onCreateConversation={handleCreateConversation}
-          />
-        }
-        isSidebarOpen={isSidebarOpen}
-        onSidebarOpenChange={setSidebarOpen}
-        footer={
-          <div className="flex flex-col gap-4">
-            <ChatInput
-              value={draft}
-              mode={mode}
-              isBusy={isProcessing || !bridgeReady}
-              attachments={attachments}
-              onChange={setDraft}
-              onModeChange={handleModeChange}
-              onSubmit={() => {
-                void handleSendMessage();
-              }}
-              onReset={() => {
-                void handleResetConversation();
-              }}
-              onAttach={handleAttachFiles}
-              onRemoveAttachment={handleRemoveAttachment}
-              onClearAttachments={handleClearAttachments}
-              onOpenControls={() => setActivePanel("controls")}
-            />
-            {quickSuggestions.length > 0 ? (
-              <div className="rounded-2xl border border-border/60 bg-surface px-4 py-3 text-sm text-text-muted shadow-sm">
-                <div className="flex items-center justify-between text-[0.7rem] uppercase tracking-[0.3em]">
-                  <span>Быстрые подсказки</span>
-                  <span className="inline-flex items-center gap-2 text-text">
-                    <Sparkles className="h-4 w-4" />
-                    Фокус: {modeLabel}
-                  </span>
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {quickSuggestions.map((suggestion) => (
-                    <button
-                      key={suggestion}
-                      type="button"
-                      onClick={() => handleSuggestionSelect(suggestion)}
-                      className="rounded-full border border-border/70 bg-surface-muted px-4 py-2 text-xs font-semibold text-text-muted transition-colors hover:text-text disabled:cursor-not-allowed disabled:opacity-60"
-                      disabled={isProcessing || !bridgeReady}
-                    >
-                      {suggestion}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-          </div>
-        }
-        isZenMode={isZenMode}
-        motionPattern={motion}
-        sidebarLabel="Навигация по беседам"
-      >
+      <div className="flex min-h-screen bg-app-background text-text" data-zen-mode={isZenMode} data-motion-region>
         <ChatView
           messages={messages}
           isLoading={isProcessing}
           conversationId={conversationId}
           conversationTitle={conversationTitle}
-          metrics={metrics}
+          conversationSummaries={conversationSummaries}
+          mode={mode}
           modeLabel={modeLabel}
+          modeOptions={MODE_OPTIONS}
+          metrics={metrics}
           emptyState={<WelcomeScreen onSuggestionSelect={setDraft} />}
+          composer={composer}
           onConversationTitleChange={handleRenameConversation}
-          onOpenSidebar={() => setSidebarOpen(true)}
+          onConversationCreate={handleCreateConversation}
+          onConversationSelect={handleSelectConversation}
+          onConversationRename={handleRenameConversationById}
+          onConversationDelete={handleDeleteConversation}
+          onModeChange={handleModeChange}
           onOpenKnowledge={() => setActivePanel("knowledge")}
           onOpenAnalytics={() => setActivePanel("analytics")}
           onOpenActions={() => setActivePanel("actions")}
@@ -418,7 +405,7 @@ const App = () => {
           personaName={activePersona.name}
           onViewportElementChange={registerCaptureTarget}
         />
-      </ChatLayout>
+      </div>
 
       <PanelDialog
         title="Память Kolibri"

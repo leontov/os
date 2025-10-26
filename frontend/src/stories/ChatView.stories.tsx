@@ -1,7 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { fn } from "@storybook/test";
 import ChatView from "../components/ChatView";
-import type { ConversationMetrics } from "../core/useKolibriChat";
+import type { ConversationMetrics, ConversationSummary } from "../core/useKolibriChat";
+import { MODE_OPTIONS } from "../core/modes";
 import type { ChatMessage } from "../types/chat";
 
 const metrics: ConversationMetrics = {
@@ -37,21 +38,46 @@ const messages: ChatMessage[] = [
   },
 ];
 
+const summaries: ConversationSummary[] = [
+  {
+    id: "demo-convo",
+    title: "Исследование Kolibri",
+    preview: "Последние новости о запуске Kolibri.",
+    createdAtIso: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
+    updatedAtIso: new Date().toISOString(),
+  },
+  {
+    id: "archive-convo",
+    title: "План релиза",
+    preview: "Обсуждение задач и сроков.",
+    createdAtIso: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString(),
+    updatedAtIso: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(),
+  },
+];
+
 const meta: Meta<typeof ChatView> = {
   title: "Conversation/ChatView",
   component: ChatView,
   args: {
     conversationId: "demo-convo",
     conversationTitle: "Исследование Kolibri",
+    conversationSummaries: summaries,
     messages,
     metrics,
+    mode: "neutral",
     modeLabel: "Нейтральный",
+    modeOptions: MODE_OPTIONS,
     isLoading: false,
     emptyState: <span>Нет сообщений</span>,
     onConversationTitleChange: fn(),
-    onOpenSidebar: fn(),
+    onConversationCreate: fn(),
+    onConversationSelect: fn(),
+    onConversationRename: fn(),
+    onConversationDelete: fn(),
+    onModeChange: fn(),
     onOpenKnowledge: fn(),
     onOpenAnalytics: fn(),
+    onOpenActions: fn(),
     onOpenSwarm: fn(),
     onOpenPreferences: fn(),
     onRefreshKnowledge: fn(),
@@ -60,6 +86,11 @@ const meta: Meta<typeof ChatView> = {
     isZenMode: false,
     onToggleZenMode: fn(),
     personaName: "Aurora",
+    composer: (
+      <div className="rounded-xl border border-dashed border-border/60 px-4 py-3 text-sm text-text-muted">
+        Composer placeholder
+      </div>
+    ),
   },
   parameters: {
     layout: "fullscreen",
