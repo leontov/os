@@ -32,6 +32,7 @@ export type InspectorActionType =
   | "attachment.remove"
   | "attachment.clear"
   | "knowledge.refresh"
+  | "system.health.refresh"
   | "suggestion.apply"
   | "plan.manage"
   | "session.recording.start"

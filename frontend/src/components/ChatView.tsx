@@ -11,6 +11,8 @@ import {
   PanelsTopLeft,
   Pencil,
   RefreshCcw,
+  Share2,
+  ShieldCheck,
   Sparkles,
   UserRoundCog,
 } from "lucide-react";
@@ -61,6 +63,7 @@ interface ChatViewProps {
   onModeChange: (mode: string) => void;
   onModelChange: (model: ModelId) => void;
   onOpenKnowledge: () => void;
+  onOpenReadiness: () => void;
   onOpenAnalytics: () => void;
   onOpenSwarm: () => void;
   onOpenSettings: () => void;
@@ -109,6 +112,7 @@ const ChatView = ({
   onModeChange,
   onModelChange,
   onOpenKnowledge,
+  onOpenReadiness,
   onOpenAnalytics,
   onOpenSwarm,
   onOpenSettings,
@@ -536,6 +540,14 @@ const ChatView = ({
               </button>
               <button
                 type="button"
+                onClick={onOpenReadiness}
+                className="hidden h-10 w-10 items-center justify-center rounded-full border border-border/70 text-text-muted transition-colors hover:text-text md:inline-flex"
+                aria-label="Открыть готовность"
+              >
+                <ShieldCheck className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
                 onClick={onOpenAnalytics}
                 className="hidden h-10 w-10 items-center justify-center rounded-full border border-border/70 text-text-muted transition-colors hover:text-text lg:inline-flex"
                 aria-label="Открыть аналитику"
@@ -557,6 +569,16 @@ const ChatView = ({
                 aria-label="Открыть swarm"
               >
                 <PanelsTopLeft className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  void onShareConversation();
+                }}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border/70 text-text-muted transition-colors hover:text-text"
+                aria-label="Поделиться беседой"
+              >
+                <Share2 className="h-4 w-4" />
               </button>
               <button
                 type="button"
@@ -730,6 +752,14 @@ const ChatView = ({
               >
                 <Sparkles className="h-4 w-4" />
                 Знания
+              </button>
+              <button
+                type="button"
+                onClick={onOpenReadiness}
+                className="flex flex-1 items-center justify-center gap-2 rounded-full border border-border/60 bg-surface px-3 py-2 text-sm font-semibold text-text transition-colors hover:border-primary hover:text-primary"
+              >
+                <ShieldCheck className="h-4 w-4" />
+                Готовность
               </button>
               <button
                 type="button"

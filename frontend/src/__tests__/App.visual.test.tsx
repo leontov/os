@@ -41,6 +41,8 @@ const useMediaQueryMock = vi.mocked(useMediaQuery);
 const fetchPopularGptsMock = vi.mocked(fetchPopularGpts);
 const fetchWhatsNewHighlightsMock = vi.mocked(fetchWhatsNewHighlights);
 
+const originalFetch = globalThis.fetch;
+
 const baseMetrics: ConversationMetrics = {
   userMessages: 0,
   assistantMessages: 0,
@@ -168,6 +170,20 @@ describe("App layout snapshots", () => {
         publishedAtIso: new Date("2024-09-18T10:00:00Z").toISOString(),
       },
     ]);
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        status: "ok",
+        response_mode: "script",
+        sso_enabled: false,
+        prometheus_namespace: "kolibri",
+      }),
+    } as Response);
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
   });
 
   it("renders empty chat state", async () => {
