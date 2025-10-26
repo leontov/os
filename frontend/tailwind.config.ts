@@ -44,6 +44,10 @@ const config: Config = {
       boxShadow: {
         card: "0 14px 32px -24px rgba(15, 23, 42, 0.35)",
       },
+      spacing: {
+        "safe-area-content": "var(--safe-area-padding-top)",
+        "safe-area-sticky": "var(--safe-area-sticky-offset)",
+      },
     },
   },
   plugins: [],
