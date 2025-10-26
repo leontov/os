@@ -338,6 +338,38 @@ exports[`App layout snapshots > renders chat with history 1`] = `
           <div
             class="flex items-center gap-2"
           >
+            <div
+              class="relative hidden md:block"
+            >
+              <button
+                aria-expanded="false"
+                aria-haspopup="menu"
+                class="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-semibold transition-colors border-border/60 bg-surface text-text-muted hover:border-primary/50 hover:text-text"
+                type="button"
+              >
+                <span
+                  class="max-w-[8.5rem] truncate"
+                >
+                  Kolibri Base
+                </span>
+                <svg
+                  class="lucide lucide-chevron-down h-3.5 w-3.5"
+                  fill="none"
+                  height="24"
+                  stroke="currentColor"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  viewBox="0 0 24 24"
+                  width="24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="m6 9 6 6 6-6"
+                  />
+                </svg>
+              </button>
+            </div>
             <button
               aria-label="Включить режим фокуса"
               aria-pressed="false"
@@ -418,6 +450,31 @@ exports[`App layout snapshots > renders chat with history 1`] = `
                 />
                 <path
                   d="M5 18H3"
+                />
+              </svg>
+            </button>
+            <button
+              aria-label="Открыть готовность"
+              class="hidden h-10 w-10 items-center justify-center rounded-full border border-border/70 text-text-muted transition-colors hover:text-text md:inline-flex"
+              type="button"
+            >
+              <svg
+                class="lucide lucide-shield-check h-4 w-4"
+                fill="none"
+                height="24"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"
+                />
+                <path
+                  d="m9 12 2 2 4-4"
                 />
               </svg>
             </button>
@@ -549,41 +606,6 @@ exports[`App layout snapshots > renders chat with history 1`] = `
                 />
               </svg>
             </button>
-            <button
-              aria-label="Настройки беседы"
-              class="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border/70 text-text-muted transition-colors hover:text-text"
-              type="button"
-            >
-              <svg
-                class="lucide lucide-settings2 h-4 w-4"
-                fill="none"
-                height="24"
-                stroke="currentColor"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                viewBox="0 0 24 24"
-                width="24"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M20 7h-9"
-                />
-                <path
-                  d="M14 17H5"
-                />
-                <circle
-                  cx="17"
-                  cy="17"
-                  r="3"
-                />
-                <circle
-                  cx="7"
-                  cy="7"
-                  r="3"
-                />
-              </svg>
-            </button>
           </div>
         </div>
         <div
@@ -603,13 +625,74 @@ exports[`App layout snapshots > renders chat with history 1`] = `
             <span
               class="rounded-full border border-border/60 bg-surface px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.3em] text-text-muted"
             >
+              Kolibri Base
+            </span>
+            <span
+              class="rounded-full border border-border/60 bg-surface px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.3em] text-text-muted"
+            >
               balanced
             </span>
             <span
               class="rounded-full border border-border/60 bg-surface px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.3em] text-text-muted"
             >
-              ChatGPT
+              Aurora
             </span>
+            <button
+              class="inline-flex items-center gap-2 rounded-full border border-border/60 bg-surface px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.3em] text-text-muted transition-colors hover:border-primary hover:text-primary"
+              type="button"
+            >
+              <svg
+                class="lucide lucide-user-round-cog h-3.5 w-3.5"
+                fill="none"
+                height="24"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M2 21a8 8 0 0 1 10.434-7.62"
+                />
+                <circle
+                  cx="10"
+                  cy="8"
+                  r="5"
+                />
+                <circle
+                  cx="18"
+                  cy="18"
+                  r="3"
+                />
+                <path
+                  d="m19.5 14.3-.4.9"
+                />
+                <path
+                  d="m16.9 20.8-.4.9"
+                />
+                <path
+                  d="m21.7 19.5-.9-.4"
+                />
+                <path
+                  d="m15.2 16.9-.9-.4"
+                />
+                <path
+                  d="m21.7 16.5-.9.4"
+                />
+                <path
+                  d="m15.2 19.1-.9.4"
+                />
+                <path
+                  d="m19.5 21.7-.4-.9"
+                />
+                <path
+                  d="m16.9 15.2-.4-.9"
+                />
+              </svg>
+              Сменить план
+            </button>
             <button
               aria-label="Обновить память"
               class="inline-flex items-center gap-2 rounded-full border border-border/60 bg-surface px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.3em] text-text-muted transition-colors hover:border-primary hover:text-primary"
@@ -653,6 +736,221 @@ exports[`App layout snapshots > renders chat with history 1`] = `
           </div>
         </div>
       </header>
+      <div
+        class="border-b border-border/60 bg-surface/70"
+      >
+        <div
+          class="mx-auto w-full max-w-4xl px-4 py-4 sm:px-6 lg:px-8"
+        >
+          <section
+            class="glass-panel flex flex-col gap-4 p-4 md:flex-row md:items-center md:justify-between"
+          >
+            <div
+              class="flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.3em] text-text-secondary"
+            >
+              <span
+                class="pill-badge"
+              >
+                Параметры беседы
+              </span>
+              <button
+                class="flex items-center gap-2 rounded-xl border px-3 py-1 text-[0.7rem] font-semibold transition-colors border-primary/60 bg-primary/15 text-primary"
+                type="button"
+              >
+                <svg
+                  class="lucide lucide-sparkles h-3.5 w-3.5"
+                  fill="none"
+                  height="24"
+                  stroke="currentColor"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  viewBox="0 0 24 24"
+                  width="24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"
+                  />
+                  <path
+                    d="M20 3v4"
+                  />
+                  <path
+                    d="M22 5h-4"
+                  />
+                  <path
+                    d="M4 17v2"
+                  />
+                  <path
+                    d="M5 18H3"
+                  />
+                </svg>
+                Обучение 
+                on
+              </button>
+              <button
+                class="flex items-center gap-2 rounded-xl border px-3 py-1 text-[0.7rem] font-semibold transition-colors border-border-strong bg-background-input/80 text-text-secondary hover:text-text-primary"
+                type="button"
+              >
+                <svg
+                  class="lucide lucide-lock h-3.5 w-3.5"
+                  fill="none"
+                  height="24"
+                  stroke="currentColor"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  viewBox="0 0 24 24"
+                  width="24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <rect
+                    height="11"
+                    rx="2"
+                    ry="2"
+                    width="18"
+                    x="3"
+                    y="11"
+                  />
+                  <path
+                    d="M7 11V7a5 5 0 0 1 10 0v4"
+                  />
+                </svg>
+                Приватно 
+                off
+              </button>
+              <button
+                class="flex items-center gap-2 rounded-xl border px-3 py-1 text-[0.7rem] font-semibold transition-colors border-emerald-500/60 bg-emerald-500/10 text-emerald-500"
+                type="button"
+              >
+                <svg
+                  class="lucide lucide-earth h-3.5 w-3.5"
+                  fill="none"
+                  height="24"
+                  stroke="currentColor"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  viewBox="0 0 24 24"
+                  width="24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M21.54 15H17a2 2 0 0 0-2 2v4.54"
+                  />
+                  <path
+                    d="M7 3.34V5a3 3 0 0 0 3 3a2 2 0 0 1 2 2c0 1.1.9 2 2 2a2 2 0 0 0 2-2c0-1.1.9-2 2-2h3.17"
+                  />
+                  <path
+                    d="M11 21.95V18a2 2 0 0 0-2-2a2 2 0 0 1-2-2v-1a2 2 0 0 0-2-2H2.05"
+                  />
+                  <circle
+                    cx="12"
+                    cy="12"
+                    r="10"
+                  />
+                </svg>
+                Онлайн 
+                on
+              </button>
+              <button
+                class="flex items-center gap-2 rounded-xl border px-3 py-1 text-[0.7rem] font-semibold transition-colors border-sky-500/60 bg-sky-500/10 text-sky-500"
+                type="button"
+              >
+                <svg
+                  class="lucide lucide-shield-check h-3.5 w-3.5"
+                  fill="none"
+                  height="24"
+                  stroke="currentColor"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  viewBox="0 0 24 24"
+                  width="24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"
+                  />
+                  <path
+                    d="m9 12 2 2 4-4"
+                  />
+                </svg>
+                Тон 
+                safe
+              </button>
+            </div>
+            <div
+              class="mt-2 flex flex-wrap items-center gap-3 md:mt-0"
+            >
+              <label
+                class="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-text-secondary"
+              >
+                <svg
+                  class="lucide lucide-switch-camera h-4 w-4 text-primary"
+                  fill="none"
+                  height="24"
+                  stroke="currentColor"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  viewBox="0 0 24 24"
+                  width="24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M11 19H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5"
+                  />
+                  <path
+                    d="M13 5h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-5"
+                  />
+                  <circle
+                    cx="12"
+                    cy="12"
+                    r="3"
+                  />
+                  <path
+                    d="m18 22-3-3 3-3"
+                  />
+                  <path
+                    d="m6 2 3 3-3 3"
+                  />
+                </svg>
+                Профиль
+                <select
+                  class="rounded-xl border border-border-strong bg-background-input/80 px-3 py-1 text-[0.75rem] font-semibold text-text-primary focus:border-primary focus:outline-none"
+                >
+                  <option
+                    value="balanced"
+                  >
+                    Сбалансированный
+                  </option>
+                  <option
+                    value="concise"
+                  >
+                    Краткий
+                  </option>
+                  <option
+                    value="detailed"
+                  >
+                    Подробный
+                  </option>
+                  <option
+                    value="technical"
+                  >
+                    Технический
+                  </option>
+                  <option
+                    value="friendly"
+                  >
+                    Дружелюбный
+                  </option>
+                </select>
+              </label>
+            </div>
+          </section>
+        </div>
+      </div>
       <main
         class="relative flex-1 overflow-hidden"
       >
@@ -669,6 +967,7 @@ exports[`App layout snapshots > renders chat with history 1`] = `
           >
             <article
               class="group relative flex w-full gap-4 flex-row-reverse"
+              id="message-m-1"
             >
               <span
                 aria-hidden="true"
@@ -696,6 +995,46 @@ exports[`App layout snapshots > renders chat with history 1`] = `
                       >
                         10:00
                       </span>
+                      <div
+                        class="relative"
+                      >
+                        <button
+                          aria-expanded="false"
+                          aria-haspopup="true"
+                          class="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[0.68rem] font-semibold transition-colors border-white/30 bg-white/10 text-white/80 hover:border-white/60 hover:bg-white/20 hover:text-white"
+                          type="button"
+                        >
+                          <svg
+                            class="lucide lucide-ellipsis h-3.5 w-3.5"
+                            fill="none"
+                            height="24"
+                            stroke="currentColor"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            viewBox="0 0 24 24"
+                            width="24"
+                            xmlns="http://www.w3.org/2000/svg"
+                          >
+                            <circle
+                              cx="12"
+                              cy="12"
+                              r="1"
+                            />
+                            <circle
+                              cx="19"
+                              cy="12"
+                              r="1"
+                            />
+                            <circle
+                              cx="5"
+                              cy="12"
+                              r="1"
+                            />
+                          </svg>
+                          Действия
+                        </button>
+                      </div>
                       <button
                         class="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[0.68rem] font-semibold transition-colors border-white/30 bg-white/10 text-white/80 hover:border-white/60 hover:bg-white/20 hover:text-white"
                         type="button"
@@ -750,6 +1089,7 @@ exports[`App layout snapshots > renders chat with history 1`] = `
           >
             <article
               class="group relative flex w-full gap-4 flex-row"
+              id="message-m-2"
             >
               <span
                 aria-hidden="true"
@@ -777,6 +1117,46 @@ exports[`App layout snapshots > renders chat with history 1`] = `
                       >
                         10:01
                       </span>
+                      <div
+                        class="relative"
+                      >
+                        <button
+                          aria-expanded="false"
+                          aria-haspopup="true"
+                          class="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[0.68rem] font-semibold transition-colors border-border/70 bg-surface text-text-muted hover:border-primary hover:text-primary"
+                          type="button"
+                        >
+                          <svg
+                            class="lucide lucide-ellipsis h-3.5 w-3.5"
+                            fill="none"
+                            height="24"
+                            stroke="currentColor"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            viewBox="0 0 24 24"
+                            width="24"
+                            xmlns="http://www.w3.org/2000/svg"
+                          >
+                            <circle
+                              cx="12"
+                              cy="12"
+                              r="1"
+                            />
+                            <circle
+                              cx="19"
+                              cy="12"
+                              r="1"
+                            />
+                            <circle
+                              cx="5"
+                              cy="12"
+                              r="1"
+                            />
+                          </svg>
+                          Действия
+                        </button>
+                      </div>
                       <button
                         class="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[0.68rem] font-semibold transition-colors border-border/70 bg-surface text-text-muted hover:border-primary hover:text-primary"
                         type="button"
@@ -836,6 +1216,42 @@ exports[`App layout snapshots > renders chat with history 1`] = `
                   <div
                     class="ml-auto flex items-center gap-1 rounded-full border border-border/60 bg-surface px-2 py-1 text-text-muted"
                   >
+                    <button
+                      aria-pressed="true"
+                      class="flex items-center gap-1 rounded-full px-2 py-1 transition-colors text-primary"
+                      type="button"
+                    >
+                      <svg
+                        class="lucide lucide-sparkles h-3.5 w-3.5"
+                        fill="none"
+                        height="24"
+                        stroke="currentColor"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        viewBox="0 0 24 24"
+                        width="24"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"
+                        />
+                        <path
+                          d="M20 3v4"
+                        />
+                        <path
+                          d="M22 5h-4"
+                        />
+                        <path
+                          d="M4 17v2"
+                        />
+                        <path
+                          d="M5 18H3"
+                        />
+                      </svg>
+                      Memory 
+                      on
+                    </button>
                     <button
                       aria-pressed="false"
                       class="flex items-center gap-1 rounded-full px-2 py-1 transition-colors hover:text-primary"
@@ -1406,6 +1822,31 @@ exports[`App layout snapshots > renders chat with history 1`] = `
             type="button"
           >
             <svg
+              class="lucide lucide-shield-check h-4 w-4"
+              fill="none"
+              height="24"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+              width="24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"
+              />
+              <path
+                d="m9 12 2 2 4-4"
+              />
+            </svg>
+            Готовность
+          </button>
+          <button
+            class="flex flex-1 items-center justify-center gap-2 rounded-full border border-border/60 bg-surface px-3 py-2 text-sm font-semibold text-text transition-colors hover:border-primary hover:text-primary"
+            type="button"
+          >
+            <svg
               class="lucide lucide-chart-column h-4 w-4"
               fill="none"
               height="24"
@@ -1843,6 +2284,38 @@ exports[`App layout snapshots > renders empty chat state 1`] = `
           <div
             class="flex items-center gap-2"
           >
+            <div
+              class="relative hidden md:block"
+            >
+              <button
+                aria-expanded="false"
+                aria-haspopup="menu"
+                class="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-semibold transition-colors border-border/60 bg-surface text-text-muted hover:border-primary/50 hover:text-text"
+                type="button"
+              >
+                <span
+                  class="max-w-[8.5rem] truncate"
+                >
+                  Kolibri Base
+                </span>
+                <svg
+                  class="lucide lucide-chevron-down h-3.5 w-3.5"
+                  fill="none"
+                  height="24"
+                  stroke="currentColor"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  viewBox="0 0 24 24"
+                  width="24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="m6 9 6 6 6-6"
+                  />
+                </svg>
+              </button>
+            </div>
             <button
               aria-label="Включить режим фокуса"
               aria-pressed="false"
@@ -1923,6 +2396,31 @@ exports[`App layout snapshots > renders empty chat state 1`] = `
                 />
                 <path
                   d="M5 18H3"
+                />
+              </svg>
+            </button>
+            <button
+              aria-label="Открыть готовность"
+              class="hidden h-10 w-10 items-center justify-center rounded-full border border-border/70 text-text-muted transition-colors hover:text-text md:inline-flex"
+              type="button"
+            >
+              <svg
+                class="lucide lucide-shield-check h-4 w-4"
+                fill="none"
+                height="24"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"
+                />
+                <path
+                  d="m9 12 2 2 4-4"
                 />
               </svg>
             </button>
@@ -2054,41 +2552,6 @@ exports[`App layout snapshots > renders empty chat state 1`] = `
                 />
               </svg>
             </button>
-            <button
-              aria-label="Настройки беседы"
-              class="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border/70 text-text-muted transition-colors hover:text-text"
-              type="button"
-            >
-              <svg
-                class="lucide lucide-settings2 h-4 w-4"
-                fill="none"
-                height="24"
-                stroke="currentColor"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                viewBox="0 0 24 24"
-                width="24"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M20 7h-9"
-                />
-                <path
-                  d="M14 17H5"
-                />
-                <circle
-                  cx="17"
-                  cy="17"
-                  r="3"
-                />
-                <circle
-                  cx="7"
-                  cy="7"
-                  r="3"
-                />
-              </svg>
-            </button>
           </div>
         </div>
         <div
@@ -2108,13 +2571,74 @@ exports[`App layout snapshots > renders empty chat state 1`] = `
             <span
               class="rounded-full border border-border/60 bg-surface px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.3em] text-text-muted"
             >
+              Kolibri Base
+            </span>
+            <span
+              class="rounded-full border border-border/60 bg-surface px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.3em] text-text-muted"
+            >
               balanced
             </span>
             <span
               class="rounded-full border border-border/60 bg-surface px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.3em] text-text-muted"
             >
-              ChatGPT
+              Aurora
             </span>
+            <button
+              class="inline-flex items-center gap-2 rounded-full border border-border/60 bg-surface px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.3em] text-text-muted transition-colors hover:border-primary hover:text-primary"
+              type="button"
+            >
+              <svg
+                class="lucide lucide-user-round-cog h-3.5 w-3.5"
+                fill="none"
+                height="24"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M2 21a8 8 0 0 1 10.434-7.62"
+                />
+                <circle
+                  cx="10"
+                  cy="8"
+                  r="5"
+                />
+                <circle
+                  cx="18"
+                  cy="18"
+                  r="3"
+                />
+                <path
+                  d="m19.5 14.3-.4.9"
+                />
+                <path
+                  d="m16.9 20.8-.4.9"
+                />
+                <path
+                  d="m21.7 19.5-.9-.4"
+                />
+                <path
+                  d="m15.2 16.9-.9-.4"
+                />
+                <path
+                  d="m21.7 16.5-.9.4"
+                />
+                <path
+                  d="m15.2 19.1-.9.4"
+                />
+                <path
+                  d="m19.5 21.7-.4-.9"
+                />
+                <path
+                  d="m16.9 15.2-.4-.9"
+                />
+              </svg>
+              Сменить план
+            </button>
             <button
               aria-label="Обновить память"
               class="inline-flex items-center gap-2 rounded-full border border-border/60 bg-surface px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.3em] text-text-muted transition-colors hover:border-primary hover:text-primary"
@@ -2158,6 +2682,221 @@ exports[`App layout snapshots > renders empty chat state 1`] = `
           </div>
         </div>
       </header>
+      <div
+        class="border-b border-border/60 bg-surface/70"
+      >
+        <div
+          class="mx-auto w-full max-w-4xl px-4 py-4 sm:px-6 lg:px-8"
+        >
+          <section
+            class="glass-panel flex flex-col gap-4 p-4 md:flex-row md:items-center md:justify-between"
+          >
+            <div
+              class="flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.3em] text-text-secondary"
+            >
+              <span
+                class="pill-badge"
+              >
+                Параметры беседы
+              </span>
+              <button
+                class="flex items-center gap-2 rounded-xl border px-3 py-1 text-[0.7rem] font-semibold transition-colors border-primary/60 bg-primary/15 text-primary"
+                type="button"
+              >
+                <svg
+                  class="lucide lucide-sparkles h-3.5 w-3.5"
+                  fill="none"
+                  height="24"
+                  stroke="currentColor"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  viewBox="0 0 24 24"
+                  width="24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"
+                  />
+                  <path
+                    d="M20 3v4"
+                  />
+                  <path
+                    d="M22 5h-4"
+                  />
+                  <path
+                    d="M4 17v2"
+                  />
+                  <path
+                    d="M5 18H3"
+                  />
+                </svg>
+                Обучение 
+                on
+              </button>
+              <button
+                class="flex items-center gap-2 rounded-xl border px-3 py-1 text-[0.7rem] font-semibold transition-colors border-border-strong bg-background-input/80 text-text-secondary hover:text-text-primary"
+                type="button"
+              >
+                <svg
+                  class="lucide lucide-lock h-3.5 w-3.5"
+                  fill="none"
+                  height="24"
+                  stroke="currentColor"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  viewBox="0 0 24 24"
+                  width="24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <rect
+                    height="11"
+                    rx="2"
+                    ry="2"
+                    width="18"
+                    x="3"
+                    y="11"
+                  />
+                  <path
+                    d="M7 11V7a5 5 0 0 1 10 0v4"
+                  />
+                </svg>
+                Приватно 
+                off
+              </button>
+              <button
+                class="flex items-center gap-2 rounded-xl border px-3 py-1 text-[0.7rem] font-semibold transition-colors border-emerald-500/60 bg-emerald-500/10 text-emerald-500"
+                type="button"
+              >
+                <svg
+                  class="lucide lucide-earth h-3.5 w-3.5"
+                  fill="none"
+                  height="24"
+                  stroke="currentColor"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  viewBox="0 0 24 24"
+                  width="24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M21.54 15H17a2 2 0 0 0-2 2v4.54"
+                  />
+                  <path
+                    d="M7 3.34V5a3 3 0 0 0 3 3a2 2 0 0 1 2 2c0 1.1.9 2 2 2a2 2 0 0 0 2-2c0-1.1.9-2 2-2h3.17"
+                  />
+                  <path
+                    d="M11 21.95V18a2 2 0 0 0-2-2a2 2 0 0 1-2-2v-1a2 2 0 0 0-2-2H2.05"
+                  />
+                  <circle
+                    cx="12"
+                    cy="12"
+                    r="10"
+                  />
+                </svg>
+                Онлайн 
+                on
+              </button>
+              <button
+                class="flex items-center gap-2 rounded-xl border px-3 py-1 text-[0.7rem] font-semibold transition-colors border-sky-500/60 bg-sky-500/10 text-sky-500"
+                type="button"
+              >
+                <svg
+                  class="lucide lucide-shield-check h-3.5 w-3.5"
+                  fill="none"
+                  height="24"
+                  stroke="currentColor"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  viewBox="0 0 24 24"
+                  width="24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"
+                  />
+                  <path
+                    d="m9 12 2 2 4-4"
+                  />
+                </svg>
+                Тон 
+                safe
+              </button>
+            </div>
+            <div
+              class="mt-2 flex flex-wrap items-center gap-3 md:mt-0"
+            >
+              <label
+                class="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-text-secondary"
+              >
+                <svg
+                  class="lucide lucide-switch-camera h-4 w-4 text-primary"
+                  fill="none"
+                  height="24"
+                  stroke="currentColor"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  viewBox="0 0 24 24"
+                  width="24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M11 19H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5"
+                  />
+                  <path
+                    d="M13 5h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-5"
+                  />
+                  <circle
+                    cx="12"
+                    cy="12"
+                    r="3"
+                  />
+                  <path
+                    d="m18 22-3-3 3-3"
+                  />
+                  <path
+                    d="m6 2 3 3-3 3"
+                  />
+                </svg>
+                Профиль
+                <select
+                  class="rounded-xl border border-border-strong bg-background-input/80 px-3 py-1 text-[0.75rem] font-semibold text-text-primary focus:border-primary focus:outline-none"
+                >
+                  <option
+                    value="balanced"
+                  >
+                    Сбалансированный
+                  </option>
+                  <option
+                    value="concise"
+                  >
+                    Краткий
+                  </option>
+                  <option
+                    value="detailed"
+                  >
+                    Подробный
+                  </option>
+                  <option
+                    value="technical"
+                  >
+                    Технический
+                  </option>
+                  <option
+                    value="friendly"
+                  >
+                    Дружелюбный
+                  </option>
+                </select>
+              </label>
+            </div>
+          </section>
+        </div>
+      </div>
       <main
         class="relative flex-1 overflow-hidden"
       >
@@ -2949,6 +3688,31 @@ exports[`App layout snapshots > renders empty chat state 1`] = `
             type="button"
           >
             <svg
+              class="lucide lucide-shield-check h-4 w-4"
+              fill="none"
+              height="24"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+              width="24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"
+              />
+              <path
+                d="m9 12 2 2 4-4"
+              />
+            </svg>
+            Готовность
+          </button>
+          <button
+            class="flex flex-1 items-center justify-center gap-2 rounded-full border border-border/60 bg-surface px-3 py-2 text-sm font-semibold text-text transition-colors hover:border-primary hover:text-primary"
+            type="button"
+          >
+            <svg
               class="lucide lucide-chart-column h-4 w-4"
               fill="none"
               height="24"
@@ -3386,6 +4150,38 @@ exports[`App layout snapshots > renders mobile layout 1`] = `
           <div
             class="flex items-center gap-2"
           >
+            <div
+              class="relative hidden md:block"
+            >
+              <button
+                aria-expanded="false"
+                aria-haspopup="menu"
+                class="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-semibold transition-colors border-border/60 bg-surface text-text-muted hover:border-primary/50 hover:text-text"
+                type="button"
+              >
+                <span
+                  class="max-w-[8.5rem] truncate"
+                >
+                  Kolibri Base
+                </span>
+                <svg
+                  class="lucide lucide-chevron-down h-3.5 w-3.5"
+                  fill="none"
+                  height="24"
+                  stroke="currentColor"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  viewBox="0 0 24 24"
+                  width="24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="m6 9 6 6 6-6"
+                  />
+                </svg>
+              </button>
+            </div>
             <button
               aria-label="Включить режим фокуса"
               aria-pressed="false"
@@ -3466,6 +4262,31 @@ exports[`App layout snapshots > renders mobile layout 1`] = `
                 />
                 <path
                   d="M5 18H3"
+                />
+              </svg>
+            </button>
+            <button
+              aria-label="Открыть готовность"
+              class="hidden h-10 w-10 items-center justify-center rounded-full border border-border/70 text-text-muted transition-colors hover:text-text md:inline-flex"
+              type="button"
+            >
+              <svg
+                class="lucide lucide-shield-check h-4 w-4"
+                fill="none"
+                height="24"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"
+                />
+                <path
+                  d="m9 12 2 2 4-4"
                 />
               </svg>
             </button>
@@ -3597,41 +4418,6 @@ exports[`App layout snapshots > renders mobile layout 1`] = `
                 />
               </svg>
             </button>
-            <button
-              aria-label="Настройки беседы"
-              class="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border/70 text-text-muted transition-colors hover:text-text"
-              type="button"
-            >
-              <svg
-                class="lucide lucide-settings2 h-4 w-4"
-                fill="none"
-                height="24"
-                stroke="currentColor"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                viewBox="0 0 24 24"
-                width="24"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M20 7h-9"
-                />
-                <path
-                  d="M14 17H5"
-                />
-                <circle
-                  cx="17"
-                  cy="17"
-                  r="3"
-                />
-                <circle
-                  cx="7"
-                  cy="7"
-                  r="3"
-                />
-              </svg>
-            </button>
           </div>
         </div>
         <div
@@ -3651,13 +4437,74 @@ exports[`App layout snapshots > renders mobile layout 1`] = `
             <span
               class="rounded-full border border-border/60 bg-surface px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.3em] text-text-muted"
             >
+              Kolibri Base
+            </span>
+            <span
+              class="rounded-full border border-border/60 bg-surface px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.3em] text-text-muted"
+            >
               balanced
             </span>
             <span
               class="rounded-full border border-border/60 bg-surface px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.3em] text-text-muted"
             >
-              ChatGPT
+              Aurora
             </span>
+            <button
+              class="inline-flex items-center gap-2 rounded-full border border-border/60 bg-surface px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.3em] text-text-muted transition-colors hover:border-primary hover:text-primary"
+              type="button"
+            >
+              <svg
+                class="lucide lucide-user-round-cog h-3.5 w-3.5"
+                fill="none"
+                height="24"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M2 21a8 8 0 0 1 10.434-7.62"
+                />
+                <circle
+                  cx="10"
+                  cy="8"
+                  r="5"
+                />
+                <circle
+                  cx="18"
+                  cy="18"
+                  r="3"
+                />
+                <path
+                  d="m19.5 14.3-.4.9"
+                />
+                <path
+                  d="m16.9 20.8-.4.9"
+                />
+                <path
+                  d="m21.7 19.5-.9-.4"
+                />
+                <path
+                  d="m15.2 16.9-.9-.4"
+                />
+                <path
+                  d="m21.7 16.5-.9.4"
+                />
+                <path
+                  d="m15.2 19.1-.9.4"
+                />
+                <path
+                  d="m19.5 21.7-.4-.9"
+                />
+                <path
+                  d="m16.9 15.2-.4-.9"
+                />
+              </svg>
+              Сменить план
+            </button>
             <button
               aria-label="Обновить память"
               class="inline-flex items-center gap-2 rounded-full border border-border/60 bg-surface px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.3em] text-text-muted transition-colors hover:border-primary hover:text-primary"
@@ -3701,6 +4548,221 @@ exports[`App layout snapshots > renders mobile layout 1`] = `
           </div>
         </div>
       </header>
+      <div
+        class="border-b border-border/60 bg-surface/70"
+      >
+        <div
+          class="mx-auto w-full max-w-4xl px-4 py-4 sm:px-6 lg:px-8"
+        >
+          <section
+            class="glass-panel flex flex-col gap-4 p-4 md:flex-row md:items-center md:justify-between"
+          >
+            <div
+              class="flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.3em] text-text-secondary"
+            >
+              <span
+                class="pill-badge"
+              >
+                Параметры беседы
+              </span>
+              <button
+                class="flex items-center gap-2 rounded-xl border px-3 py-1 text-[0.7rem] font-semibold transition-colors border-primary/60 bg-primary/15 text-primary"
+                type="button"
+              >
+                <svg
+                  class="lucide lucide-sparkles h-3.5 w-3.5"
+                  fill="none"
+                  height="24"
+                  stroke="currentColor"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  viewBox="0 0 24 24"
+                  width="24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"
+                  />
+                  <path
+                    d="M20 3v4"
+                  />
+                  <path
+                    d="M22 5h-4"
+                  />
+                  <path
+                    d="M4 17v2"
+                  />
+                  <path
+                    d="M5 18H3"
+                  />
+                </svg>
+                Обучение 
+                on
+              </button>
+              <button
+                class="flex items-center gap-2 rounded-xl border px-3 py-1 text-[0.7rem] font-semibold transition-colors border-border-strong bg-background-input/80 text-text-secondary hover:text-text-primary"
+                type="button"
+              >
+                <svg
+                  class="lucide lucide-lock h-3.5 w-3.5"
+                  fill="none"
+                  height="24"
+                  stroke="currentColor"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  viewBox="0 0 24 24"
+                  width="24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <rect
+                    height="11"
+                    rx="2"
+                    ry="2"
+                    width="18"
+                    x="3"
+                    y="11"
+                  />
+                  <path
+                    d="M7 11V7a5 5 0 0 1 10 0v4"
+                  />
+                </svg>
+                Приватно 
+                off
+              </button>
+              <button
+                class="flex items-center gap-2 rounded-xl border px-3 py-1 text-[0.7rem] font-semibold transition-colors border-emerald-500/60 bg-emerald-500/10 text-emerald-500"
+                type="button"
+              >
+                <svg
+                  class="lucide lucide-earth h-3.5 w-3.5"
+                  fill="none"
+                  height="24"
+                  stroke="currentColor"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  viewBox="0 0 24 24"
+                  width="24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M21.54 15H17a2 2 0 0 0-2 2v4.54"
+                  />
+                  <path
+                    d="M7 3.34V5a3 3 0 0 0 3 3a2 2 0 0 1 2 2c0 1.1.9 2 2 2a2 2 0 0 0 2-2c0-1.1.9-2 2-2h3.17"
+                  />
+                  <path
+                    d="M11 21.95V18a2 2 0 0 0-2-2a2 2 0 0 1-2-2v-1a2 2 0 0 0-2-2H2.05"
+                  />
+                  <circle
+                    cx="12"
+                    cy="12"
+                    r="10"
+                  />
+                </svg>
+                Онлайн 
+                on
+              </button>
+              <button
+                class="flex items-center gap-2 rounded-xl border px-3 py-1 text-[0.7rem] font-semibold transition-colors border-sky-500/60 bg-sky-500/10 text-sky-500"
+                type="button"
+              >
+                <svg
+                  class="lucide lucide-shield-check h-3.5 w-3.5"
+                  fill="none"
+                  height="24"
+                  stroke="currentColor"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  viewBox="0 0 24 24"
+                  width="24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"
+                  />
+                  <path
+                    d="m9 12 2 2 4-4"
+                  />
+                </svg>
+                Тон 
+                safe
+              </button>
+            </div>
+            <div
+              class="mt-2 flex flex-wrap items-center gap-3 md:mt-0"
+            >
+              <label
+                class="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-text-secondary"
+              >
+                <svg
+                  class="lucide lucide-switch-camera h-4 w-4 text-primary"
+                  fill="none"
+                  height="24"
+                  stroke="currentColor"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  viewBox="0 0 24 24"
+                  width="24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M11 19H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5"
+                  />
+                  <path
+                    d="M13 5h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-5"
+                  />
+                  <circle
+                    cx="12"
+                    cy="12"
+                    r="3"
+                  />
+                  <path
+                    d="m18 22-3-3 3-3"
+                  />
+                  <path
+                    d="m6 2 3 3-3 3"
+                  />
+                </svg>
+                Профиль
+                <select
+                  class="rounded-xl border border-border-strong bg-background-input/80 px-3 py-1 text-[0.75rem] font-semibold text-text-primary focus:border-primary focus:outline-none"
+                >
+                  <option
+                    value="balanced"
+                  >
+                    Сбалансированный
+                  </option>
+                  <option
+                    value="concise"
+                  >
+                    Краткий
+                  </option>
+                  <option
+                    value="detailed"
+                  >
+                    Подробный
+                  </option>
+                  <option
+                    value="technical"
+                  >
+                    Технический
+                  </option>
+                  <option
+                    value="friendly"
+                  >
+                    Дружелюбный
+                  </option>
+                </select>
+              </label>
+            </div>
+          </section>
+        </div>
+      </div>
       <main
         class="relative flex-1 overflow-hidden"
       >
