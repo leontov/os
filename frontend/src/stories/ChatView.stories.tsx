@@ -102,6 +102,10 @@ const meta: Meta<typeof ChatView> = {
         Composer placeholder
       </div>
     ),
+    onMessageEdit: fn(),
+    onMessageContinue: fn(),
+    onMessageRegenerate: fn(),
+    onMessageCopyLink: fn(),
   },
   parameters: {
     layout: "fullscreen",

@@ -72,6 +72,10 @@ interface ChatViewProps {
   onToggleZenMode: () => void;
   personaName: string;
   onViewportElementChange?: (element: HTMLElement | null) => void;
+  onMessageEdit?: (message: ChatMessage) => void;
+  onMessageContinue?: (options: { assistantMessage: ChatMessage; userMessage?: ChatMessage }) => void;
+  onMessageRegenerate?: (options: { assistantMessage: ChatMessage; userMessage?: ChatMessage }) => void;
+  onMessageCopyLink?: (message: ChatMessage) => void;
 }
 
 type TimelineItem =
@@ -115,6 +119,10 @@ const ChatView = ({
   onToggleZenMode,
   personaName,
   onViewportElementChange,
+  onMessageEdit,
+  onMessageContinue,
+  onMessageRegenerate,
+  onMessageCopyLink,
 }: ChatViewProps) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const titleInputRef = useRef<HTMLInputElement | null>(null);
@@ -755,7 +763,14 @@ const ChatView = ({
                       exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -12, scale: 0.98 }}
                       transition={shouldReduceMotion ? { duration: 0.18 } : { duration: 0.32, ease: easeCurve }}
                     >
-                      <ChatMessageView message={item.message} latestUserMessage={item.contextUserMessage} />
+                      <ChatMessageView
+                        message={item.message}
+                        latestUserMessage={item.contextUserMessage}
+                        onEditMessage={onMessageEdit}
+                        onContinueMessage={onMessageContinue}
+                        onRegenerateMessage={onMessageRegenerate}
+                        onCopyLink={onMessageCopyLink}
+                      />
                     </motion.div>
                   );
                 })}
