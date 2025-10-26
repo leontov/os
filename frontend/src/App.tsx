@@ -132,6 +132,7 @@ const App = () => {
     refresh: refreshBackendHealth,
   } = useBackendHealth();
   const [editingState, setEditingState] = useState<EditingState | null>(null);
+  const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
 
   const modeLabel = useMemo(() => findModeLabel(mode), [mode]);
   const editingContext = useMemo(
