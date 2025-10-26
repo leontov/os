@@ -46,6 +46,14 @@ const DEFAULT_SUGGESTIONS = [
   "Помоги подготовить письмо по теме диалога",
 ];
 
+interface EditingState {
+  messageId: string;
+  originalContent: string;
+  timestamp?: string;
+  isoTimestamp?: string;
+  previousDraft: string;
+}
+
 const App = () => {
   const {
     messages,
@@ -125,8 +133,65 @@ const App = () => {
   const [backendHealthError, setBackendHealthError] = useState<string | null>(null);
   const [backendHealthCheckedAt, setBackendHealthCheckedAt] = useState<string | null>(null);
   const [isBackendHealthLoading, setBackendHealthLoading] = useState(false);
+  const [editingState, setEditingState] = useState<EditingState | null>(null);
 
   const modeLabel = useMemo(() => findModeLabel(mode), [mode]);
+  const editingContext = useMemo(
+    () =>
+      editingState
+        ? {
+            id: editingState.messageId,
+            originalContent: editingState.originalContent,
+            timestampLabel: editingState.isoTimestamp ?? editingState.timestamp,
+          }
+        : null,
+    [editingState],
+  );
+
+  const loadBackendHealth = useCallback(
+    async ({ signal, suppressLoading }: { signal?: AbortSignal; suppressLoading?: boolean } = {}) => {
+      if (!suppressLoading) {
+        setBackendHealthLoading(true);
+        setBackendHealthError(null);
+      }
+
+      try {
+        const snapshot = await fetchBackendHealth({ signal });
+        if (signal?.aborted) {
+          return;
+        }
+        setBackendHealth(snapshot);
+        setBackendHealthError(null);
+      } catch (error) {
+        if (isAbortError(error) || signal?.aborted) {
+          return;
+        }
+        setBackendHealth(null);
+        setBackendHealthError(getHealthErrorMessage(error));
+      } finally {
+        if (signal?.aborted) {
+          return;
+        }
+        if (!suppressLoading) {
+          setBackendHealthLoading(false);
+        }
+        setBackendHealthCheckedAt(new Date().toISOString());
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void loadBackendHealth({ signal: controller.signal });
+    return () => {
+      controller.abort();
+    };
+  }, [loadBackendHealth]);
+
+  useEffect(() => {
+    setEditingState(null);
+  }, [conversationId]);
 
   const loadBackendHealth = useCallback(
     async ({ signal, suppressLoading }: { signal?: AbortSignal; suppressLoading?: boolean } = {}) => {
@@ -194,28 +259,19 @@ const App = () => {
   );
 
   const handleSendMessage = useCallback(async () => {
-    const trimmedDraft = draft.trim();
-
-    if (editingMessage) {
-      if (!trimmedDraft) {
-        logInspectorAction("message.edit.cancel", "Редактирование отменено из-за пустого текста", {
-          messageId: editingMessage.id,
-        });
-        setEditingMessage(null);
-        setDraft("");
-        clearAttachments();
+    if (editingState) {
+      const trimmed = draft.trim();
+      if (!trimmed) {
         return;
       }
-
-      logInspectorAction("message.edit.submit", "Сообщение обновлено и отправлено повторно", {
-        messageId: editingMessage.id,
-        previousLength: editingMessage.originalContent.trim().length,
-        nextLength: trimmedDraft.length,
+      logInspectorAction("message.edit", "Повторная отправка после правки", {
+        messageId: editingState.messageId,
+        length: trimmed.length,
       });
-      await resendMessage(editingMessage.id, { content: draft });
-      setEditingMessage(null);
-      setDraft("");
+      await resendMessage(editingState.messageId, { content: trimmed });
+      setDraft(editingState.previousDraft);
       clearAttachments();
+      setEditingState(null);
       return;
     }
 
@@ -224,22 +280,11 @@ const App = () => {
       attachments: attachments.length,
     });
     await sendMessage();
-  }, [
-    attachments.length,
-    clearAttachments,
-    draft,
-    editingMessage,
-    logInspectorAction,
-    resendMessage,
-    sendMessage,
-    setDraft,
-  ]);
+  }, [attachments.length, clearAttachments, draft, editingState, logInspectorAction, resendMessage, sendMessage, setDraft]);
 
   const handleResetConversation = useCallback(async () => {
     logInspectorAction("conversation.reset", "Начат новый диалог", { conversationId });
-    setEditingMessage(null);
-    setDraft("");
-    clearAttachments();
+    setEditingState(null);
     await resetConversation();
   }, [clearAttachments, conversationId, logInspectorAction, resetConversation, setDraft]);
 
@@ -474,20 +519,34 @@ const App = () => {
       if (message.role !== "user") {
         return;
       }
-      const nextDraft = message.content ?? "";
-      setEditingMessage({
-        id: message.id,
-        originalContent: nextDraft,
-      });
-      setDraft(nextDraft);
-      clearAttachments();
-      logInspectorAction("message.edit.start", "Начато редактирование сообщения", {
+      setEditingState({
         messageId: message.id,
-        length: nextDraft.trim().length,
+        originalContent: message.content,
+        timestamp: message.timestamp,
+        isoTimestamp: message.isoTimestamp,
+        previousDraft: draft,
+      });
+      setDraft(message.content);
+      clearAttachments();
+      logInspectorAction("message.edit", "Редактирование сообщения начато", {
+        messageId: message.id,
+        originalLength: message.content.trim().length,
       });
     },
-    [clearAttachments, logInspectorAction, setDraft],
+    [clearAttachments, draft, logInspectorAction, setDraft],
   );
+
+  const handleCancelEdit = useCallback(() => {
+    if (!editingState) {
+      return;
+    }
+    setDraft(editingState.previousDraft);
+    clearAttachments();
+    logInspectorAction("message.edit", "Редактирование отменено", {
+      messageId: editingState.messageId,
+    });
+    setEditingState(null);
+  }, [clearAttachments, editingState, logInspectorAction, setDraft]);
 
   const handleMessageRegenerate = useCallback(
     ({ assistantMessage, userMessage }: { assistantMessage: ChatMessage; userMessage?: ChatMessage }) => {
@@ -600,8 +659,9 @@ const App = () => {
         onRemoveAttachment={handleRemoveAttachment}
         onClearAttachments={handleClearAttachments}
         onOpenControls={() => setActivePanel("controls")}
-        editingMessage={editingMessage ?? undefined}
-        onCancelEditing={handleCancelEditing}
+        isEditing={Boolean(editingState)}
+        editingMessage={editingContext}
+        onCancelEdit={handleCancelEdit}
       />
       {quickSuggestions.length > 0 ? (
         <div className="rounded-2xl border border-border/60 bg-surface px-4 py-3 text-sm text-text-muted shadow-sm">

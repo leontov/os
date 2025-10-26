@@ -12,6 +12,7 @@ import {
   PanelsTopLeft,
   Pencil,
   RefreshCcw,
+  Share2,
   ShieldCheck,
   Sparkles,
   UserRoundCog,
@@ -690,6 +691,16 @@ const ChatView = ({
                 aria-label="Открыть swarm"
               >
                 <PanelsTopLeft className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  void onShareConversation();
+                }}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border/70 text-text-muted transition-colors hover:text-text"
+                aria-label="Поделиться беседой"
+              >
+                <Share2 className="h-4 w-4" />
               </button>
               <button
                 type="button"
