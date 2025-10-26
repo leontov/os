@@ -195,6 +195,8 @@ export async function searchLocalKnowledge(
           content: snippet.content,
           score: snippet.score,
           source: snippet.source,
+          sourceType: "local" as const,
+          confidence: "high" as const,
         }));
 
       return scored;

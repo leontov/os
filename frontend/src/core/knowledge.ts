@@ -1,4 +1,8 @@
-import type { KnowledgeSnippet } from "../types/knowledge";
+import type {
+  KnowledgeConfidence,
+  KnowledgeSnippet,
+  KnowledgeSourceType,
+} from "../types/knowledge";
 import type { KnowledgeSearchOptions, KnowledgeStatus } from "../types/knowledge-service";
 import {
   fetchLocalKnowledgeStatus,
@@ -8,6 +12,7 @@ import {
   sendLocalKnowledgeFeedback,
   teachLocalKnowledge,
 } from "./local-knowledge";
+import { searchOfflineCaches } from "./connectors";
 
 const DEFAULT_ENDPOINT = "/api/knowledge/search";
 
@@ -122,6 +127,66 @@ const remoteHealthEndpoint = (): string => {
 const isAbortError = (error: unknown): error is DOMException =>
   error instanceof DOMException && error.name === "AbortError";
 
+const SOURCE_TYPE_ALIASES: Record<string, KnowledgeSourceType> = {
+  drive: "google-drive",
+  "google-drive": "google-drive",
+  googledrive: "google-drive",
+  notion: "notion",
+  "local-pdf": "local-pdf",
+  pdf: "local-pdf",
+  offline: "local",
+  local: "local",
+  remote: "remote",
+};
+
+const SOURCE_TYPE_VALUES: KnowledgeSourceType[] = [
+  "google-drive",
+  "notion",
+  "local-pdf",
+  "local",
+  "remote",
+  "unknown",
+];
+
+const isSourceType = (value: unknown): value is KnowledgeSourceType =>
+  typeof value === "string" && SOURCE_TYPE_VALUES.includes(value as KnowledgeSourceType);
+
+const resolveSourceType = (
+  value: unknown,
+  fallback: KnowledgeSourceType | undefined,
+): KnowledgeSourceType | undefined => {
+  if (isSourceType(value)) {
+    return value;
+  }
+  if (typeof value === "string") {
+    const normalised = value.trim().toLowerCase();
+    const alias = SOURCE_TYPE_ALIASES[normalised];
+    if (alias) {
+      return alias;
+    }
+  }
+  return fallback;
+};
+
+const resolveConfidence = (value: unknown): KnowledgeConfidence | undefined => {
+  if (typeof value === "string") {
+    const lowered = value.trim().toLowerCase();
+    if (lowered === "high" || lowered === "medium" || lowered === "low") {
+      return lowered;
+    }
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    if (value >= 0.75) {
+      return "high";
+    }
+    if (value >= 0.4) {
+      return "medium";
+    }
+    return "low";
+  }
+  return undefined;
+};
+
 const normaliseSnippet = (value: unknown, index: number): KnowledgeSnippet | null => {
   if (!value || typeof value !== "object") {
     return null;
@@ -134,12 +199,43 @@ const normaliseSnippet = (value: unknown, index: number): KnowledgeSnippet | nul
   const source = typeof raw.source === "string" && raw.source.trim().length > 0 ? raw.source : undefined;
   const scoreValue = typeof raw.score === "number" ? raw.score : Number(raw.score);
   const score = Number.isFinite(scoreValue) ? scoreValue : 0;
+  const url = typeof raw.url === "string" && raw.url.trim().length > 0 ? raw.url.trim() : undefined;
+  const connectorId = typeof raw.connectorId === "string" && raw.connectorId.trim().length > 0 ? raw.connectorId.trim() : undefined;
+  const citation = typeof raw.citation === "string" && raw.citation.trim().length > 0 ? raw.citation.trim() : undefined;
+  const references = Array.isArray(raw.citations)
+    ? raw.citations
+    : Array.isArray(raw.references)
+      ? raw.references
+      : undefined;
+  const citations = references
+    ?.map((entry) => (typeof entry === "string" ? entry.trim() : String(entry ?? "").trim()))
+    .filter((entry) => entry.length > 0);
+  const highlights = Array.isArray(raw.highlights)
+    ? raw.highlights
+        .map((entry) => (typeof entry === "string" ? entry.trim() : String(entry ?? "").trim()))
+        .filter((entry) => entry.length > 0)
+    : undefined;
+  const confidence = resolveConfidence(raw.confidence ?? raw.scoreConfidence);
+  const sourceType = resolveSourceType(raw.sourceType, connectorId ? resolveSourceType(connectorId, undefined) : undefined);
 
   if (!content) {
     return null;
   }
 
-  return { id, title, content, source, score };
+  return {
+    id,
+    title,
+    content,
+    source,
+    score,
+    url,
+    citation,
+    citations,
+    highlights,
+    connectorId,
+    sourceType,
+    confidence,
+  };
 };
 
 export const buildSearchUrl = (query: string, options?: KnowledgeSearchOptions): string => {
@@ -231,12 +327,36 @@ const fetchRemoteKnowledgeStatus = async (): Promise<KnowledgeStatus> => {
 
 export async function searchKnowledge(query: string, options?: KnowledgeSearchOptions): Promise<KnowledgeSnippet[]> {
   const preferLocal = knowledgeConfig.strategy !== "remote";
+  const limit = options?.topK && Number.isFinite(options.topK) ? Math.max(1, Number(options.topK)) : 6;
+  const collected: KnowledgeSnippet[] = [];
+  const seen = new Set<string>();
+
+  const append = (snippets: KnowledgeSnippet[], fallbackSource?: KnowledgeSourceType) => {
+    for (const snippet of snippets) {
+      if (!snippet.id || seen.has(snippet.id)) {
+        continue;
+      }
+      const sourceType = snippet.sourceType ?? (snippet.connectorId ? resolveSourceType(snippet.connectorId, undefined) : undefined);
+      collected.push({
+        ...snippet,
+        sourceType: sourceType ?? fallbackSource ?? (preferLocal ? "local" : "remote"),
+        confidence: snippet.confidence ?? resolveConfidence(snippet.score),
+      });
+      seen.add(snippet.id);
+      if (collected.length >= limit) {
+        break;
+      }
+    }
+  };
 
   if (preferLocal) {
     try {
       const localResults = await searchLocalKnowledge(query, options);
-      if (localResults.length || !remoteFallbackAllowed) {
-        return localResults;
+      if (localResults.length) {
+        append(localResults, "local");
+      }
+      if (collected.length >= limit && !remoteFallbackAllowed) {
+        return collected.slice(0, limit);
       }
     } catch (error) {
       if (isAbortError(error)) {
@@ -250,11 +370,32 @@ export async function searchKnowledge(query: string, options?: KnowledgeSearchOp
     }
   }
 
-  if (!remoteEnabled) {
-    return [];
+  if (collected.length < limit) {
+    try {
+      const offlineResults = await searchOfflineCaches(query, {
+        limit: limit - collected.length,
+        excludeIds: seen,
+      });
+      if (offlineResults.length) {
+        append(offlineResults, "local");
+      }
+    } catch (error) {
+      console.warn("[knowledge] Не удалось получить результаты офлайн-кеша коннекторов:", error);
+    }
   }
 
-  return searchRemoteKnowledge(query, options);
+  if (!remoteEnabled) {
+    return collected.slice(0, limit);
+  }
+
+  if (collected.length >= limit && !remoteFallbackAllowed) {
+    return collected.slice(0, limit);
+  }
+
+  const remoteResults = await searchRemoteKnowledge(query, options);
+  append(remoteResults, "remote");
+
+  return collected.slice(0, limit);
 }
 
 export async function sendKnowledgeFeedback(
