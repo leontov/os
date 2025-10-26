@@ -16,6 +16,7 @@ import PanelDialog from "./components/layout/PanelDialog";
 import useKolibriChat from "./core/useKolibriChat";
 import { findModeLabel } from "./core/modes";
 import useMediaQuery from "./core/useMediaQuery";
+import { usePersonaTheme } from "./core/usePersonaTheme";
 
 type PanelKey = "knowledge" | "swarm" | "analytics" | "controls" | "preferences" | null;
 
@@ -65,6 +66,7 @@ const App = () => {
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [activePanel, setActivePanel] = useState<PanelKey>(null);
   const [isDemoMode, setDemoMode] = useState(false);
+  const [isZenMode, setZenMode] = useState(false);
   const [demoMetrics, setDemoMetrics] = useState<DemoMetrics>({
     coldStartMs: null,
     wasmBytes: null,
@@ -72,6 +74,7 @@ const App = () => {
     degradedReason: null,
   });
   const isDesktop = useMediaQuery("(min-width: 1024px)");
+  const { motion, activePersona } = usePersonaTheme();
 
   const modeLabel = useMemo(() => findModeLabel(mode), [mode]);
 
@@ -111,6 +114,12 @@ const App = () => {
       setSidebarOpen(false);
     }
   }, [isDesktop]);
+
+  useEffect(() => {
+    if (isZenMode) {
+      setSidebarOpen(false);
+    }
+  }, [isZenMode]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -198,6 +207,10 @@ const App = () => {
     void createConversation();
   }, [createConversation]);
 
+  const handleToggleZenMode = useCallback(() => {
+    setZenMode((previous) => !previous);
+  }, []);
+
   const handleSelectConversation = useCallback(
     (id: string) => {
       selectConversation(id);
@@ -268,6 +281,9 @@ const App = () => {
             ) : null}
           </div>
         }
+        isZenMode={isZenMode}
+        motionPattern={motion}
+        sidebarLabel="Навигация по беседам"
       >
         <ChatView
           messages={messages}
@@ -288,6 +304,9 @@ const App = () => {
           }}
           isKnowledgeLoading={statusLoading}
           bridgeReady={bridgeReady}
+          isZenMode={isZenMode}
+          onToggleZenMode={handleToggleZenMode}
+          personaName={activePersona.name}
         />
       </ChatLayout>
 

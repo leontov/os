@@ -1,6 +1,7 @@
 import {
   ArrowDownWideNarrow,
   BarChart3,
+  Crosshair,
   Menu,
   PanelsTopLeft,
   RefreshCcw,
@@ -29,6 +30,9 @@ interface ChatViewProps {
   onRefreshKnowledge: () => void;
   isKnowledgeLoading: boolean;
   bridgeReady: boolean;
+  isZenMode: boolean;
+  onToggleZenMode: () => void;
+  personaName: string;
 }
 
 const ChatView = ({
@@ -48,6 +52,9 @@ const ChatView = ({
   onRefreshKnowledge,
   isKnowledgeLoading,
   bridgeReady,
+  isZenMode,
+  onToggleZenMode,
+  personaName,
 }: ChatViewProps) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [isNearBottom, setIsNearBottom] = useState(true);
@@ -188,9 +195,28 @@ const ChatView = ({
             <span className="hidden text-xs text-text-muted sm:inline">{modeLabel}</span>
           </div>
         </div>
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-text-muted">
+        <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-text-muted">
           <span>Сообщений: {totalMessages}</span>
           <span>Обновлено: {formatIsoTime(metrics.lastUpdatedIso)}</span>
+          <div className="flex items-center gap-2">
+            <span className="hidden rounded-full border border-border/70 bg-surface-muted px-3 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.35em] text-text-muted sm:inline">
+              {personaName}
+            </span>
+            <button
+              type="button"
+              onClick={onToggleZenMode}
+              className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold transition-quick ${
+                isZenMode
+                  ? "border-primary/70 bg-primary/15 text-primary"
+                  : "border-border/70 text-text-muted hover:text-text"
+              }`}
+              aria-pressed={isZenMode}
+              aria-label={isZenMode ? "Отключить режим фокуса" : "Включить режим фокуса"}
+            >
+              <Crosshair className="h-3.5 w-3.5" />
+              Фокус
+            </button>
+          </div>
           <div className="ml-auto flex items-center gap-2">
             <button
               type="button"
