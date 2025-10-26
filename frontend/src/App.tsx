@@ -55,6 +55,8 @@ const App = () => {
     attachFiles,
     removeAttachment,
     clearAttachments,
+    replayMessageAudio,
+    transcribeMessageAudio,
     sendMessage,
     resetConversation,
     selectConversation,
@@ -288,6 +290,12 @@ const App = () => {
           }}
           isKnowledgeLoading={statusLoading}
           bridgeReady={bridgeReady}
+          onReplayAudio={(messageId) => {
+            void replayMessageAudio(messageId);
+          }}
+          onTranscribeAudio={(messageId) => {
+            void transcribeMessageAudio(messageId);
+          }}
         />
       </ChatLayout>
 

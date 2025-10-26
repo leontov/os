@@ -29,6 +29,8 @@ interface ChatViewProps {
   onRefreshKnowledge: () => void;
   isKnowledgeLoading: boolean;
   bridgeReady: boolean;
+  onReplayAudio: (messageId: string) => void;
+  onTranscribeAudio: (messageId: string) => void;
 }
 
 const ChatView = ({
@@ -48,6 +50,8 @@ const ChatView = ({
   onRefreshKnowledge,
   isKnowledgeLoading,
   bridgeReady,
+  onReplayAudio,
+  onTranscribeAudio,
 }: ChatViewProps) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [isNearBottom, setIsNearBottom] = useState(true);
@@ -129,12 +133,30 @@ const ChatView = ({
 
       items.push(
         <div key={message.id} className="px-2">
-          <ChatMessageView message={message} latestUserMessage={contextUserMessage} />
+          <ChatMessageView
+            message={message}
+            latestUserMessage={contextUserMessage}
+            onReplayAudio={onReplayAudio}
+            onTranscribeAudio={onTranscribeAudio}
+          />
         </div>,
       );
     });
 
     return items;
+  }, [messages, onReplayAudio, onTranscribeAudio]);
+
+  const activeSubtitle = useMemo(() => {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const candidate = messages[index];
+      if (candidate.role === "assistant" && candidate.subtitles?.length) {
+        const cue = candidate.subtitles[candidate.subtitles.length - 1];
+        if (cue?.text) {
+          return cue.text;
+        }
+      }
+    }
+    return null;
   }, [messages]);
 
   const conversationShortId = useMemo(() => conversationId.slice(0, 8), [conversationId]);
@@ -262,6 +284,14 @@ const ChatView = ({
                 <ArrowDownWideNarrow className="h-4 w-4" />
                 К последнему сообщению
               </button>
+            </div>
+          ) : null}
+          {activeSubtitle ? (
+            <div className="pointer-events-none absolute inset-x-0 bottom-20 flex justify-center">
+              <div className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-border/60 bg-surface/90 px-4 py-2 text-sm font-semibold text-text shadow-lg backdrop-blur">
+                <Sparkles className="h-4 w-4 text-brand" />
+                <span>{activeSubtitle}</span>
+              </div>
             </div>
           ) : null}
         </div>

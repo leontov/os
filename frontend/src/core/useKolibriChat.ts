@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { MutableRefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PendingAttachment, SerializedAttachment } from "../types/attachments";
 import type { ChatMessage } from "../types/chat";
 import type { KnowledgeSnippet } from "../types/knowledge";
 import { fetchKnowledgeStatus, searchKnowledge } from "./knowledge";
 import kolibriBridge, { type KernelCapabilities, type KernelControlPayload } from "./kolibri-bridge";
+import StreamCoordinator, { buildFallbackSnapshot } from "./StreamCoordinator";
+import type { StreamSnapshot } from "../types/stream";
 import { MODE_OPTIONS, findModeLabel } from "./modes";
 
 export interface KernelControlsState {
@@ -152,6 +154,24 @@ const DEFAULT_KERNEL_CAPABILITIES: KernelCapabilities = {
   wasm: false,
   simd: false,
   laneWidth: 1,
+};
+
+const STREAM_SSE_URL = import.meta.env.VITE_KOLIBRI_STREAM_SSE_URL?.trim() || undefined;
+const STREAM_WEBSOCKET_URL = import.meta.env.VITE_KOLIBRI_STREAM_WS_URL?.trim() || undefined;
+const STREAM_WEBRTC_URL = import.meta.env.VITE_KOLIBRI_STREAM_WEBRTC_URL?.trim() || undefined;
+
+const ensureStreamCoordinator = (
+  ref: MutableRefObject<StreamCoordinator | null>,
+): StreamCoordinator => {
+  if (!ref.current) {
+    ref.current = new StreamCoordinator({
+      sseUrl: STREAM_SSE_URL,
+      websocketUrl: STREAM_WEBSOCKET_URL,
+      webrtcUrl: STREAM_WEBRTC_URL,
+      enableCache: true,
+    });
+  }
+  return ref.current;
 };
 
 const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
@@ -757,6 +777,8 @@ interface UseKolibriChatResult {
   attachFiles: (files: File[]) => void;
   removeAttachment: (id: string) => void;
   clearAttachments: () => void;
+  replayMessageAudio: (messageId: string) => Promise<StreamSnapshot | null>;
+  transcribeMessageAudio: (messageId: string) => Promise<string | null>;
   sendMessage: () => Promise<void>;
   resetConversation: () => Promise<void>;
   selectConversation: (id: string) => void;
@@ -786,6 +808,7 @@ const useKolibriChat = (): UseKolibriChatResult => {
   );
 
   const knowledgeSearchAbortRef = useRef<AbortController | null>(null);
+  const streamCoordinatorRef = useRef<StreamCoordinator | null>(null);
   const conversationsRef = useRef<ConversationRecord[]>(initialConversations);
 
   useEffect(() => {
@@ -1280,39 +1303,165 @@ const useKolibriChat = (): UseKolibriChatResult => {
 
     const prompt = knowledgeContext.length ? formatPromptWithContext(content || "", knowledgeContext) : content;
 
+    const assistantMoment = nowPair();
+    const assistantMessageId = crypto.randomUUID();
+    const placeholder: ChatMessage = {
+      id: assistantMessageId,
+      role: "assistant",
+      content: "",
+      timestamp: assistantMoment.display,
+      isoTimestamp: assistantMoment.iso,
+      modeValue: mode,
+      modeLabel: findModeLabel(mode),
+      context: knowledgeContext.length ? knowledgeContext : undefined,
+      contextError,
+      subtitles: [],
+      emojiTimeline: [],
+      highlights: [],
+      isStreaming: true,
+    };
+    setMessages((prev) => [...prev, placeholder]);
+
     try {
-      const answer = await kolibriBridge.ask(prompt, mode, knowledgeContext, serializedAttachments);
-      const moment = nowPair();
-      const assistantMessage: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: answer,
-        timestamp: moment.display,
-        isoTimestamp: moment.iso,
-        modeValue: mode,
-        modeLabel: findModeLabel(mode),
-        context: knowledgeContext.length ? knowledgeContext : undefined,
-        contextError,
-      };
-      setMessages((prev) => [...prev, assistantMessage]);
+      const coordinator = ensureStreamCoordinator(streamCoordinatorRef);
+      const session = coordinator.startStream({
+        payload: {
+          prompt,
+          mode,
+          conversationId,
+          messageId: assistantMessageId,
+          context: knowledgeContext,
+          attachments: serializedAttachments.map(({ id, name }) => ({ id, name })),
+        },
+        fallbackResolver: async () => {
+          const answer = await kolibriBridge.ask(prompt, mode, knowledgeContext, serializedAttachments);
+          return buildFallbackSnapshot(answer, { transport: "fallback" });
+        },
+        onError: (error) => {
+          const errorMessage =
+            error instanceof Error ? error.message : "Не удалось получить потоковый ответ.";
+          setMessages((prev) =>
+            prev.map((message) =>
+              message.id === assistantMessageId
+                ? {
+                    ...message,
+                    content: `Ошибка потока: ${errorMessage}`,
+                    isStreaming: false,
+                  }
+                : message,
+            ),
+          );
+        },
+      });
+
+      session.onText((chunk, snapshot) => {
+        setMessages((prev) =>
+          prev.map((message) =>
+            message.id === assistantMessageId
+              ? {
+                  ...message,
+                  content: snapshot.text,
+                  subtitles: snapshot.subtitles,
+                  emojiTimeline: snapshot.emojis,
+                  highlights: snapshot.highlights,
+                  isStreaming: !chunk.done,
+                }
+              : message,
+          ),
+        );
+      });
+
+      session.onAudio((_chunk, snapshot) => {
+        setMessages((prev) =>
+          prev.map((message) =>
+            message.id === assistantMessageId
+              ? {
+                  ...message,
+                  audioStreamId: snapshot.audio
+                    ? `${conversationId}:${assistantMessageId}`
+                    : message.audioStreamId,
+                  audioMimeType: snapshot.audio?.mimeType ?? message.audioMimeType,
+                  audioSpectrum: snapshot.audio?.spectrum ?? message.audioSpectrum,
+                  audioWaveform: snapshot.audio?.waveform ?? message.audioWaveform,
+                }
+              : message,
+          ),
+        );
+      });
+
+      session.onVisual((_chunk, snapshot) => {
+        setMessages((prev) =>
+          prev.map((message) =>
+            message.id === assistantMessageId
+              ? {
+                  ...message,
+                  avatar: snapshot.avatar ?? message.avatar,
+                }
+              : message,
+          ),
+        );
+      });
+
+      await new Promise<void>((resolve) => {
+        session.onComplete((snapshot) => {
+          setMessages((prev) =>
+            prev.map((message) =>
+              message.id === assistantMessageId
+                ? {
+                    ...message,
+                    content: snapshot.text,
+                    subtitles: snapshot.subtitles,
+                    emojiTimeline: snapshot.emojis,
+                    audioStreamId: snapshot.audio
+                      ? `${conversationId}:${assistantMessageId}`
+                      : message.audioStreamId,
+                    audioMimeType: snapshot.audio?.mimeType ?? message.audioMimeType,
+                    audioSpectrum: snapshot.audio?.spectrum ?? message.audioSpectrum,
+                    audioWaveform: snapshot.audio?.waveform ?? message.audioWaveform,
+                    avatar: snapshot.avatar ?? message.avatar,
+                    highlights: snapshot.highlights,
+                    isStreaming: false,
+                    context: knowledgeContext.length ? knowledgeContext : undefined,
+                    contextError,
+                    modeValue: mode,
+                    modeLabel: findModeLabel(mode),
+                  }
+                : message,
+            ),
+          );
+          resolve();
+        });
+      });
     } catch (error) {
-      const moment = nowPair();
-      const assistantMessage: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content:
-          error instanceof Error
-            ? `Не удалось получить ответ: ${error.message}`
-            : "Не удалось получить ответ от ядра Колибри.",
-        timestamp: moment.display,
-        isoTimestamp: moment.iso,
-      };
-      setMessages((prev) => [...prev, assistantMessage]);
+      setMessages((prev) =>
+        prev.map((message) =>
+          message.id === assistantMessageId
+            ? {
+                ...message,
+                content:
+                  error instanceof Error
+                    ? `Не удалось получить ответ: ${error.message}`
+                    : "Не удалось получить ответ от ядра Колибри.",
+                isStreaming: false,
+              }
+            : message,
+        ),
+      );
     } finally {
       setIsProcessing(false);
       void refreshKnowledgeStatus();
     }
-  }, [attachments, bridgeReady, clearAttachments, draft, executeQuickCommand, isProcessing, mode, refreshKnowledgeStatus]);
+  }, [
+    attachments,
+    bridgeReady,
+    clearAttachments,
+    conversationId,
+    draft,
+    executeQuickCommand,
+    isProcessing,
+    mode,
+    refreshKnowledgeStatus,
+  ]);
 
   const renameConversation = useCallback((nextTitle: string) => {
     const trimmed = nextTitle.trim();
@@ -1334,6 +1483,59 @@ const useKolibriChat = (): UseKolibriChatResult => {
       setPreferences(record.preferences ?? DEFAULT_PREFERENCES);
     },
     [],
+  );
+
+  const replayMessageAudio = useCallback(
+    async (messageId: string): Promise<StreamSnapshot | null> => {
+      const coordinator = ensureStreamCoordinator(streamCoordinatorRef);
+      const snapshot = await coordinator.replayAudio(conversationId, messageId, (_chunk, snapshotValue) => {
+        setMessages((prev) =>
+          prev.map((message) =>
+            message.id === messageId
+              ? {
+                  ...message,
+                  audioMimeType: snapshotValue.audio?.mimeType ?? message.audioMimeType,
+                  audioSpectrum: snapshotValue.audio?.spectrum ?? message.audioSpectrum,
+                  audioWaveform: snapshotValue.audio?.waveform ?? message.audioWaveform,
+                  highlights: snapshotValue.highlights ?? message.highlights,
+                }
+              : message,
+          ),
+        );
+      });
+      return snapshot;
+    },
+    [conversationId],
+  );
+
+  const transcribeMessageAudio = useCallback(
+    async (messageId: string): Promise<string | null> => {
+      const coordinator = ensureStreamCoordinator(streamCoordinatorRef);
+      const snapshot = await coordinator.getCachedSnapshot(conversationId, messageId);
+      if (!snapshot) {
+        return null;
+      }
+      setMessages((prev) =>
+        prev.map((message) =>
+          message.id === messageId
+            ? {
+                ...message,
+                content: snapshot.text || message.content,
+                subtitles: snapshot.subtitles.length ? snapshot.subtitles : message.subtitles,
+                emojiTimeline: snapshot.emojis.length ? snapshot.emojis : message.emojiTimeline,
+                highlights: snapshot.highlights.length ? snapshot.highlights : message.highlights,
+                audioMimeType: snapshot.audio?.mimeType ?? message.audioMimeType,
+                audioSpectrum: snapshot.audio?.spectrum ?? message.audioSpectrum,
+                audioWaveform: snapshot.audio?.waveform ?? message.audioWaveform,
+                avatar: snapshot.avatar ?? message.avatar,
+                isStreaming: false,
+              }
+            : message,
+        ),
+      );
+      return snapshot.text;
+    },
+    [conversationId],
   );
 
   const latestAssistantMessage = useMemo(() => {
@@ -1405,6 +1607,8 @@ const useKolibriChat = (): UseKolibriChatResult => {
     sendMessage,
     resetConversation,
     selectConversation,
+    replayMessageAudio,
+    transcribeMessageAudio,
     createConversation,
     refreshKnowledgeStatus,
   };
