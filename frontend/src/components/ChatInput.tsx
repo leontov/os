@@ -57,6 +57,15 @@ const ChatInput = ({
 
   const trimmedLength = useMemo(() => value.trim().length, [value]);
   const remaining = Math.max(0, MAX_LENGTH - value.length);
+  const readyAttachments = useMemo(
+    () => attachments.filter((attachment) => attachment.status === "ready"),
+    [attachments],
+  );
+  const hasUploadingAttachments = useMemo(
+    () => attachments.some((attachment) => attachment.status === "uploading" || attachment.status === "idle"),
+    [attachments],
+  );
+  const canSend = !isBusy && !hasUploadingAttachments && (trimmedLength > 0 || readyAttachments.length > 0);
 
   useEffect(() => {
     if (attachments.length === 0 && fileInputRef.current) {
@@ -100,14 +109,14 @@ const ChatInput = ({
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
-      if (!isBusy && (value.trim() || attachments.length)) {
+      if (canSend) {
         void onSubmit();
       }
     }
   };
 
   const handleSubmitClick = () => {
-    if (isBusy || (!value.trim() && attachments.length === 0)) {
+    if (!canSend) {
       return;
     }
     void onSubmit();
@@ -182,28 +191,102 @@ const ChatInput = ({
         />
         {attachments.length > 0 ? (
           <div className="space-y-3 rounded-xl border border-dashed border-border/70 bg-surface px-4 py-3 text-sm text-text-muted">
-            <p className="font-semibold text-text">Прикреплённые файлы</p>
-            <ul className="soft-scroll max-h-52 space-y-3 overflow-y-auto pr-1">
-              {attachments.map((attachment) => (
-                <li key={attachment.id} className="flex items-center justify-between gap-3">
-                  <div className="truncate">
-                    <p className="truncate text-text">{attachment.file.name}</p>
-                    <p className="text-xs">{formatFileSize(attachment.file.size)}</p>
-                  </div>
-                  {onRemoveAttachment ? (
-                    <button
-                      type="button"
-                      onClick={() => onRemoveAttachment(attachment.id)}
-                      className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border/70 text-text-muted transition-colors hover:text-text"
-                      disabled={isBusy}
-                    >
-                      <X className="h-4 w-4" />
-                      <span className="sr-only">Удалить вложение</span>
-                    </button>
-                  ) : null}
-                </li>
-              ))}
+            <div className="flex items-center justify-between">
+              <p className="font-semibold text-text">Прикреплённые файлы</p>
+              {hasUploadingAttachments ? (
+                <span className="text-xs text-text-muted">Подготовка вложений…</span>
+              ) : null}
+            </div>
+            <ul className="soft-scroll max-h-64 space-y-3 overflow-y-auto pr-1">
+              {attachments.map((attachment) => {
+                const isImagePreview = attachment.file.type.startsWith("image/");
+                const statusLabel =
+                  attachment.status === "ready"
+                    ? "Готово"
+                    : attachment.status === "error"
+                    ? "Ошибка"
+                    : "Загрузка";
+                const showMetadata = attachment.serialized?.metadata?.slice(0, 2) ?? [];
+                const analysisSummary = attachment.serialized?.analysis?.summary;
+                const previewText = attachment.serialized?.textPreview;
+
+                return (
+                  <li key={attachment.id} className="flex gap-3 rounded-xl border border-border/60 bg-surface-muted/60 p-3">
+                    <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-lg border border-border/60 bg-surface">
+                      {isImagePreview && attachment.previewUrl ? (
+                        <img
+                          src={attachment.previewUrl}
+                          alt={attachment.file.name}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <Paperclip className="h-5 w-5 text-text-muted" />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <div className="flex flex-wrap items-baseline justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="truncate font-semibold text-text">{attachment.file.name}</p>
+                          <p className="text-xs text-text-muted">{formatFileSize(attachment.file.size)}</p>
+                        </div>
+                        <span
+                          className={`shrink-0 rounded-full border px-2 py-0.5 text-[0.65rem] uppercase tracking-[0.3em] ${
+                            attachment.status === "ready"
+                              ? "border-emerald-400/60 bg-emerald-400/10 text-emerald-500"
+                              : attachment.status === "error"
+                              ? "border-accent/60 bg-accent/10 text-accent"
+                              : "border-brand/40 bg-brand/10 text-brand"
+                          }`}
+                        >
+                          {statusLabel}
+                        </span>
+                      </div>
+                      {attachment.status === "uploading" ? (
+                        <div className="h-1 overflow-hidden rounded-full bg-border/60">
+                          <div
+                            className="h-full rounded-full bg-brand transition-all"
+                            style={{ width: `${Math.min(attachment.progress, 100)}%` }}
+                          />
+                        </div>
+                      ) : null}
+                      {attachment.status === "error" && attachment.error ? (
+                        <p className="text-xs text-accent">{attachment.error}</p>
+                      ) : null}
+                      {showMetadata.length ? (
+                        <dl className="grid grid-cols-1 gap-x-4 gap-y-1 text-[0.7rem] text-text-muted sm:grid-cols-2">
+                          {showMetadata.map((entry) => (
+                            <div key={`${attachment.id}-${entry.label}`} className="flex flex-col">
+                              <dt className="uppercase tracking-[0.25em]">{entry.label}</dt>
+                              <dd className="truncate text-text">{entry.value}</dd>
+                            </div>
+                          ))}
+                        </dl>
+                      ) : null}
+                      {analysisSummary ? (
+                        <p className="text-xs text-text-muted">{analysisSummary}</p>
+                      ) : null}
+                      {previewText ? (
+                        <pre className="max-h-28 overflow-hidden rounded-lg bg-surface p-2 text-[0.7rem] text-text soft-scroll">
+                          {previewText}
+                        </pre>
+                      ) : null}
+                    </div>
+                    {onRemoveAttachment ? (
+                      <button
+                        type="button"
+                        onClick={() => onRemoveAttachment(attachment.id)}
+                        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border/70 text-text-muted transition-colors hover:text-text"
+                        disabled={isBusy}
+                      >
+                        <X className="h-4 w-4" />
+                        <span className="sr-only">Удалить вложение</span>
+                      </button>
+                    ) : null}
+                  </li>
+                );
+              })}
             </ul>
+            <p className="text-[0.7rem] text-text-muted">Максимальный размер одного файла — 15 МБ.</p>
           </div>
         ) : null}
         <p className="text-[0.7rem] text-text-muted">
@@ -252,7 +335,7 @@ const ChatInput = ({
               type="button"
               onClick={handleSubmitClick}
               className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-brand-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={isBusy || (!value.trim() && attachments.length === 0)}
+              disabled={!canSend}
             >
               <SendHorizontal className="h-4 w-4" />
               Отправить

@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { PendingAttachment, SerializedAttachment } from "../types/attachments";
+import type {
+  AttachmentAnalysis,
+  AttachmentAnalysisPage,
+  AttachmentMetadataEntry,
+  PendingAttachment,
+  SerializedAttachment,
+} from "../types/attachments";
 import type { ChatMessage } from "../types/chat";
 import type { KnowledgeSnippet } from "../types/knowledge";
 import { fetchKnowledgeStatus, searchKnowledge } from "./knowledge";
@@ -154,6 +160,13 @@ const DEFAULT_KERNEL_CAPABILITIES: KernelCapabilities = {
   laneWidth: 1,
 };
 
+const MAX_ATTACHMENT_SIZE_BYTES = 15 * 1024 * 1024;
+const ATTACHMENT_TEXT_PREVIEW_LIMIT = 1200;
+const ATTACHMENT_PAGE_CHAR_LIMIT = 1200;
+const MAX_ANALYSIS_PAGES = 5;
+
+type CachedAttachmentPayload = Omit<SerializedAttachment, "id">;
+
 const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
   if (buffer.byteLength === 0) {
     return "";
@@ -168,32 +181,322 @@ const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
   return btoa(binary);
 };
 
-const serializeAttachments = async (attachments: PendingAttachment[]): Promise<SerializedAttachment[]> => {
-  if (!attachments.length) {
-    return [];
+const TEXT_LIKE_EXTENSIONS = [
+  "txt",
+  "md",
+  "markdown",
+  "json",
+  "csv",
+  "ts",
+  "tsx",
+  "js",
+  "jsx",
+  "py",
+  "rs",
+  "go",
+  "java",
+  "kt",
+  "c",
+  "cpp",
+  "h",
+  "hpp",
+  "yaml",
+  "yml",
+  "toml",
+  "ini",
+  "log",
+  "sql",
+  "xml",
+];
+
+const formatByteSize = (bytes: number): string => {
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return "0 Б";
+  }
+  const units = ["Б", "КБ", "МБ", "ГБ", "ТБ"];
+  let size = bytes;
+  let unitIndex = 0;
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex += 1;
+  }
+  const precision = size >= 10 || unitIndex === 0 ? 0 : 1;
+  return `${size.toFixed(precision)} ${units[unitIndex] ?? "КБ"}`;
+};
+
+const bufferToHex = (buffer: ArrayBuffer): string => {
+  const bytes = new Uint8Array(buffer);
+  return Array.from(bytes)
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+};
+
+const computeSha256 = async (buffer: ArrayBuffer): Promise<string | undefined> => {
+  if (typeof window === "undefined" || !window.crypto?.subtle) {
+    return undefined;
+  }
+  try {
+    const digest = await window.crypto.subtle.digest("SHA-256", buffer);
+    return bufferToHex(digest);
+  } catch (error) {
+    console.warn("Не удалось вычислить SHA-256 для вложения", error);
+    return undefined;
+  }
+};
+
+const createAttachmentCacheKeyFromFile = (file: File): string => {
+  const type = file.type || "application/octet-stream";
+  const lastModified = Number.isFinite(file.lastModified) ? file.lastModified : 0;
+  return [file.name, file.size, lastModified, type].join(":");
+};
+
+const createAttachmentCacheKeyFromSerialized = (attachment: SerializedAttachment): string => {
+  const type = attachment.type || "application/octet-stream";
+  const lastModified = Number.isFinite(attachment.lastModified) ? attachment.lastModified : 0;
+  return [attachment.name, attachment.size, lastModified, type].join(":");
+};
+
+const cloneMetadataEntries = (entries?: AttachmentMetadataEntry[]): AttachmentMetadataEntry[] | undefined =>
+  entries?.map((entry) => ({ ...entry }));
+
+const cloneAnalysis = (analysis?: AttachmentAnalysis): AttachmentAnalysis | undefined => {
+  if (!analysis) {
+    return undefined;
+  }
+  return {
+    summary: analysis.summary,
+    pages: analysis.pages?.map((page) => ({ ...page })),
+  };
+};
+
+const toCachedPayload = (attachment: SerializedAttachment): CachedAttachmentPayload => ({
+  name: attachment.name,
+  size: attachment.size,
+  type: attachment.type,
+  lastModified: attachment.lastModified,
+  dataBase64: attachment.dataBase64,
+  textPreview: attachment.textPreview,
+  metadata: cloneMetadataEntries(attachment.metadata),
+  analysis: cloneAnalysis(attachment.analysis),
+  sha256: attachment.sha256,
+});
+
+const materializeAttachment = (payload: CachedAttachmentPayload, id: string): SerializedAttachment => ({
+  id,
+  name: payload.name,
+  size: payload.size,
+  type: payload.type,
+  lastModified: payload.lastModified,
+  dataBase64: payload.dataBase64,
+  textPreview: payload.textPreview,
+  metadata: cloneMetadataEntries(payload.metadata),
+  analysis: cloneAnalysis(payload.analysis),
+  sha256: payload.sha256,
+});
+
+const isLikelyTextFile = (file: File): boolean => {
+  if (file.type.startsWith("text/")) {
+    return true;
+  }
+  const name = file.name.toLowerCase();
+  return TEXT_LIKE_EXTENSIONS.some((extension) => name.endsWith(`.${extension}`));
+};
+
+const deriveTextPreview = (text: string): string | undefined => {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  const normalized = trimmed.replace(/\s+$/g, "");
+  if (normalized.length <= ATTACHMENT_TEXT_PREVIEW_LIMIT) {
+    return normalized;
+  }
+  return `${normalized.slice(0, ATTACHMENT_TEXT_PREVIEW_LIMIT - 1)}…`;
+};
+
+const buildTextAnalysis = (text: string): AttachmentAnalysis => {
+  const normalized = text.replace(/\r\n/g, "\n");
+  const lines = normalized ? normalized.split(/\n/) : [];
+  const words = normalized.trim() ? normalized.trim().split(/\s+/).length : 0;
+  const summary = `Строк: ${lines.length}, слова: ${words}.`;
+  const pages: AttachmentAnalysisPage[] = [];
+
+  const slices = normalized.split(/\f+/); // форм-фиды как индикатор страниц
+  if (slices.length > 1) {
+    slices.slice(0, MAX_ANALYSIS_PAGES).forEach((chunk, index) => {
+      const content = chunk.trim();
+      if (content) {
+        pages.push({
+          index: index + 1,
+          label: `Страница ${index + 1}`,
+          content: content.length > 320 ? `${content.slice(0, 317)}…` : content,
+        });
+      }
+    });
+  } else {
+    let offset = 0;
+    let pageIndex = 1;
+    while (offset < normalized.length && pageIndex <= MAX_ANALYSIS_PAGES) {
+      const chunk = normalized.slice(offset, offset + ATTACHMENT_PAGE_CHAR_LIMIT).trim();
+      if (chunk) {
+        pages.push({
+          index: pageIndex,
+          label: `Страница ${pageIndex}`,
+          content: chunk.length > 320 ? `${chunk.slice(0, 317)}…` : chunk,
+        });
+      }
+      offset += ATTACHMENT_PAGE_CHAR_LIMIT;
+      pageIndex += 1;
+    }
   }
 
-  const serialized = await Promise.all(
-    attachments.map(async ({ id, file }) => {
-      let dataBase64: string | undefined;
-      try {
-        const buffer = await file.arrayBuffer();
-        dataBase64 = arrayBufferToBase64(buffer);
-      } catch (error) {
-        console.error("Не удалось прочитать вложение", error);
-      }
+  return { summary, pages: pages.length ? pages : undefined };
+};
 
+const analyzeAttachmentBuffer = async (
+  file: File,
+  buffer: ArrayBuffer,
+  sha256?: string,
+): Promise<Pick<SerializedAttachment, "metadata" | "textPreview" | "analysis" | "sha256">> => {
+  const metadata: AttachmentMetadataEntry[] = [
+    { label: "Размер", value: formatByteSize(file.size) },
+    { label: "Тип", value: file.type || "Не указан" },
+  ];
+
+  if (Number.isFinite(file.lastModified) && file.lastModified > 0) {
+    metadata.push({
+      label: "Изменён",
+      value: new Date(file.lastModified).toLocaleString("ru-RU"),
+    });
+  }
+
+  if (sha256) {
+    metadata.push({ label: "SHA-256", value: sha256 });
+  }
+
+  if (isLikelyTextFile(file)) {
+    try {
+      const decoder = new TextDecoder("utf-8", { fatal: false, ignoreBOM: true });
+      const decoded = decoder
+        .decode(new Uint8Array(buffer))
+        .split("\u0000")
+        .join(" ");
+      const preview = deriveTextPreview(decoded);
+      const analysis = buildTextAnalysis(decoded);
       return {
-        id,
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        dataBase64,
-      } satisfies SerializedAttachment;
-    }),
-  );
+        metadata,
+        textPreview: preview,
+        analysis,
+        sha256,
+      };
+    } catch (error) {
+      console.warn("Не удалось декодировать текстовое вложение", error);
+      return { metadata, sha256 };
+    }
+  }
 
-  return serialized;
+  const lowerName = file.name.toLowerCase();
+  if (file.type === "application/pdf" || lowerName.endsWith(".pdf")) {
+    return {
+      metadata,
+      analysis: {
+        summary: "PDF-файл загружен. Для глубокого анализа требуется OCR.",
+        pages: [
+          {
+            index: 1,
+            label: "Страница 1",
+            content: "OCR ещё не выполнен: подключите службу распознавания, чтобы получить расшифровку.",
+          },
+        ],
+      },
+      sha256,
+    };
+  }
+
+  if (file.type.startsWith("image/")) {
+    return {
+      metadata,
+      analysis: {
+        summary: "Изображение готово для предпросмотра. OCR недоступен в офлайн-режиме.",
+        pages: [
+          {
+            index: 1,
+            label: "Предупреждение",
+            content: "Поверхностный OCR не выполняется локально. Изображение будет передано ядру без расшифровки текста.",
+          },
+        ],
+      },
+      sha256,
+    };
+  }
+
+  return {
+    metadata,
+    analysis: {
+      summary: "Автоматический анализ для этого типа файла недоступен. Вложение будет передано как есть.",
+    },
+    sha256,
+  };
+};
+
+const readFileBufferWithProgress = async (
+  file: File,
+  onProgress: (loaded: number, total: number) => void,
+): Promise<ArrayBuffer> => {
+  const total = file.size || 1;
+
+  if (typeof file.stream !== "function") {
+    const buffer = await file.arrayBuffer();
+    onProgress(total, total);
+    return buffer;
+  }
+
+  const reader = file.stream().getReader();
+  const chunks: Uint8Array[] = [];
+  let loaded = 0;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      if (value) {
+        chunks.push(value);
+        loaded += value.length;
+        onProgress(Math.min(loaded, total), total);
+      }
+    }
+  } finally {
+    if (typeof reader.releaseLock === "function") {
+      reader.releaseLock();
+    }
+  }
+
+  const buffer = new Uint8Array(loaded);
+  let offset = 0;
+  for (const chunk of chunks) {
+    buffer.set(chunk, offset);
+    offset += chunk.length;
+  }
+
+  onProgress(total, total);
+  return buffer.buffer;
+};
+
+const collectPreparedAttachments = (attachments: PendingAttachment[]): SerializedAttachment[] => {
+  const ready = attachments.filter((item) => item.status === "ready" && item.serialized);
+  if (!ready.length) {
+    return [];
+  }
+  return ready.map((item) => {
+    const serialized = item.serialized!;
+    return {
+      ...serialized,
+      metadata: cloneMetadataEntries(serialized.metadata),
+      analysis: cloneAnalysis(serialized.analysis),
+    } satisfies SerializedAttachment;
+  });
 };
 
 const formatPromptWithContext = (question: string, context: KnowledgeSnippet[]): string => {
@@ -270,6 +573,63 @@ const parsePreferences = (value: unknown): ConversationPreferences => {
   };
 };
 
+const toAttachmentMetadataEntry = (value: unknown, index: number): AttachmentMetadataEntry | null => {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const raw = value as Record<string, unknown>;
+  const label = typeof raw.label === "string" && raw.label.trim() ? raw.label.trim() : `Поле ${index + 1}`;
+  const entryValue =
+    typeof raw.value === "string"
+      ? raw.value.trim()
+      : raw.value !== undefined && raw.value !== null
+      ? String(raw.value)
+      : "";
+  if (!entryValue) {
+    return null;
+  }
+  return { label, value: entryValue };
+};
+
+const toAttachmentAnalysisPage = (value: unknown, index: number): AttachmentAnalysisPage | null => {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const raw = value as Record<string, unknown>;
+  const content = typeof raw.content === "string" ? raw.content.trim() : "";
+  if (!content) {
+    return null;
+  }
+  const label = typeof raw.label === "string" && raw.label.trim() ? raw.label.trim() : `Страница ${index + 1}`;
+  const parsedIndex = Number(raw.index);
+  const pageIndex = Number.isFinite(parsedIndex) ? Math.max(1, Math.floor(parsedIndex)) : index + 1;
+  return { index: pageIndex, label, content };
+};
+
+const toAttachmentAnalysis = (value: unknown): AttachmentAnalysis | undefined => {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+  const raw = value as Record<string, unknown>;
+  const summary = typeof raw.summary === "string" && raw.summary.trim() ? raw.summary.trim() : "";
+  let pages: AttachmentAnalysisPage[] | undefined;
+  if (Array.isArray(raw.pages)) {
+    pages = raw.pages
+      .map((item, index) => toAttachmentAnalysisPage(item, index))
+      .filter((item): item is AttachmentAnalysisPage => Boolean(item));
+    if (pages.length > MAX_ANALYSIS_PAGES) {
+      pages = pages.slice(0, MAX_ANALYSIS_PAGES);
+    }
+    if (!pages.length) {
+      pages = undefined;
+    }
+  }
+  if (!summary && !pages?.length) {
+    return undefined;
+  }
+  return { summary: summary || "Анализ недоступен.", pages };
+};
+
 const toSerializedAttachment = (value: unknown, index: number): SerializedAttachment | null => {
   if (!value || typeof value !== "object") {
     return null;
@@ -280,7 +640,21 @@ const toSerializedAttachment = (value: unknown, index: number): SerializedAttach
   const size = typeof raw.size === "number" ? raw.size : Number(raw.size) || 0;
   const type = typeof raw.type === "string" && raw.type ? raw.type : "application/octet-stream";
   const dataBase64 = typeof raw.dataBase64 === "string" ? raw.dataBase64 : undefined;
-  return { id, name, size, type, dataBase64 };
+  const lastModifiedValue = typeof raw.lastModified === "number" ? raw.lastModified : Number(raw.lastModified);
+  const lastModified = Number.isFinite(lastModifiedValue) ? lastModifiedValue : undefined;
+  const textPreview = typeof raw.textPreview === "string" ? raw.textPreview : undefined;
+  const sha256 = typeof raw.sha256 === "string" && raw.sha256 ? raw.sha256 : undefined;
+  let metadata: AttachmentMetadataEntry[] | undefined;
+  if (Array.isArray(raw.metadata)) {
+    metadata = raw.metadata
+      .map((item, metadataIndex) => toAttachmentMetadataEntry(item, metadataIndex))
+      .filter((item): item is AttachmentMetadataEntry => Boolean(item));
+    if (!metadata.length) {
+      metadata = undefined;
+    }
+  }
+  const analysis = toAttachmentAnalysis(raw.analysis);
+  return { id, name, size, type, dataBase64, lastModified, textPreview, metadata, analysis, sha256 };
 };
 
 const toKnowledgeSnippet = (value: unknown, index: number): KnowledgeSnippet | null => {
@@ -787,10 +1161,39 @@ const useKolibriChat = (): UseKolibriChatResult => {
 
   const knowledgeSearchAbortRef = useRef<AbortController | null>(null);
   const conversationsRef = useRef<ConversationRecord[]>(initialConversations);
+  const attachmentsRef = useRef<PendingAttachment[]>([]);
+  const attachmentCacheRef = useRef<Map<string, Map<string, CachedAttachmentPayload>>>(new Map());
+
+  const disposeAttachments = useCallback((items: PendingAttachment[]) => {
+    for (const item of items) {
+      if (item.previewUrl) {
+        URL.revokeObjectURL(item.previewUrl);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     conversationsRef.current = conversations;
   }, [conversations]);
+
+  useEffect(() => {
+    const record = conversationsRef.current.find((item) => item.id === conversationId);
+    if (record) {
+      seedAttachmentCache(record);
+    }
+  }, [conversationId, seedAttachmentCache]);
+
+  useEffect(() => {
+    attachmentsRef.current = attachments;
+  }, [attachments]);
+
+  useEffect(
+    () => () => {
+      disposeAttachments(attachmentsRef.current);
+      attachmentsRef.current = [];
+    },
+    [disposeAttachments],
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -804,39 +1207,222 @@ const useKolibriChat = (): UseKolibriChatResult => {
     }
   }, [conversations]);
 
+  const ensureConversationCache = useCallback(
+    (conversationKey: string): Map<string, CachedAttachmentPayload> => {
+      let cache = attachmentCacheRef.current.get(conversationKey);
+      if (!cache) {
+        cache = new Map();
+        attachmentCacheRef.current.set(conversationKey, cache);
+      }
+      return cache;
+    },
+    [],
+  );
+
+  const seedAttachmentCache = useCallback(
+    (conversation: ConversationRecord) => {
+      const cache = ensureConversationCache(conversation.id);
+      if (cache.size) {
+        return;
+      }
+      for (const message of conversation.messages) {
+        if (!message.attachments?.length) {
+          continue;
+        }
+        for (const attachment of message.attachments) {
+          const key = createAttachmentCacheKeyFromSerialized(attachment);
+          cache.set(key, toCachedPayload(attachment));
+        }
+      }
+    },
+    [ensureConversationCache],
+  );
+
+  const updateAttachmentState = useCallback(
+    (id: string, mutator: (current: PendingAttachment) => PendingAttachment) => {
+      setAttachments((prev) => {
+        const index = prev.findIndex((item) => item.id === id);
+        if (index === -1) {
+          return prev;
+        }
+        const current = prev[index]!;
+        const nextItem = mutator(current);
+        if (nextItem === current) {
+          return prev;
+        }
+        const next = [...prev];
+        next[index] = nextItem;
+        return next;
+      });
+    },
+    [],
+  );
+
+  const prepareAttachment = useCallback(
+    async (conversationKey: string, attachmentId: string, file: File) => {
+      const cache = ensureConversationCache(conversationKey);
+      const cacheKey = createAttachmentCacheKeyFromFile(file);
+
+      const cached = cache.get(cacheKey);
+      if (cached) {
+        const materialized = materializeAttachment(cached, attachmentId);
+        updateAttachmentState(attachmentId, (current) => ({
+          ...current,
+          status: "ready",
+          progress: 100,
+          error: undefined,
+          serialized: materialized,
+        }));
+        return;
+      }
+
+      if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
+        updateAttachmentState(attachmentId, (current) => ({
+          ...current,
+          status: "error",
+          progress: 0,
+          error: `Размер превышает ${formatByteSize(MAX_ATTACHMENT_SIZE_BYTES)}.`,
+          serialized: undefined,
+        }));
+        return;
+      }
+
+      updateAttachmentState(attachmentId, (current) => ({
+        ...current,
+        status: "uploading",
+        progress: 0,
+        error: undefined,
+      }));
+
+      try {
+        const buffer = await readFileBufferWithProgress(file, (loaded, total) => {
+          const percent = total ? Math.round((loaded / total) * 100) : 100;
+          updateAttachmentState(attachmentId, (current) => {
+            if (current.status !== "uploading") {
+              return current;
+            }
+            const nextProgress = Math.min(percent, 100);
+            if (current.progress === nextProgress) {
+              return current;
+            }
+            return { ...current, progress: nextProgress };
+          });
+        });
+
+        if (!attachmentsRef.current.some((item) => item.id === attachmentId)) {
+          return;
+        }
+
+        const dataBase64 = arrayBufferToBase64(buffer);
+        const sha256 = await computeSha256(buffer);
+        const analysis = await analyzeAttachmentBuffer(file, buffer, sha256);
+
+        const serialized: SerializedAttachment = {
+          id: attachmentId,
+          name: file.name,
+          size: file.size,
+          type: file.type || "application/octet-stream",
+          lastModified: Number.isFinite(file.lastModified) ? file.lastModified : undefined,
+          dataBase64,
+          textPreview: analysis.textPreview,
+          metadata: analysis.metadata,
+          analysis: analysis.analysis,
+          sha256: analysis.sha256 ?? sha256,
+        };
+
+        cache.set(cacheKey, toCachedPayload(serialized));
+
+        updateAttachmentState(attachmentId, (current) => ({
+          ...current,
+          status: "ready",
+          progress: 100,
+          error: undefined,
+          serialized,
+        }));
+      } catch (error) {
+        console.error("Не удалось подготовить вложение", error);
+        updateAttachmentState(attachmentId, (current) => ({
+          ...current,
+          status: "error",
+          progress: 0,
+          error:
+            error instanceof Error && error.message
+              ? error.message
+              : "Не удалось подготовить вложение.",
+          serialized: undefined,
+        }));
+      }
+    },
+    [attachmentsRef, ensureConversationCache, updateAttachmentState],
+  );
+
   const beginNewConversation = useCallback((): ConversationRecord => {
     const record = createConversationRecord();
+    attachmentCacheRef.current.set(record.id, new Map());
     setConversations((prev) => [record, ...prev]);
     setConversationId(record.id);
     setConversationTitle(record.title);
     setMessages([]);
     setDraft("");
     setMode(DEFAULT_MODE_VALUE);
-    setAttachments([]);
+    setAttachments((prev) => {
+      if (prev.length) {
+        disposeAttachments(prev);
+      }
+      return [];
+    });
     setPreferences(DEFAULT_PREFERENCES);
     return record;
-  }, []);
+  }, [disposeAttachments]);
 
-  const attachFiles = useCallback((files: File[]) => {
-    if (!files.length) {
-      return;
-    }
-    setAttachments((prev) => [
-      ...prev,
-      ...files.map((file) => ({
+  const attachFiles = useCallback(
+    (files: File[]) => {
+      if (!files.length) {
+        return;
+      }
+      const conversationKey = conversationId;
+      ensureConversationCache(conversationKey);
+      const prepared = files.map((file) => ({
         id: crypto.randomUUID(),
         file,
-      })),
-    ]);
-  }, []);
+        previewUrl: URL.createObjectURL(file),
+        progress: 0,
+        status: "idle" as const,
+      }));
+      setAttachments((prev) => [...prev, ...prepared]);
+      for (const attachment of prepared) {
+        void prepareAttachment(conversationKey, attachment.id, attachment.file);
+      }
+    },
+    [conversationId, ensureConversationCache, prepareAttachment],
+  );
 
-  const removeAttachment = useCallback((id: string) => {
-    setAttachments((prev) => prev.filter((item) => item.id !== id));
-  }, []);
+  const removeAttachment = useCallback(
+    (id: string) => {
+      setAttachments((prev) => {
+        const index = prev.findIndex((item) => item.id === id);
+        if (index === -1) {
+          return prev;
+        }
+        const removed = prev[index]!;
+        if (removed.previewUrl) {
+          URL.revokeObjectURL(removed.previewUrl);
+        }
+        return [...prev.slice(0, index), ...prev.slice(index + 1)];
+      });
+    },
+    [],
+  );
 
   const clearAttachments = useCallback(() => {
-    setAttachments([]);
-  }, []);
+    setAttachments((prev) => {
+      if (!prev.length) {
+        return prev;
+      }
+      disposeAttachments(prev);
+      return [];
+    });
+  }, [disposeAttachments]);
 
   const updateKernelControls = useCallback((controls: Partial<KernelControlsState>) => {
     setKernelControlsState((prev) => ({
@@ -1229,12 +1815,10 @@ const useKolibriChat = (): UseKolibriChatResult => {
     }
 
     const pendingAttachments = attachments;
-    let serializedAttachments: SerializedAttachment[] = [];
-    try {
-      serializedAttachments = await serializeAttachments(pendingAttachments);
-    } catch (error) {
-      console.error("Не удалось сериализовать вложения", error);
+    if (pendingAttachments.some((item) => item.status === "uploading" || item.status === "idle")) {
+      return;
     }
+    const serializedAttachments = collectPreparedAttachments(pendingAttachments);
 
     const timestamp = nowPair();
     const userMessage: ChatMessage = {
@@ -1325,15 +1909,21 @@ const useKolibriChat = (): UseKolibriChatResult => {
       if (!record) {
         return;
       }
+      seedAttachmentCache(record);
       setConversationId(record.id);
       setConversationTitle(record.title);
       setMessages(record.messages);
       setDraft(record.draft);
       setMode(record.mode);
-      setAttachments([]);
+      setAttachments((prev) => {
+        if (prev.length) {
+          disposeAttachments(prev);
+        }
+        return [];
+      });
       setPreferences(record.preferences ?? DEFAULT_PREFERENCES);
     },
-    [],
+    [disposeAttachments, seedAttachmentCache],
   );
 
   const latestAssistantMessage = useMemo(() => {

@@ -138,23 +138,91 @@ const ChatMessage = ({ message, latestUserMessage }: ChatMessageProps) => {
           )}
 
           {message.attachments?.length ? (
-            <div className="mt-4 space-y-2">
-              {message.attachments.map((attachment) => (
-                <div
-                  key={attachment.id}
-                  className={`flex items-center gap-3 rounded-2xl border px-3 py-2 text-[0.8rem] ${
-                    isUser
-                      ? "border-white/25 bg-white/10 text-white/90"
-                      : "border-border-strong bg-background-card/80 text-text-secondary"
-                  }`}
-                >
-                  <Paperclip className={`h-3.5 w-3.5 ${isUser ? "text-white" : "text-primary"}`} />
-                  <span className="truncate" title={attachment.name}>
-                    {attachment.name}
-                  </span>
-                  <span className="ml-auto whitespace-nowrap">{formatAttachmentSize(attachment.size)}</span>
-                </div>
-              ))}
+            <div className="mt-4 space-y-3">
+              {message.attachments.map((attachment) => {
+                const isImage = attachment.type.startsWith("image/");
+                const imageSrc =
+                  isImage && attachment.dataBase64
+                    ? `data:${attachment.type};base64,${attachment.dataBase64}`
+                    : null;
+                const metadata = attachment.metadata ?? [];
+                const analysis = attachment.analysis;
+                const pages = analysis?.pages ?? [];
+                const textPreview = attachment.textPreview;
+
+                return (
+                  <article
+                    key={attachment.id}
+                    className={`space-y-3 rounded-2xl border px-4 py-3 text-[0.85rem] ${
+                      isUser
+                        ? "border-white/25 bg-white/10 text-white/90"
+                        : "border-border-strong bg-background-card/80 text-text-secondary"
+                    }`}
+                  >
+                    <header className="flex flex-wrap items-center gap-3">
+                      <span className="inline-flex items-center gap-2 truncate font-semibold text-text-primary">
+                        <Paperclip className={`h-4 w-4 ${isUser ? "text-white" : "text-primary"}`} />
+                        <span className="truncate" title={attachment.name}>
+                          {attachment.name}
+                        </span>
+                      </span>
+                      <span className="ml-auto shrink-0 rounded-full border border-border/60 px-2 py-0.5 text-[0.7rem] uppercase tracking-[0.3em]">
+                        {formatAttachmentSize(attachment.size)}
+                      </span>
+                    </header>
+                    {imageSrc ? (
+                      <div className="overflow-hidden rounded-xl border border-border/60">
+                        <img src={imageSrc} alt={attachment.name} className="max-h-64 w-full object-contain" />
+                      </div>
+                    ) : null}
+                    {metadata.length ? (
+                      <dl
+                        className={`grid grid-cols-1 gap-x-4 gap-y-2 text-[0.7rem] ${
+                          isUser ? "text-white/80" : "text-text-secondary"
+                        } sm:grid-cols-2`}
+                      >
+                        {metadata.map((entry) => (
+                          <div key={`${attachment.id}-${entry.label}`} className="flex flex-col">
+                            <dt className="uppercase tracking-[0.25em] opacity-70">{entry.label}</dt>
+                            <dd className="truncate text-[0.75rem]">{entry.value}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    ) : null}
+                    {analysis?.summary ? (
+                      <p className={`text-[0.75rem] ${isUser ? "text-white/80" : "text-text-secondary"}`}>
+                        {analysis.summary}
+                      </p>
+                    ) : null}
+                    {pages.length ? (
+                      <div className="space-y-2 rounded-xl border border-dashed border-border/60 bg-background-input/70 p-3 text-[0.75rem]">
+                        <p className="text-[0.7rem] font-semibold uppercase tracking-[0.3em] text-text-muted">
+                          Поверхностный анализ
+                        </p>
+                        {pages.map((page) => (
+                          <div key={`${attachment.id}-page-${page.index}`} className="space-y-1">
+                            <p className="text-[0.7rem] font-semibold uppercase tracking-[0.25em] text-primary/80">
+                              {page.label}
+                            </p>
+                            <p className="whitespace-pre-line text-[0.75rem] leading-relaxed">
+                              {page.content}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                    {textPreview ? (
+                      <pre
+                        className={`soft-scroll max-h-64 whitespace-pre-wrap rounded-xl border border-border/50 bg-background-input/70 p-3 text-[0.75rem] leading-relaxed ${
+                          isUser ? "text-white/90" : "text-text-primary"
+                        }`}
+                      >
+                        {textPreview}
+                      </pre>
+                    ) : null}
+                  </article>
+                );
+              })}
             </div>
           ) : null}
 
