@@ -36,6 +36,11 @@ vi.mock("./core/knowledge", () => ({
   searchKnowledge: searchMock,
 }));
 
+vi.mock("./core/recommendations", () => ({
+  fetchPopularGpts: vi.fn(async () => []),
+  fetchWhatsNewHighlights: vi.fn(async () => []),
+}));
+
 describe("App contextual retrieval", () => {
   let consoleErrorSpy: MockInstance<Parameters<typeof console.error>, ReturnType<typeof console.error>>;
 
@@ -63,6 +68,7 @@ describe("App contextual retrieval", () => {
 
     await act(async () => {
       render(<App />);
+      await Promise.resolve();
     });
 
     const textarea = screen.getByPlaceholderText("Сообщение для Колибри");
@@ -79,7 +85,7 @@ describe("App contextual retrieval", () => {
     expect(prompt).toContain("Описание Kolibri");
     expect(mode).toBe(MODE_OPTIONS[0]?.value ?? "neutral");
 
-    await waitFor(() => expect(screen.getByText("Ответ с контекстом")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByText("Ответ с контекстом").length).toBeGreaterThan(0));
 
     const toggle = screen.getByRole("button", { name: "Показать контекст (1)" });
     await userEvent.click(toggle);
@@ -93,6 +99,7 @@ describe("App contextual retrieval", () => {
 
     await act(async () => {
       render(<App />);
+      await Promise.resolve();
     });
 
     const textarea = screen.getByPlaceholderText("Сообщение для Колибри");
@@ -107,7 +114,7 @@ describe("App contextual retrieval", () => {
     const [prompt] = askMock.mock.calls[0] ?? [];
     expect(prompt).toBe("Где хранится знание?");
 
-    await waitFor(() => expect(screen.getByText("Ответ без контекста")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByText("Ответ без контекста").length).toBeGreaterThan(0));
 
     expect(screen.getByText(/Контекст недоступен:/)).toHaveTextContent("модуль памяти недоступен");
     expect(screen.queryByRole("button", { name: /Контекст/ })).not.toBeInTheDocument();

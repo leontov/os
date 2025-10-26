@@ -17,7 +17,8 @@ import { MODE_OPTIONS, findModeLabel } from "./core/modes";
 import { usePersonaTheme } from "./core/usePersonaTheme";
 import useInspectorSession from "./core/useInspectorSession";
 import type { ModelId } from "./core/models";
-import type { ChatMessage } from "./types/chat";
+import { fetchPopularGpts, fetchWhatsNewHighlights } from "./core/recommendations";
+import type { PopularGptRecommendation, WhatsNewHighlight } from "./types/recommendations";
 
 type PanelKey =
   | "knowledge"
@@ -106,6 +107,10 @@ const App = () => {
     degradedReason: null,
   });
   const { activePersona } = usePersonaTheme();
+  const [popularGpts, setPopularGpts] = useState<PopularGptRecommendation[]>([]);
+  const [whatsNewHighlights, setWhatsNewHighlights] = useState<WhatsNewHighlight[]>([]);
+  const [popularLoading, setPopularLoading] = useState(true);
+  const [whatsNewLoading, setWhatsNewLoading] = useState(true);
 
   const modeLabel = useMemo(() => findModeLabel(mode), [mode]);
 
@@ -254,6 +259,59 @@ const App = () => {
     logInspectorAction("conversation.history.clear", "Локальная история бесед очищена");
     await clearConversationHistory();
   }, [clearConversationHistory, logInspectorAction]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    setPopularLoading(true);
+    setWhatsNewLoading(true);
+
+    void fetchPopularGpts()
+      .then((items) => {
+        if (!isMounted) {
+          return;
+        }
+        setPopularGpts(items);
+      })
+      .finally(() => {
+        if (isMounted) {
+          setPopularLoading(false);
+        }
+      });
+
+    void fetchWhatsNewHighlights()
+      .then((items) => {
+        if (!isMounted) {
+          return;
+        }
+        setWhatsNewHighlights(items);
+      })
+      .finally(() => {
+        if (isMounted) {
+          setWhatsNewLoading(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const recentConversations = useMemo(() => {
+    const getTimestamp = (value?: string) => {
+      if (!value) {
+        return 0;
+      }
+      const parsed = Date.parse(value);
+      return Number.isNaN(parsed) ? 0 : parsed;
+    };
+
+    return conversationSummaries
+      .filter((conversation) => conversation.id !== conversationId)
+      .slice()
+      .sort((a, b) => getTimestamp(b.updatedAtIso ?? b.createdAtIso) - getTimestamp(a.updatedAtIso ?? a.createdAtIso))
+      .slice(0, 6);
+  }, [conversationSummaries, conversationId]);
 
   const handleExportConversation = useCallback(() => {
     const markdown = exportConversationAsMarkdown();
@@ -437,6 +495,8 @@ const App = () => {
     </div>
   );
 
+  const attachmentCtaDisabled = isProcessing || !bridgeReady;
+
   useEffect(() => {
     if (typeof window === "undefined") {
       return undefined;
@@ -542,7 +602,19 @@ const App = () => {
           modelId={modelId}
           modelOptions={MODEL_OPTIONS}
           metrics={metrics}
-          emptyState={<WelcomeScreen onSuggestionSelect={setDraft} />}
+          emptyState={
+            <WelcomeScreen
+              onSuggestionSelect={handleSuggestionSelect}
+              onConversationSelect={handleSelectConversation}
+              onAttachFiles={handleAttachFiles}
+              recentConversations={recentConversations}
+              popularGpts={popularGpts}
+              whatsNew={whatsNewHighlights}
+              isPopularLoading={popularLoading}
+              isWhatsNewLoading={whatsNewLoading}
+              isAttachmentDisabled={attachmentCtaDisabled}
+            />
+          }
           composer={composer}
           onConversationTitleChange={handleRenameConversation}
           onConversationCreate={handleCreateConversation}

@@ -549,6 +549,41 @@ exports[`App layout snapshots > renders chat with history 1`] = `
                 />
               </svg>
             </button>
+            <button
+              aria-label="Настройки беседы"
+              class="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border/70 text-text-muted transition-colors hover:text-text"
+              type="button"
+            >
+              <svg
+                class="lucide lucide-settings2 h-4 w-4"
+                fill="none"
+                height="24"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M20 7h-9"
+                />
+                <path
+                  d="M14 17H5"
+                />
+                <circle
+                  cx="17"
+                  cy="17"
+                  r="3"
+                />
+                <circle
+                  cx="7"
+                  cy="7"
+                  r="3"
+                />
+              </svg>
+            </button>
           </div>
         </div>
         <div
@@ -618,221 +653,6 @@ exports[`App layout snapshots > renders chat with history 1`] = `
           </div>
         </div>
       </header>
-      <div
-        class="border-b border-border/60 bg-surface/70"
-      >
-        <div
-          class="mx-auto w-full max-w-4xl px-4 py-4 sm:px-6 lg:px-8"
-        >
-          <section
-            class="glass-panel flex flex-col gap-4 p-4 md:flex-row md:items-center md:justify-between"
-          >
-            <div
-              class="flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.3em] text-text-secondary"
-            >
-              <span
-                class="pill-badge"
-              >
-                Параметры беседы
-              </span>
-              <button
-                class="flex items-center gap-2 rounded-xl border px-3 py-1 text-[0.7rem] font-semibold transition-colors border-primary/60 bg-primary/15 text-primary"
-                type="button"
-              >
-                <svg
-                  class="lucide lucide-sparkles h-3.5 w-3.5"
-                  fill="none"
-                  height="24"
-                  stroke="currentColor"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  viewBox="0 0 24 24"
-                  width="24"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"
-                  />
-                  <path
-                    d="M20 3v4"
-                  />
-                  <path
-                    d="M22 5h-4"
-                  />
-                  <path
-                    d="M4 17v2"
-                  />
-                  <path
-                    d="M5 18H3"
-                  />
-                </svg>
-                Обучение 
-                on
-              </button>
-              <button
-                class="flex items-center gap-2 rounded-xl border px-3 py-1 text-[0.7rem] font-semibold transition-colors border-border-strong bg-background-input/80 text-text-secondary hover:text-text-primary"
-                type="button"
-              >
-                <svg
-                  class="lucide lucide-lock h-3.5 w-3.5"
-                  fill="none"
-                  height="24"
-                  stroke="currentColor"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  viewBox="0 0 24 24"
-                  width="24"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <rect
-                    height="11"
-                    rx="2"
-                    ry="2"
-                    width="18"
-                    x="3"
-                    y="11"
-                  />
-                  <path
-                    d="M7 11V7a5 5 0 0 1 10 0v4"
-                  />
-                </svg>
-                Приватно 
-                off
-              </button>
-              <button
-                class="flex items-center gap-2 rounded-xl border px-3 py-1 text-[0.7rem] font-semibold transition-colors border-emerald-500/60 bg-emerald-500/10 text-emerald-500"
-                type="button"
-              >
-                <svg
-                  class="lucide lucide-earth h-3.5 w-3.5"
-                  fill="none"
-                  height="24"
-                  stroke="currentColor"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  viewBox="0 0 24 24"
-                  width="24"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    d="M21.54 15H17a2 2 0 0 0-2 2v4.54"
-                  />
-                  <path
-                    d="M7 3.34V5a3 3 0 0 0 3 3a2 2 0 0 1 2 2c0 1.1.9 2 2 2a2 2 0 0 0 2-2c0-1.1.9-2 2-2h3.17"
-                  />
-                  <path
-                    d="M11 21.95V18a2 2 0 0 0-2-2a2 2 0 0 1-2-2v-1a2 2 0 0 0-2-2H2.05"
-                  />
-                  <circle
-                    cx="12"
-                    cy="12"
-                    r="10"
-                  />
-                </svg>
-                Онлайн 
-                on
-              </button>
-              <button
-                class="flex items-center gap-2 rounded-xl border px-3 py-1 text-[0.7rem] font-semibold transition-colors border-sky-500/60 bg-sky-500/10 text-sky-500"
-                type="button"
-              >
-                <svg
-                  class="lucide lucide-shield-check h-3.5 w-3.5"
-                  fill="none"
-                  height="24"
-                  stroke="currentColor"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  viewBox="0 0 24 24"
-                  width="24"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"
-                  />
-                  <path
-                    d="m9 12 2 2 4-4"
-                  />
-                </svg>
-                Тон 
-                safe
-              </button>
-            </div>
-            <div
-              class="mt-2 flex flex-wrap items-center gap-3 md:mt-0"
-            >
-              <label
-                class="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-text-secondary"
-              >
-                <svg
-                  class="lucide lucide-switch-camera h-4 w-4 text-primary"
-                  fill="none"
-                  height="24"
-                  stroke="currentColor"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  viewBox="0 0 24 24"
-                  width="24"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    d="M11 19H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5"
-                  />
-                  <path
-                    d="M13 5h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-5"
-                  />
-                  <circle
-                    cx="12"
-                    cy="12"
-                    r="3"
-                  />
-                  <path
-                    d="m18 22-3-3 3-3"
-                  />
-                  <path
-                    d="m6 2 3 3-3 3"
-                  />
-                </svg>
-                Профиль
-                <select
-                  class="rounded-xl border border-border-strong bg-background-input/80 px-3 py-1 text-[0.75rem] font-semibold text-text-primary focus:border-primary focus:outline-none"
-                >
-                  <option
-                    value="balanced"
-                  >
-                    Сбалансированный
-                  </option>
-                  <option
-                    value="concise"
-                  >
-                    Краткий
-                  </option>
-                  <option
-                    value="detailed"
-                  >
-                    Подробный
-                  </option>
-                  <option
-                    value="technical"
-                  >
-                    Технический
-                  </option>
-                  <option
-                    value="friendly"
-                  >
-                    Дружелюбный
-                  </option>
-                </select>
-              </label>
-            </div>
-          </section>
-        </div>
-      </div>
       <main
         class="relative flex-1 overflow-hidden"
       >
@@ -1016,42 +836,6 @@ exports[`App layout snapshots > renders chat with history 1`] = `
                   <div
                     class="ml-auto flex items-center gap-1 rounded-full border border-border/60 bg-surface px-2 py-1 text-text-muted"
                   >
-                    <button
-                      aria-pressed="true"
-                      class="flex items-center gap-1 rounded-full px-2 py-1 transition-colors text-primary"
-                      type="button"
-                    >
-                      <svg
-                        class="lucide lucide-sparkles h-3.5 w-3.5"
-                        fill="none"
-                        height="24"
-                        stroke="currentColor"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        viewBox="0 0 24 24"
-                        width="24"
-                        xmlns="http://www.w3.org/2000/svg"
-                      >
-                        <path
-                          d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"
-                        />
-                        <path
-                          d="M20 3v4"
-                        />
-                        <path
-                          d="M22 5h-4"
-                        />
-                        <path
-                          d="M4 17v2"
-                        />
-                        <path
-                          d="M5 18H3"
-                        />
-                      </svg>
-                      Memory 
-                      on
-                    </button>
                     <button
                       aria-pressed="false"
                       class="flex items-center gap-1 rounded-full px-2 py-1 transition-colors hover:text-primary"
@@ -2270,6 +2054,41 @@ exports[`App layout snapshots > renders empty chat state 1`] = `
                 />
               </svg>
             </button>
+            <button
+              aria-label="Настройки беседы"
+              class="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border/70 text-text-muted transition-colors hover:text-text"
+              type="button"
+            >
+              <svg
+                class="lucide lucide-settings2 h-4 w-4"
+                fill="none"
+                height="24"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M20 7h-9"
+                />
+                <path
+                  d="M14 17H5"
+                />
+                <circle
+                  cx="17"
+                  cy="17"
+                  r="3"
+                />
+                <circle
+                  cx="7"
+                  cy="7"
+                  r="3"
+                />
+              </svg>
+            </button>
           </div>
         </div>
         <div
@@ -2339,221 +2158,6 @@ exports[`App layout snapshots > renders empty chat state 1`] = `
           </div>
         </div>
       </header>
-      <div
-        class="border-b border-border/60 bg-surface/70"
-      >
-        <div
-          class="mx-auto w-full max-w-4xl px-4 py-4 sm:px-6 lg:px-8"
-        >
-          <section
-            class="glass-panel flex flex-col gap-4 p-4 md:flex-row md:items-center md:justify-between"
-          >
-            <div
-              class="flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.3em] text-text-secondary"
-            >
-              <span
-                class="pill-badge"
-              >
-                Параметры беседы
-              </span>
-              <button
-                class="flex items-center gap-2 rounded-xl border px-3 py-1 text-[0.7rem] font-semibold transition-colors border-primary/60 bg-primary/15 text-primary"
-                type="button"
-              >
-                <svg
-                  class="lucide lucide-sparkles h-3.5 w-3.5"
-                  fill="none"
-                  height="24"
-                  stroke="currentColor"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  viewBox="0 0 24 24"
-                  width="24"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"
-                  />
-                  <path
-                    d="M20 3v4"
-                  />
-                  <path
-                    d="M22 5h-4"
-                  />
-                  <path
-                    d="M4 17v2"
-                  />
-                  <path
-                    d="M5 18H3"
-                  />
-                </svg>
-                Обучение 
-                on
-              </button>
-              <button
-                class="flex items-center gap-2 rounded-xl border px-3 py-1 text-[0.7rem] font-semibold transition-colors border-border-strong bg-background-input/80 text-text-secondary hover:text-text-primary"
-                type="button"
-              >
-                <svg
-                  class="lucide lucide-lock h-3.5 w-3.5"
-                  fill="none"
-                  height="24"
-                  stroke="currentColor"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  viewBox="0 0 24 24"
-                  width="24"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <rect
-                    height="11"
-                    rx="2"
-                    ry="2"
-                    width="18"
-                    x="3"
-                    y="11"
-                  />
-                  <path
-                    d="M7 11V7a5 5 0 0 1 10 0v4"
-                  />
-                </svg>
-                Приватно 
-                off
-              </button>
-              <button
-                class="flex items-center gap-2 rounded-xl border px-3 py-1 text-[0.7rem] font-semibold transition-colors border-emerald-500/60 bg-emerald-500/10 text-emerald-500"
-                type="button"
-              >
-                <svg
-                  class="lucide lucide-earth h-3.5 w-3.5"
-                  fill="none"
-                  height="24"
-                  stroke="currentColor"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  viewBox="0 0 24 24"
-                  width="24"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    d="M21.54 15H17a2 2 0 0 0-2 2v4.54"
-                  />
-                  <path
-                    d="M7 3.34V5a3 3 0 0 0 3 3a2 2 0 0 1 2 2c0 1.1.9 2 2 2a2 2 0 0 0 2-2c0-1.1.9-2 2-2h3.17"
-                  />
-                  <path
-                    d="M11 21.95V18a2 2 0 0 0-2-2a2 2 0 0 1-2-2v-1a2 2 0 0 0-2-2H2.05"
-                  />
-                  <circle
-                    cx="12"
-                    cy="12"
-                    r="10"
-                  />
-                </svg>
-                Онлайн 
-                on
-              </button>
-              <button
-                class="flex items-center gap-2 rounded-xl border px-3 py-1 text-[0.7rem] font-semibold transition-colors border-sky-500/60 bg-sky-500/10 text-sky-500"
-                type="button"
-              >
-                <svg
-                  class="lucide lucide-shield-check h-3.5 w-3.5"
-                  fill="none"
-                  height="24"
-                  stroke="currentColor"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  viewBox="0 0 24 24"
-                  width="24"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"
-                  />
-                  <path
-                    d="m9 12 2 2 4-4"
-                  />
-                </svg>
-                Тон 
-                safe
-              </button>
-            </div>
-            <div
-              class="mt-2 flex flex-wrap items-center gap-3 md:mt-0"
-            >
-              <label
-                class="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-text-secondary"
-              >
-                <svg
-                  class="lucide lucide-switch-camera h-4 w-4 text-primary"
-                  fill="none"
-                  height="24"
-                  stroke="currentColor"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  viewBox="0 0 24 24"
-                  width="24"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    d="M11 19H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5"
-                  />
-                  <path
-                    d="M13 5h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-5"
-                  />
-                  <circle
-                    cx="12"
-                    cy="12"
-                    r="3"
-                  />
-                  <path
-                    d="m18 22-3-3 3-3"
-                  />
-                  <path
-                    d="m6 2 3 3-3 3"
-                  />
-                </svg>
-                Профиль
-                <select
-                  class="rounded-xl border border-border-strong bg-background-input/80 px-3 py-1 text-[0.75rem] font-semibold text-text-primary focus:border-primary focus:outline-none"
-                >
-                  <option
-                    value="balanced"
-                  >
-                    Сбалансированный
-                  </option>
-                  <option
-                    value="concise"
-                  >
-                    Краткий
-                  </option>
-                  <option
-                    value="detailed"
-                  >
-                    Подробный
-                  </option>
-                  <option
-                    value="technical"
-                  >
-                    Технический
-                  </option>
-                  <option
-                    value="friendly"
-                  >
-                    Дружелюбный
-                  </option>
-                </select>
-              </label>
-            </div>
-          </section>
-        </div>
-      </div>
       <main
         class="relative flex-1 overflow-hidden"
       >
@@ -2571,295 +2175,299 @@ exports[`App layout snapshots > renders empty chat state 1`] = `
               class="flex h-full flex-col justify-center gap-10 rounded-3xl border border-border-strong bg-background-card/70 p-12 backdrop-blur"
             >
               <div
-                class="space-y-3"
+                class="space-y-4"
               >
-                <p
-                  class="text-sm text-text-secondary"
+                <div
+                  class="space-y-3"
                 >
-                  Привет, Владислав!
-                </p>
-                <h1
-                  class="text-4xl font-semibold text-text-primary"
+                  <p
+                    class="text-sm text-text-secondary"
+                  >
+                    Привет, Владислав!
+                  </p>
+                  <h1
+                    class="text-4xl font-semibold text-text-primary"
+                  >
+                    Привет, Vladislav, чем Колибри может помочь сегодня?
+                  </h1>
+                  <p
+                    class="max-w-2xl text-sm text-text-secondary"
+                  >
+                    Вернись к последним диалогам, попробуй популярные GPT-персоны или изучи свежие подборки.
+                  </p>
+                </div>
+                <div
+                  class="flex flex-wrap items-center gap-3"
                 >
-                  Привет, Vladislav, чем Колибри может помочь сегодня?
-                </h1>
-                <p
-                  class="max-w-2xl text-sm text-text-secondary"
-                >
-                  Выбери подсказку или напиши свой запрос — я соберу формулы и знания, чтобы ответить тебе.
-                </p>
+                  <button
+                    class="group flex min-w-[260px] flex-1 items-center gap-4 rounded-2xl border border-border/60 bg-background-input/70 px-5 py-4 text-left transition hover:border-primary/60 hover:bg-background-input/90 disabled:cursor-not-allowed disabled:opacity-60"
+                    type="button"
+                  >
+                    <span
+                      class="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/15 text-primary"
+                    >
+                      <svg
+                        class="lucide lucide-paperclip h-5 w-5"
+                        fill="none"
+                        height="24"
+                        stroke="currentColor"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        viewBox="0 0 24 24"
+                        width="24"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M13.234 20.252 21 12.3"
+                        />
+                        <path
+                          d="m16 6-8.414 8.586a2 2 0 0 0 0 2.828 2 2 0 0 0 2.828 0l8.414-8.586a4 4 0 0 0 0-5.656 4 4 0 0 0-5.656 0l-8.415 8.585a6 6 0 1 0 8.486 8.486"
+                        />
+                      </svg>
+                    </span>
+                    <span
+                      class="flex flex-col"
+                    >
+                      <span
+                        class="text-base font-semibold text-text"
+                      >
+                        Подключить файлы
+                      </span>
+                      <span
+                        class="text-sm text-text-secondary"
+                      >
+                        PDF, изображения, таблицы
+                      </span>
+                    </span>
+                    <svg
+                      class="lucide lucide-arrow-right ml-auto h-4 w-4 text-text-secondary transition group-hover:translate-x-1 group-hover:text-primary"
+                      fill="none"
+                      height="24"
+                      stroke="currentColor"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      viewBox="0 0 24 24"
+                      width="24"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M5 12h14"
+                      />
+                      <path
+                        d="m12 5 7 7-7 7"
+                      />
+                    </svg>
+                  </button>
+                  <input
+                    class="sr-only"
+                    multiple=""
+                    type="file"
+                  />
+                  <p
+                    class="text-xs text-text-secondary/70"
+                  >
+                    Поддерживаются PDF, изображения, таблицы и другие мультимодальные вложения.
+                  </p>
+                </div>
               </div>
               <div
-                class="flex flex-wrap gap-3"
+                class="space-y-10"
               >
-                <button
-                  class="flex items-center gap-2 rounded-full border border-border-strong/60 bg-background-input/80 px-4 py-2 text-sm font-medium text-text-secondary transition hover:border-primary/60 hover:text-text-primary"
-                  type="button"
+                <div
+                  class="space-y-4"
                 >
-                  <span
-                    class="flex h-8 w-8 items-center justify-center rounded-full bg-primary/15 text-primary"
-                  >
-                    <svg
-                      class="lucide lucide-rocket h-4 w-4"
-                      fill="none"
-                      height="24"
-                      stroke="currentColor"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      viewBox="0 0 24 24"
-                      width="24"
-                      xmlns="http://www.w3.org/2000/svg"
+                  <header>
+                    <p
+                      class="text-[0.7rem] font-semibold uppercase tracking-[0.28em] text-text-secondary/70"
                     >
-                      <path
-                        d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"
-                      />
-                      <path
-                        d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"
-                      />
-                      <path
-                        d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"
-                      />
-                      <path
-                        d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"
-                      />
-                    </svg>
-                  </span>
-                  <span>
-                    Написать черновик
-                  </span>
-                </button>
-                <button
-                  class="flex items-center gap-2 rounded-full border border-border-strong/60 bg-background-input/80 px-4 py-2 text-sm font-medium text-text-secondary transition hover:border-primary/60 hover:text-text-primary"
-                  type="button"
+                      Recent
+                    </p>
+                    <p
+                      class="mt-1 text-sm text-text-secondary"
+                    >
+                      Продолжи последние беседы
+                    </p>
+                  </header>
+                  <p
+                    class="rounded-2xl border border-dashed border-border/60 bg-background-input/30 px-5 py-6 text-sm text-text-secondary"
+                  >
+                    История появится, как только начнутся беседы.
+                  </p>
+                </div>
+                <div
+                  class="space-y-4"
                 >
-                  <span
-                    class="flex h-8 w-8 items-center justify-center rounded-full bg-primary/15 text-primary"
-                  >
-                    <svg
-                      class="lucide lucide-compass h-4 w-4"
-                      fill="none"
-                      height="24"
-                      stroke="currentColor"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      viewBox="0 0 24 24"
-                      width="24"
-                      xmlns="http://www.w3.org/2000/svg"
+                  <header>
+                    <p
+                      class="text-[0.7rem] font-semibold uppercase tracking-[0.28em] text-text-secondary/70"
                     >
-                      <path
-                        d="m16.24 7.76-1.804 5.411a2 2 0 0 1-1.265 1.265L7.76 16.24l1.804-5.411a2 2 0 0 1 1.265-1.265z"
-                      />
-                      <circle
-                        cx="12"
-                        cy="12"
-                        r="10"
-                      />
-                    </svg>
-                  </span>
-                  <span>
-                    Создать план
-                  </span>
-                </button>
-                <button
-                  class="flex items-center gap-2 rounded-full border border-border-strong/60 bg-background-input/80 px-4 py-2 text-sm font-medium text-text-secondary transition hover:border-primary/60 hover:text-text-primary"
-                  type="button"
+                      Popular GPTs
+                    </p>
+                    <p
+                      class="mt-1 text-sm text-text-secondary"
+                    >
+                      Готовые профили с подобранными инструкциями
+                    </p>
+                  </header>
+                  <div
+                    class="overflow-x-auto"
+                  >
+                    <div
+                      class="flex min-w-full gap-4 pb-2 pr-4"
+                    >
+                      <button
+                        class="group min-w-[240px] rounded-2xl border border-border/60 bg-background-input/50 px-5 py-4 text-left shadow-sm transition hover:border-primary/50 hover:bg-background-input/80 hover:shadow-md"
+                        type="button"
+                      >
+                        <div
+                          class="flex items-center gap-2 text-xs uppercase tracking-[0.28em] text-primary/80"
+                        >
+                          <svg
+                            class="lucide lucide-sparkles h-3.5 w-3.5"
+                            fill="none"
+                            height="24"
+                            stroke="currentColor"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            viewBox="0 0 24 24"
+                            width="24"
+                            xmlns="http://www.w3.org/2000/svg"
+                          >
+                            <path
+                              d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"
+                            />
+                            <path
+                              d="M20 3v4"
+                            />
+                            <path
+                              d="M22 5h-4"
+                            />
+                            <path
+                              d="M4 17v2"
+                            />
+                            <path
+                              d="M5 18H3"
+                            />
+                          </svg>
+                          <span>
+                            Sales
+                          </span>
+                        </div>
+                        <h3
+                          class="mt-3 line-clamp-2 text-base font-semibold text-text"
+                        >
+                          Kolibri Growth Strategist
+                        </h3>
+                        <p
+                          class="mt-2 line-clamp-3 text-sm text-text-secondary"
+                        >
+                          Помогает сформировать GTM-план и коммерческие сообщения на основе последних метрик.
+                        </p>
+                        <span
+                          class="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-primary transition group-hover:gap-3"
+                        >
+                          Запустить
+                          <svg
+                            class="lucide lucide-arrow-right h-4 w-4"
+                            fill="none"
+                            height="24"
+                            stroke="currentColor"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            viewBox="0 0 24 24"
+                            width="24"
+                            xmlns="http://www.w3.org/2000/svg"
+                          >
+                            <path
+                              d="M5 12h14"
+                            />
+                            <path
+                              d="m12 5 7 7-7 7"
+                            />
+                          </svg>
+                        </span>
+                        <p
+                          class="mt-2 text-xs text-text-secondary/70"
+                        >
+                          Автор: 
+                          Команда RevOps
+                        </p>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div
+                  class="space-y-4"
                 >
-                  <span
-                    class="flex h-8 w-8 items-center justify-center rounded-full bg-primary/15 text-primary"
-                  >
-                    <svg
-                      class="lucide lucide-book-open-text h-4 w-4"
-                      fill="none"
-                      height="24"
-                      stroke="currentColor"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      viewBox="0 0 24 24"
-                      width="24"
-                      xmlns="http://www.w3.org/2000/svg"
+                  <header>
+                    <p
+                      class="text-[0.7rem] font-semibold uppercase tracking-[0.28em] text-text-secondary/70"
                     >
-                      <path
-                        d="M12 7v14"
-                      />
-                      <path
-                        d="M16 12h2"
-                      />
-                      <path
-                        d="M16 8h2"
-                      />
-                      <path
-                        d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"
-                      />
-                      <path
-                        d="M6 12h2"
-                      />
-                      <path
-                        d="M6 8h2"
-                      />
-                    </svg>
-                  </span>
-                  <span>
-                    Узнать что-нибудь новое
-                  </span>
-                </button>
-                <button
-                  class="flex items-center gap-2 rounded-full border border-border-strong/60 bg-background-input/80 px-4 py-2 text-sm font-medium text-text-secondary transition hover:border-primary/60 hover:text-text-primary"
-                  type="button"
-                >
-                  <span
-                    class="flex h-8 w-8 items-center justify-center rounded-full bg-primary/15 text-primary"
-                  >
-                    <svg
-                      class="lucide lucide-brain-circuit h-4 w-4"
-                      fill="none"
-                      height="24"
-                      stroke="currentColor"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      viewBox="0 0 24 24"
-                      width="24"
-                      xmlns="http://www.w3.org/2000/svg"
+                      What’s new
+                    </p>
+                    <p
+                      class="mt-1 text-sm text-text-secondary"
                     >
-                      <path
-                        d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z"
-                      />
-                      <path
-                        d="M9 13a4.5 4.5 0 0 0 3-4"
-                      />
-                      <path
-                        d="M6.003 5.125A3 3 0 0 0 6.401 6.5"
-                      />
-                      <path
-                        d="M3.477 10.896a4 4 0 0 1 .585-.396"
-                      />
-                      <path
-                        d="M6 18a4 4 0 0 1-1.967-.516"
-                      />
-                      <path
-                        d="M12 13h4"
-                      />
-                      <path
-                        d="M12 18h6a2 2 0 0 1 2 2v1"
-                      />
-                      <path
-                        d="M12 8h8"
-                      />
-                      <path
-                        d="M16 8V5a2 2 0 0 1 2-2"
-                      />
-                      <circle
-                        cx="16"
-                        cy="13"
-                        r=".5"
-                      />
-                      <circle
-                        cx="18"
-                        cy="3"
-                        r=".5"
-                      />
-                      <circle
-                        cx="20"
-                        cy="21"
-                        r=".5"
-                      />
-                      <circle
-                        cx="20"
-                        cy="8"
-                        r=".5"
-                      />
-                    </svg>
-                  </span>
-                  <span>
-                    Провести мозговой штурм
-                  </span>
-                </button>
-                <button
-                  class="flex items-center gap-2 rounded-full border border-border-strong/60 bg-background-input/80 px-4 py-2 text-sm font-medium text-text-secondary transition hover:border-primary/60 hover:text-text-primary"
-                  type="button"
-                >
-                  <span
-                    class="flex h-8 w-8 items-center justify-center rounded-full bg-primary/15 text-primary"
+                      Свежие подборки и сценарии
+                    </p>
+                  </header>
+                  <div
+                    class="overflow-x-auto"
                   >
-                    <svg
-                      class="lucide lucide-lightbulb h-4 w-4"
-                      fill="none"
-                      height="24"
-                      stroke="currentColor"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      viewBox="0 0 24 24"
-                      width="24"
-                      xmlns="http://www.w3.org/2000/svg"
+                    <div
+                      class="flex min-w-full gap-4 pb-2 pr-4"
                     >
-                      <path
-                        d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"
-                      />
-                      <path
-                        d="M9 18h6"
-                      />
-                      <path
-                        d="M10 22h4"
-                      />
-                    </svg>
-                  </span>
-                  <span>
-                    Получить совет
-                  </span>
-                </button>
-                <button
-                  class="flex items-center gap-2 rounded-full border border-border-strong/60 bg-background-input/80 px-4 py-2 text-sm font-medium text-text-secondary transition hover:border-primary/60 hover:text-text-primary"
-                  type="button"
-                >
-                  <span
-                    class="flex h-8 w-8 items-center justify-center rounded-full bg-primary/15 text-primary"
-                  >
-                    <svg
-                      class="lucide lucide-wand-sparkles h-4 w-4"
-                      fill="none"
-                      height="24"
-                      stroke="currentColor"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      viewBox="0 0 24 24"
-                      width="24"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72"
-                      />
-                      <path
-                        d="m14 7 3 3"
-                      />
-                      <path
-                        d="M5 6v4"
-                      />
-                      <path
-                        d="M19 14v4"
-                      />
-                      <path
-                        d="M10 2v2"
-                      />
-                      <path
-                        d="M7 8H3"
-                      />
-                      <path
-                        d="M21 16h-4"
-                      />
-                      <path
-                        d="M11 3H9"
-                      />
-                    </svg>
-                  </span>
-                  <span>
-                    Практиковаться в языке
-                  </span>
-                </button>
+                      <button
+                        class="group min-w-[240px] rounded-2xl border border-border/60 bg-surface px-5 py-4 text-left shadow-sm transition hover:border-primary/50 hover:shadow-md"
+                        type="button"
+                      >
+                        <h3
+                          class="text-base font-semibold text-text"
+                        >
+                          AI-ревью документов
+                        </h3>
+                        <p
+                          class="mt-2 line-clamp-4 text-sm text-text-secondary"
+                        >
+                          Коллекция промтов для быстрого ревью договоров, презентаций и аналитических отчётов.
+                        </p>
+                        <span
+                          class="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-primary transition group-hover:gap-3"
+                        >
+                          Испробовать
+                          <svg
+                            class="lucide lucide-arrow-right h-4 w-4"
+                            fill="none"
+                            height="24"
+                            stroke="currentColor"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            viewBox="0 0 24 24"
+                            width="24"
+                            xmlns="http://www.w3.org/2000/svg"
+                          >
+                            <path
+                              d="M5 12h14"
+                            />
+                            <path
+                              d="m12 5 7 7-7 7"
+                            />
+                          </svg>
+                        </span>
+                        <p
+                          class="mt-2 text-xs text-text-secondary/70"
+                        >
+                          403 дн назад
+                        </p>
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
             </section>
           </div>
@@ -3989,6 +3597,41 @@ exports[`App layout snapshots > renders mobile layout 1`] = `
                 />
               </svg>
             </button>
+            <button
+              aria-label="Настройки беседы"
+              class="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border/70 text-text-muted transition-colors hover:text-text"
+              type="button"
+            >
+              <svg
+                class="lucide lucide-settings2 h-4 w-4"
+                fill="none"
+                height="24"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M20 7h-9"
+                />
+                <path
+                  d="M14 17H5"
+                />
+                <circle
+                  cx="17"
+                  cy="17"
+                  r="3"
+                />
+                <circle
+                  cx="7"
+                  cy="7"
+                  r="3"
+                />
+              </svg>
+            </button>
           </div>
         </div>
         <div
@@ -4058,221 +3701,6 @@ exports[`App layout snapshots > renders mobile layout 1`] = `
           </div>
         </div>
       </header>
-      <div
-        class="border-b border-border/60 bg-surface/70"
-      >
-        <div
-          class="mx-auto w-full max-w-4xl px-4 py-4 sm:px-6 lg:px-8"
-        >
-          <section
-            class="glass-panel flex flex-col gap-4 p-4 md:flex-row md:items-center md:justify-between"
-          >
-            <div
-              class="flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.3em] text-text-secondary"
-            >
-              <span
-                class="pill-badge"
-              >
-                Параметры беседы
-              </span>
-              <button
-                class="flex items-center gap-2 rounded-xl border px-3 py-1 text-[0.7rem] font-semibold transition-colors border-primary/60 bg-primary/15 text-primary"
-                type="button"
-              >
-                <svg
-                  class="lucide lucide-sparkles h-3.5 w-3.5"
-                  fill="none"
-                  height="24"
-                  stroke="currentColor"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  viewBox="0 0 24 24"
-                  width="24"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"
-                  />
-                  <path
-                    d="M20 3v4"
-                  />
-                  <path
-                    d="M22 5h-4"
-                  />
-                  <path
-                    d="M4 17v2"
-                  />
-                  <path
-                    d="M5 18H3"
-                  />
-                </svg>
-                Обучение 
-                on
-              </button>
-              <button
-                class="flex items-center gap-2 rounded-xl border px-3 py-1 text-[0.7rem] font-semibold transition-colors border-border-strong bg-background-input/80 text-text-secondary hover:text-text-primary"
-                type="button"
-              >
-                <svg
-                  class="lucide lucide-lock h-3.5 w-3.5"
-                  fill="none"
-                  height="24"
-                  stroke="currentColor"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  viewBox="0 0 24 24"
-                  width="24"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <rect
-                    height="11"
-                    rx="2"
-                    ry="2"
-                    width="18"
-                    x="3"
-                    y="11"
-                  />
-                  <path
-                    d="M7 11V7a5 5 0 0 1 10 0v4"
-                  />
-                </svg>
-                Приватно 
-                off
-              </button>
-              <button
-                class="flex items-center gap-2 rounded-xl border px-3 py-1 text-[0.7rem] font-semibold transition-colors border-emerald-500/60 bg-emerald-500/10 text-emerald-500"
-                type="button"
-              >
-                <svg
-                  class="lucide lucide-earth h-3.5 w-3.5"
-                  fill="none"
-                  height="24"
-                  stroke="currentColor"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  viewBox="0 0 24 24"
-                  width="24"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    d="M21.54 15H17a2 2 0 0 0-2 2v4.54"
-                  />
-                  <path
-                    d="M7 3.34V5a3 3 0 0 0 3 3a2 2 0 0 1 2 2c0 1.1.9 2 2 2a2 2 0 0 0 2-2c0-1.1.9-2 2-2h3.17"
-                  />
-                  <path
-                    d="M11 21.95V18a2 2 0 0 0-2-2a2 2 0 0 1-2-2v-1a2 2 0 0 0-2-2H2.05"
-                  />
-                  <circle
-                    cx="12"
-                    cy="12"
-                    r="10"
-                  />
-                </svg>
-                Онлайн 
-                on
-              </button>
-              <button
-                class="flex items-center gap-2 rounded-xl border px-3 py-1 text-[0.7rem] font-semibold transition-colors border-sky-500/60 bg-sky-500/10 text-sky-500"
-                type="button"
-              >
-                <svg
-                  class="lucide lucide-shield-check h-3.5 w-3.5"
-                  fill="none"
-                  height="24"
-                  stroke="currentColor"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  viewBox="0 0 24 24"
-                  width="24"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"
-                  />
-                  <path
-                    d="m9 12 2 2 4-4"
-                  />
-                </svg>
-                Тон 
-                safe
-              </button>
-            </div>
-            <div
-              class="mt-2 flex flex-wrap items-center gap-3 md:mt-0"
-            >
-              <label
-                class="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-text-secondary"
-              >
-                <svg
-                  class="lucide lucide-switch-camera h-4 w-4 text-primary"
-                  fill="none"
-                  height="24"
-                  stroke="currentColor"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  viewBox="0 0 24 24"
-                  width="24"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    d="M11 19H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5"
-                  />
-                  <path
-                    d="M13 5h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-5"
-                  />
-                  <circle
-                    cx="12"
-                    cy="12"
-                    r="3"
-                  />
-                  <path
-                    d="m18 22-3-3 3-3"
-                  />
-                  <path
-                    d="m6 2 3 3-3 3"
-                  />
-                </svg>
-                Профиль
-                <select
-                  class="rounded-xl border border-border-strong bg-background-input/80 px-3 py-1 text-[0.75rem] font-semibold text-text-primary focus:border-primary focus:outline-none"
-                >
-                  <option
-                    value="balanced"
-                  >
-                    Сбалансированный
-                  </option>
-                  <option
-                    value="concise"
-                  >
-                    Краткий
-                  </option>
-                  <option
-                    value="detailed"
-                  >
-                    Подробный
-                  </option>
-                  <option
-                    value="technical"
-                  >
-                    Технический
-                  </option>
-                  <option
-                    value="friendly"
-                  >
-                    Дружелюбный
-                  </option>
-                </select>
-              </label>
-            </div>
-          </section>
-        </div>
-      </div>
       <main
         class="relative flex-1 overflow-hidden"
       >
@@ -4290,295 +3718,299 @@ exports[`App layout snapshots > renders mobile layout 1`] = `
               class="flex h-full flex-col justify-center gap-10 rounded-3xl border border-border-strong bg-background-card/70 p-12 backdrop-blur"
             >
               <div
-                class="space-y-3"
+                class="space-y-4"
               >
-                <p
-                  class="text-sm text-text-secondary"
+                <div
+                  class="space-y-3"
                 >
-                  Привет, Владислав!
-                </p>
-                <h1
-                  class="text-4xl font-semibold text-text-primary"
+                  <p
+                    class="text-sm text-text-secondary"
+                  >
+                    Привет, Владислав!
+                  </p>
+                  <h1
+                    class="text-4xl font-semibold text-text-primary"
+                  >
+                    Привет, Vladislav, чем Колибри может помочь сегодня?
+                  </h1>
+                  <p
+                    class="max-w-2xl text-sm text-text-secondary"
+                  >
+                    Вернись к последним диалогам, попробуй популярные GPT-персоны или изучи свежие подборки.
+                  </p>
+                </div>
+                <div
+                  class="flex flex-wrap items-center gap-3"
                 >
-                  Привет, Vladislav, чем Колибри может помочь сегодня?
-                </h1>
-                <p
-                  class="max-w-2xl text-sm text-text-secondary"
-                >
-                  Выбери подсказку или напиши свой запрос — я соберу формулы и знания, чтобы ответить тебе.
-                </p>
+                  <button
+                    class="group flex min-w-[260px] flex-1 items-center gap-4 rounded-2xl border border-border/60 bg-background-input/70 px-5 py-4 text-left transition hover:border-primary/60 hover:bg-background-input/90 disabled:cursor-not-allowed disabled:opacity-60"
+                    type="button"
+                  >
+                    <span
+                      class="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/15 text-primary"
+                    >
+                      <svg
+                        class="lucide lucide-paperclip h-5 w-5"
+                        fill="none"
+                        height="24"
+                        stroke="currentColor"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        viewBox="0 0 24 24"
+                        width="24"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M13.234 20.252 21 12.3"
+                        />
+                        <path
+                          d="m16 6-8.414 8.586a2 2 0 0 0 0 2.828 2 2 0 0 0 2.828 0l8.414-8.586a4 4 0 0 0 0-5.656 4 4 0 0 0-5.656 0l-8.415 8.585a6 6 0 1 0 8.486 8.486"
+                        />
+                      </svg>
+                    </span>
+                    <span
+                      class="flex flex-col"
+                    >
+                      <span
+                        class="text-base font-semibold text-text"
+                      >
+                        Подключить файлы
+                      </span>
+                      <span
+                        class="text-sm text-text-secondary"
+                      >
+                        PDF, изображения, таблицы
+                      </span>
+                    </span>
+                    <svg
+                      class="lucide lucide-arrow-right ml-auto h-4 w-4 text-text-secondary transition group-hover:translate-x-1 group-hover:text-primary"
+                      fill="none"
+                      height="24"
+                      stroke="currentColor"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      viewBox="0 0 24 24"
+                      width="24"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M5 12h14"
+                      />
+                      <path
+                        d="m12 5 7 7-7 7"
+                      />
+                    </svg>
+                  </button>
+                  <input
+                    class="sr-only"
+                    multiple=""
+                    type="file"
+                  />
+                  <p
+                    class="text-xs text-text-secondary/70"
+                  >
+                    Поддерживаются PDF, изображения, таблицы и другие мультимодальные вложения.
+                  </p>
+                </div>
               </div>
               <div
-                class="flex flex-wrap gap-3"
+                class="space-y-10"
               >
-                <button
-                  class="flex items-center gap-2 rounded-full border border-border-strong/60 bg-background-input/80 px-4 py-2 text-sm font-medium text-text-secondary transition hover:border-primary/60 hover:text-text-primary"
-                  type="button"
+                <div
+                  class="space-y-4"
                 >
-                  <span
-                    class="flex h-8 w-8 items-center justify-center rounded-full bg-primary/15 text-primary"
-                  >
-                    <svg
-                      class="lucide lucide-rocket h-4 w-4"
-                      fill="none"
-                      height="24"
-                      stroke="currentColor"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      viewBox="0 0 24 24"
-                      width="24"
-                      xmlns="http://www.w3.org/2000/svg"
+                  <header>
+                    <p
+                      class="text-[0.7rem] font-semibold uppercase tracking-[0.28em] text-text-secondary/70"
                     >
-                      <path
-                        d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"
-                      />
-                      <path
-                        d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"
-                      />
-                      <path
-                        d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"
-                      />
-                      <path
-                        d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"
-                      />
-                    </svg>
-                  </span>
-                  <span>
-                    Написать черновик
-                  </span>
-                </button>
-                <button
-                  class="flex items-center gap-2 rounded-full border border-border-strong/60 bg-background-input/80 px-4 py-2 text-sm font-medium text-text-secondary transition hover:border-primary/60 hover:text-text-primary"
-                  type="button"
+                      Recent
+                    </p>
+                    <p
+                      class="mt-1 text-sm text-text-secondary"
+                    >
+                      Продолжи последние беседы
+                    </p>
+                  </header>
+                  <p
+                    class="rounded-2xl border border-dashed border-border/60 bg-background-input/30 px-5 py-6 text-sm text-text-secondary"
+                  >
+                    История появится, как только начнутся беседы.
+                  </p>
+                </div>
+                <div
+                  class="space-y-4"
                 >
-                  <span
-                    class="flex h-8 w-8 items-center justify-center rounded-full bg-primary/15 text-primary"
-                  >
-                    <svg
-                      class="lucide lucide-compass h-4 w-4"
-                      fill="none"
-                      height="24"
-                      stroke="currentColor"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      viewBox="0 0 24 24"
-                      width="24"
-                      xmlns="http://www.w3.org/2000/svg"
+                  <header>
+                    <p
+                      class="text-[0.7rem] font-semibold uppercase tracking-[0.28em] text-text-secondary/70"
                     >
-                      <path
-                        d="m16.24 7.76-1.804 5.411a2 2 0 0 1-1.265 1.265L7.76 16.24l1.804-5.411a2 2 0 0 1 1.265-1.265z"
-                      />
-                      <circle
-                        cx="12"
-                        cy="12"
-                        r="10"
-                      />
-                    </svg>
-                  </span>
-                  <span>
-                    Создать план
-                  </span>
-                </button>
-                <button
-                  class="flex items-center gap-2 rounded-full border border-border-strong/60 bg-background-input/80 px-4 py-2 text-sm font-medium text-text-secondary transition hover:border-primary/60 hover:text-text-primary"
-                  type="button"
+                      Popular GPTs
+                    </p>
+                    <p
+                      class="mt-1 text-sm text-text-secondary"
+                    >
+                      Готовые профили с подобранными инструкциями
+                    </p>
+                  </header>
+                  <div
+                    class="overflow-x-auto"
+                  >
+                    <div
+                      class="flex min-w-full gap-4 pb-2 pr-4"
+                    >
+                      <button
+                        class="group min-w-[240px] rounded-2xl border border-border/60 bg-background-input/50 px-5 py-4 text-left shadow-sm transition hover:border-primary/50 hover:bg-background-input/80 hover:shadow-md"
+                        type="button"
+                      >
+                        <div
+                          class="flex items-center gap-2 text-xs uppercase tracking-[0.28em] text-primary/80"
+                        >
+                          <svg
+                            class="lucide lucide-sparkles h-3.5 w-3.5"
+                            fill="none"
+                            height="24"
+                            stroke="currentColor"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            viewBox="0 0 24 24"
+                            width="24"
+                            xmlns="http://www.w3.org/2000/svg"
+                          >
+                            <path
+                              d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"
+                            />
+                            <path
+                              d="M20 3v4"
+                            />
+                            <path
+                              d="M22 5h-4"
+                            />
+                            <path
+                              d="M4 17v2"
+                            />
+                            <path
+                              d="M5 18H3"
+                            />
+                          </svg>
+                          <span>
+                            Sales
+                          </span>
+                        </div>
+                        <h3
+                          class="mt-3 line-clamp-2 text-base font-semibold text-text"
+                        >
+                          Kolibri Growth Strategist
+                        </h3>
+                        <p
+                          class="mt-2 line-clamp-3 text-sm text-text-secondary"
+                        >
+                          Помогает сформировать GTM-план и коммерческие сообщения на основе последних метрик.
+                        </p>
+                        <span
+                          class="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-primary transition group-hover:gap-3"
+                        >
+                          Запустить
+                          <svg
+                            class="lucide lucide-arrow-right h-4 w-4"
+                            fill="none"
+                            height="24"
+                            stroke="currentColor"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            viewBox="0 0 24 24"
+                            width="24"
+                            xmlns="http://www.w3.org/2000/svg"
+                          >
+                            <path
+                              d="M5 12h14"
+                            />
+                            <path
+                              d="m12 5 7 7-7 7"
+                            />
+                          </svg>
+                        </span>
+                        <p
+                          class="mt-2 text-xs text-text-secondary/70"
+                        >
+                          Автор: 
+                          Команда RevOps
+                        </p>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div
+                  class="space-y-4"
                 >
-                  <span
-                    class="flex h-8 w-8 items-center justify-center rounded-full bg-primary/15 text-primary"
-                  >
-                    <svg
-                      class="lucide lucide-book-open-text h-4 w-4"
-                      fill="none"
-                      height="24"
-                      stroke="currentColor"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      viewBox="0 0 24 24"
-                      width="24"
-                      xmlns="http://www.w3.org/2000/svg"
+                  <header>
+                    <p
+                      class="text-[0.7rem] font-semibold uppercase tracking-[0.28em] text-text-secondary/70"
                     >
-                      <path
-                        d="M12 7v14"
-                      />
-                      <path
-                        d="M16 12h2"
-                      />
-                      <path
-                        d="M16 8h2"
-                      />
-                      <path
-                        d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"
-                      />
-                      <path
-                        d="M6 12h2"
-                      />
-                      <path
-                        d="M6 8h2"
-                      />
-                    </svg>
-                  </span>
-                  <span>
-                    Узнать что-нибудь новое
-                  </span>
-                </button>
-                <button
-                  class="flex items-center gap-2 rounded-full border border-border-strong/60 bg-background-input/80 px-4 py-2 text-sm font-medium text-text-secondary transition hover:border-primary/60 hover:text-text-primary"
-                  type="button"
-                >
-                  <span
-                    class="flex h-8 w-8 items-center justify-center rounded-full bg-primary/15 text-primary"
-                  >
-                    <svg
-                      class="lucide lucide-brain-circuit h-4 w-4"
-                      fill="none"
-                      height="24"
-                      stroke="currentColor"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      viewBox="0 0 24 24"
-                      width="24"
-                      xmlns="http://www.w3.org/2000/svg"
+                      What’s new
+                    </p>
+                    <p
+                      class="mt-1 text-sm text-text-secondary"
                     >
-                      <path
-                        d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z"
-                      />
-                      <path
-                        d="M9 13a4.5 4.5 0 0 0 3-4"
-                      />
-                      <path
-                        d="M6.003 5.125A3 3 0 0 0 6.401 6.5"
-                      />
-                      <path
-                        d="M3.477 10.896a4 4 0 0 1 .585-.396"
-                      />
-                      <path
-                        d="M6 18a4 4 0 0 1-1.967-.516"
-                      />
-                      <path
-                        d="M12 13h4"
-                      />
-                      <path
-                        d="M12 18h6a2 2 0 0 1 2 2v1"
-                      />
-                      <path
-                        d="M12 8h8"
-                      />
-                      <path
-                        d="M16 8V5a2 2 0 0 1 2-2"
-                      />
-                      <circle
-                        cx="16"
-                        cy="13"
-                        r=".5"
-                      />
-                      <circle
-                        cx="18"
-                        cy="3"
-                        r=".5"
-                      />
-                      <circle
-                        cx="20"
-                        cy="21"
-                        r=".5"
-                      />
-                      <circle
-                        cx="20"
-                        cy="8"
-                        r=".5"
-                      />
-                    </svg>
-                  </span>
-                  <span>
-                    Провести мозговой штурм
-                  </span>
-                </button>
-                <button
-                  class="flex items-center gap-2 rounded-full border border-border-strong/60 bg-background-input/80 px-4 py-2 text-sm font-medium text-text-secondary transition hover:border-primary/60 hover:text-text-primary"
-                  type="button"
-                >
-                  <span
-                    class="flex h-8 w-8 items-center justify-center rounded-full bg-primary/15 text-primary"
+                      Свежие подборки и сценарии
+                    </p>
+                  </header>
+                  <div
+                    class="overflow-x-auto"
                   >
-                    <svg
-                      class="lucide lucide-lightbulb h-4 w-4"
-                      fill="none"
-                      height="24"
-                      stroke="currentColor"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      viewBox="0 0 24 24"
-                      width="24"
-                      xmlns="http://www.w3.org/2000/svg"
+                    <div
+                      class="flex min-w-full gap-4 pb-2 pr-4"
                     >
-                      <path
-                        d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"
-                      />
-                      <path
-                        d="M9 18h6"
-                      />
-                      <path
-                        d="M10 22h4"
-                      />
-                    </svg>
-                  </span>
-                  <span>
-                    Получить совет
-                  </span>
-                </button>
-                <button
-                  class="flex items-center gap-2 rounded-full border border-border-strong/60 bg-background-input/80 px-4 py-2 text-sm font-medium text-text-secondary transition hover:border-primary/60 hover:text-text-primary"
-                  type="button"
-                >
-                  <span
-                    class="flex h-8 w-8 items-center justify-center rounded-full bg-primary/15 text-primary"
-                  >
-                    <svg
-                      class="lucide lucide-wand-sparkles h-4 w-4"
-                      fill="none"
-                      height="24"
-                      stroke="currentColor"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      viewBox="0 0 24 24"
-                      width="24"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72"
-                      />
-                      <path
-                        d="m14 7 3 3"
-                      />
-                      <path
-                        d="M5 6v4"
-                      />
-                      <path
-                        d="M19 14v4"
-                      />
-                      <path
-                        d="M10 2v2"
-                      />
-                      <path
-                        d="M7 8H3"
-                      />
-                      <path
-                        d="M21 16h-4"
-                      />
-                      <path
-                        d="M11 3H9"
-                      />
-                    </svg>
-                  </span>
-                  <span>
-                    Практиковаться в языке
-                  </span>
-                </button>
+                      <button
+                        class="group min-w-[240px] rounded-2xl border border-border/60 bg-surface px-5 py-4 text-left shadow-sm transition hover:border-primary/50 hover:shadow-md"
+                        type="button"
+                      >
+                        <h3
+                          class="text-base font-semibold text-text"
+                        >
+                          AI-ревью документов
+                        </h3>
+                        <p
+                          class="mt-2 line-clamp-4 text-sm text-text-secondary"
+                        >
+                          Коллекция промтов для быстрого ревью договоров, презентаций и аналитических отчётов.
+                        </p>
+                        <span
+                          class="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-primary transition group-hover:gap-3"
+                        >
+                          Испробовать
+                          <svg
+                            class="lucide lucide-arrow-right h-4 w-4"
+                            fill="none"
+                            height="24"
+                            stroke="currentColor"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            viewBox="0 0 24 24"
+                            width="24"
+                            xmlns="http://www.w3.org/2000/svg"
+                          >
+                            <path
+                              d="M5 12h14"
+                            />
+                            <path
+                              d="m12 5 7 7-7 7"
+                            />
+                          </svg>
+                        </span>
+                        <p
+                          class="mt-2 text-xs text-text-secondary/70"
+                        >
+                          403 дн назад
+                        </p>
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
             </section>
           </div>
