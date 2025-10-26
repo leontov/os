@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
+import CollabSessionProvider from "./core/collaboration/CollabSessionProvider";
 import "./styles/tailwind.css";
 import { wasmUrl, wasmInfoUrl, wasmAvailable, wasmIsStub } from "virtual:kolibri-wasm";
 import { knowledgeUrl as knowledgeBundleUrl, knowledgeAvailable as knowledgeBundleAvailable } from "virtual:kolibri-knowledge";
@@ -21,9 +22,25 @@ const resolveBaseUrl = (): URL => {
   }
 };
 
+const resolveRoomId = (): string => {
+  if (typeof window === "undefined") {
+    return "offline";
+  }
+  try {
+    const url = new URL(window.location.href);
+    return url.searchParams.get("room") ?? "default";
+  } catch {
+    return "default";
+  }
+};
+
+const collabEndpoint = import.meta.env.VITE_COLLAB_ENDPOINT as string | undefined;
+
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
-    <App />
+    <CollabSessionProvider roomId={resolveRoomId()} endpoint={collabEndpoint}>
+      <App />
+    </CollabSessionProvider>
   </React.StrictMode>,
 );
 

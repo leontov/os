@@ -4,11 +4,14 @@ import {
   Check,
   Copy,
   Link2,
+  MessageCircle,
   Paperclip,
+  Send,
   ThumbsDown,
   ThumbsUp,
 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
+import { useCollabSession } from "../core/collaboration/CollabSessionProvider";
 import type { ChatMessage as ChatMessageModel } from "../types/chat";
 
 const formatScore = (value: number): string => {
@@ -42,6 +45,11 @@ const ChatMessage = ({ message, latestUserMessage }: ChatMessageProps) => {
   const [isCopied, setIsCopied] = useState(false);
   const [reaction, setReaction] = useState<"up" | "down" | null>(null);
   const [isPinned, setIsPinned] = useState(false);
+  const [replyDraft, setReplyDraft] = useState("");
+  const { addReply, messages: collabThreads, toggleReaction } = useCollabSession();
+  const thread = useMemo(() => collabThreads.find((entry) => entry.id === message.id) ?? null, [collabThreads, message.id]);
+  const replies = thread?.replies ?? [];
+  const aggregatedReactions = thread?.reactions ?? {};
   const hasContext = !isUser && Boolean(message.context?.length);
   const contextCount = message.context?.length ?? 0;
 
@@ -76,13 +84,30 @@ const ChatMessage = ({ message, latestUserMessage }: ChatMessageProps) => {
     }
   }, [message.content]);
 
-  const handleReaction = useCallback((value: "up" | "down") => {
-    setReaction((previous) => (previous === value ? null : value));
-  }, []);
+  const handleReaction = useCallback(
+    (value: "up" | "down") => {
+      setReaction((previous) => (previous === value ? null : value));
+      toggleReaction(message.id, value === "up" ? "👍" : "👎");
+    },
+    [message.id, toggleReaction],
+  );
 
   const togglePinned = useCallback(() => {
     setIsPinned((previous) => !previous);
   }, []);
+
+  const handleReplySubmit = useCallback(
+    (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      const content = replyDraft.trim();
+      if (!content) {
+        return;
+      }
+      addReply(message.id, content, "Вы");
+      setReplyDraft("");
+    },
+    [addReply, message.id, replyDraft],
+  );
 
   const avatar = (
     <span
@@ -136,6 +161,20 @@ const ChatMessage = ({ message, latestUserMessage }: ChatMessageProps) => {
               {message.content}
             </p>
           )}
+
+          {Object.keys(aggregatedReactions).length ? (
+            <div className="mt-3 flex flex-wrap gap-2 text-xs text-text-secondary/80">
+              {Object.entries(aggregatedReactions).map(([emoji, count]) => (
+                <span
+                  key={emoji}
+                  className="inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/10 px-3 py-1 text-[0.7rem] font-semibold uppercase tracking-[0.25em] text-white/80"
+                >
+                  {emoji}
+                  <span className="text-[0.65rem] text-white/70">× {count}</span>
+                </span>
+              ))}
+            </div>
+          ) : null}
 
           {message.attachments?.length ? (
             <div className="mt-4 space-y-2">
@@ -203,6 +242,56 @@ const ChatMessage = ({ message, latestUserMessage }: ChatMessageProps) => {
               )}
             </div>
           )}
+
+          {replies.length ? (
+            <div className="mt-4 space-y-3 rounded-2xl border border-border-strong/60 bg-background-card/70 p-4 text-left text-sm text-text-secondary">
+              <p className="flex items-center gap-2 text-[0.7rem] uppercase tracking-[0.35em] text-text-secondary/80">
+                <MessageCircle className="h-3.5 w-3.5" /> Ответы ({replies.length})
+              </p>
+              <div className="space-y-3">
+                {replies.map((reply) => (
+                  <div key={reply.id} className="rounded-2xl border border-border-strong/60 bg-background-input/70 p-3">
+                    <div className="flex items-center justify-between text-[0.65rem] uppercase tracking-[0.3em] text-text-secondary/80">
+                      <span className="font-semibold text-text-primary">{reply.author}</span>
+                      <span>
+                        {(() => {
+                          try {
+                            return new Date(reply.createdAtIso).toLocaleTimeString("ru-RU", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            });
+                          } catch {
+                            return reply.createdAtIso;
+                          }
+                        })()}
+                      </span>
+                    </div>
+                    <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-text-secondary">{reply.content}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          <form onSubmit={handleReplySubmit} className="mt-4 flex flex-col gap-2 rounded-2xl border border-border-strong/60 bg-background-input/70 p-3">
+            <label className="text-[0.65rem] uppercase tracking-[0.3em] text-text-secondary/70">Быстрый ответ</label>
+            <textarea
+              value={replyDraft}
+              onChange={(event) => setReplyDraft(event.target.value)}
+              placeholder="Добавьте ответ в ветке"
+              className="soft-scroll h-16 resize-none rounded-xl border border-border-strong/60 bg-background-card/70 px-3 py-2 text-sm text-text-secondary focus:border-primary focus:outline-none"
+            />
+            <div className="flex items-center justify-between text-[0.7rem] text-text-secondary/80">
+              <span>Ответ увидят все участники сессии</span>
+              <button
+                type="submit"
+                disabled={!replyDraft.trim()}
+                className="inline-flex items-center gap-2 rounded-full border border-primary/40 px-3 py-1 text-xs font-semibold text-primary transition-colors hover:border-primary disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Send className="h-3.5 w-3.5" /> Отправить
+              </button>
+            </div>
+          </form>
         </div>
 
         <footer

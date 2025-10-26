@@ -3,14 +3,18 @@ import {
   BarChart3,
   Menu,
   PanelsTopLeft,
+  Redo2,
   RefreshCcw,
   Settings2,
   Sparkles,
+  Undo2,
+  Users,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { ConversationMetrics } from "../core/useKolibriChat";
 import type { ChatMessage } from "../types/chat";
 import ChatMessageView from "./ChatMessage";
+import { useCollabSession } from "../core/collaboration/CollabSessionProvider";
 
 interface ChatViewProps {
   messages: ChatMessage[];
@@ -51,6 +55,19 @@ const ChatView = ({
 }: ChatViewProps) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [isNearBottom, setIsNearBottom] = useState(true);
+  const [isShareCopied, setIsShareCopied] = useState(false);
+  const { syncMessagesSnapshot, participants, shareLink, undo, redo, canUndo, canRedo } = useCollabSession();
+
+  useEffect(() => {
+    syncMessagesSnapshot(
+      messages.map((message) => ({
+        id: message.id,
+        role: message.role,
+        content: message.content,
+        author: message.role,
+      })),
+    );
+  }, [messages, syncMessagesSnapshot]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -152,6 +169,19 @@ const ChatView = ({
     }
   };
 
+  const handleCopyShareLink = useCallback(async () => {
+    if (!shareLink || !navigator?.clipboard) {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(shareLink);
+      setIsShareCopied(true);
+      window.setTimeout(() => setIsShareCopied(false), 1500);
+    } catch {
+      setIsShareCopied(false);
+    }
+  }, [shareLink]);
+
   return (
     <section className="flex h-full flex-col gap-4">
       <header className="rounded-2xl border border-border/70 bg-surface px-4 py-3 shadow-sm">
@@ -191,7 +221,7 @@ const ChatView = ({
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-text-muted">
           <span>Сообщений: {totalMessages}</span>
           <span>Обновлено: {formatIsoTime(metrics.lastUpdatedIso)}</span>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={onRefreshKnowledge}
@@ -233,7 +263,47 @@ const ChatView = ({
             >
               <Settings2 className="h-4 w-4" />
             </button>
+            <button
+              type="button"
+              onClick={() => undo()}
+              disabled={!canUndo}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/70 text-text-muted transition-colors hover:text-text disabled:cursor-not-allowed disabled:opacity-50"
+              aria-label="Отменить совместное действие"
+            >
+              <Undo2 className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => redo()}
+              disabled={!canRedo}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/70 text-text-muted transition-colors hover:text-text disabled:cursor-not-allowed disabled:opacity-50"
+              aria-label="Повторить действие"
+            >
+              <Redo2 className="h-4 w-4" />
+            </button>
           </div>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-text-muted">
+          <div className="flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            <span>{participants.length} участников на связи</span>
+            {shareLink ? (
+              <button
+                type="button"
+                onClick={handleCopyShareLink}
+                className="inline-flex items-center gap-2 rounded-full border border-primary/40 px-3 py-1 text-[0.7rem] font-semibold text-primary transition-colors hover:border-primary"
+              >
+                {isShareCopied ? "Скопировано" : "Поделиться"}
+              </button>
+            ) : null}
+          </div>
+          {shareLink ? (
+            <span className="truncate text-[0.7rem] text-text-muted" title={shareLink}>
+              {shareLink}
+            </span>
+          ) : (
+            <span className="text-[0.7rem] text-text-muted">Совместная сессия недоступна офлайн</span>
+          )}
         </div>
       </header>
 
