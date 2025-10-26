@@ -4,6 +4,10 @@ import {
   Check,
   Copy,
   Link2,
+  MoreHorizontal,
+  Pencil,
+  PlayCircle,
+  RefreshCcw,
   Sparkles,
   ThumbsDown,
   ThumbsUp,
@@ -20,6 +24,16 @@ interface ChatMessageProps {
   latestUserMessage?: ChatMessageModel;
   memoryEnabled: boolean;
   onToggleMemory: () => void;
+  onEditMessage?: (message: ChatMessageModel) => void;
+  onContinueMessage?: (options: {
+    assistantMessage: ChatMessageModel;
+    userMessage?: ChatMessageModel;
+  }) => void;
+  onRegenerateMessage?: (options: {
+    assistantMessage: ChatMessageModel;
+    userMessage?: ChatMessageModel;
+  }) => void;
+  onCopyLink?: (message: ChatMessageModel) => void;
 }
 
 const formatScore = (value: number): string => {
@@ -29,7 +43,16 @@ const formatScore = (value: number): string => {
   return value.toFixed(2);
 };
 
-const ChatMessageView = ({ message, latestUserMessage, memoryEnabled, onToggleMemory }: ChatMessageProps) => {
+const ChatMessageView = ({
+  message,
+  latestUserMessage,
+  memoryEnabled,
+  onToggleMemory,
+  onEditMessage,
+  onContinueMessage,
+  onRegenerateMessage,
+  onCopyLink,
+}: ChatMessageProps) => {
   const isUser = message.role === "user";
   const [isContextExpanded, setIsContextExpanded] = useState(false);
   const [isCopied, setIsCopied] = useState(false);

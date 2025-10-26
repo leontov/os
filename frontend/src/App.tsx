@@ -17,8 +17,10 @@ import { MODE_OPTIONS, findModeLabel } from "./core/modes";
 import { usePersonaTheme } from "./core/usePersonaTheme";
 import useInspectorSession from "./core/useInspectorSession";
 import type { ModelId } from "./core/models";
+import { MODEL_OPTIONS } from "./core/models";
 import { fetchPopularGpts, fetchWhatsNewHighlights } from "./core/recommendations";
 import type { PopularGptRecommendation, WhatsNewHighlight } from "./types/recommendations";
+import type { ChatMessage } from "./types/chat";
 
 type PanelKey =
   | "knowledge"
@@ -582,6 +584,57 @@ const App = () => {
   const handleToggleZenMode = useCallback(() => {
     setZenMode((previous) => !previous);
   }, []);
+
+  const handleShareConversation = useCallback(async () => {
+    if (!conversationId) {
+      return;
+    }
+
+    logInspectorAction("conversation.share", "Поделились беседой", {
+      conversationId,
+    });
+
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const url = new URL(window.location.href);
+    url.searchParams.set("conversationId", conversationId);
+    const shareUrl = url.toString();
+
+    try {
+      if (navigator?.share) {
+        await navigator.share({
+          title: conversationTitle || "Беседа Kolibri",
+          url: shareUrl,
+        });
+        return;
+      }
+
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+        return;
+      }
+
+      window.prompt("Скопируйте ссылку на беседу", shareUrl);
+    } catch (error) {
+      console.warn("[kolibri-share] Не удалось поделиться беседой", error);
+      logInspectorAction("conversation.share.failed", "Не удалось поделиться беседой", {
+        conversationId,
+      });
+    }
+  }, [conversationId, conversationTitle, logInspectorAction]);
+
+  const handleManagePlan = useCallback(() => {
+    logInspectorAction("plan.manage", "Открытие настроек тарифа");
+
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const targetUrl = new URL("/pricing", window.location.origin);
+    window.open(targetUrl.toString(), "_blank", "noopener,noreferrer");
+  }, [logInspectorAction]);
 
   if (isDemoMode) {
     return <DemoPage metrics={demoMetrics} onLaunchApp={handleExitDemo} />;
