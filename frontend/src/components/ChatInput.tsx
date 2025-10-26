@@ -15,6 +15,12 @@ import AttachmentPreviewList, {
   type AttachmentPreviewItem,
 } from "./attachments/AttachmentPreviewList";
 
+interface EditingMessageMeta {
+  id: string;
+  originalContent: string;
+  timestampLabel?: string;
+}
+
 interface ChatInputProps {
   value: string;
   mode: string;
@@ -28,6 +34,9 @@ interface ChatInputProps {
   onRemoveAttachment?: (id: string) => void;
   onClearAttachments: () => void;
   onOpenControls?: () => void;
+  isEditing?: boolean;
+  editingMessage?: EditingMessageMeta | null;
+  onCancelEdit?: () => void;
 }
 
 const MAX_LENGTH = 4000;
@@ -45,6 +54,9 @@ const ChatInput = ({
   onRemoveAttachment,
   onClearAttachments,
   onOpenControls,
+  isEditing = false,
+  editingMessage,
+  onCancelEdit,
 }: ChatInputProps) => {
   const textAreaId = useId();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -52,6 +64,8 @@ const ChatInput = ({
 
   const trimmedLength = useMemo(() => value.trim().length, [value]);
   const remaining = Math.max(0, MAX_LENGTH - value.length);
+  const editingPreview = editingMessage?.originalContent ?? "";
+  const editingTimestamp = editingMessage?.timestampLabel;
 
   const attachmentItems = useMemo<AttachmentPreviewItem[]>(
     () =>
@@ -108,13 +122,17 @@ const ChatInput = ({
   };
 
   const handleAttachClick = () => {
-    if (isBusy) {
+    if (isBusy || isEditing) {
       return;
     }
     fileInputRef.current?.click();
   };
 
   const handleClearDraft = () => {
+    if (isEditing) {
+      onCancelEdit?.();
+      return;
+    }
     onChange("");
     onClearAttachments();
     if (fileInputRef.current) {
@@ -162,6 +180,9 @@ const ChatInput = ({
   };
 
   const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+    if (isEditing) {
+      return;
+    }
     const snippet = extractKnowledgeSnippet(event);
     if (!snippet) {
       return;
@@ -173,6 +194,9 @@ const ChatInput = ({
   };
 
   const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    if (isEditing) {
+      return;
+    }
     const snippet = extractKnowledgeSnippet(event);
     if (!snippet) {
       return;
@@ -201,6 +225,30 @@ const ChatInput = ({
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
+      {isEditing && editingMessage ? (
+        <div className="flex flex-col gap-2 border-b border-border/60 bg-primary/5 px-4 py-3 text-xs text-primary md:flex-row md:items-center md:justify-between">
+          <div className="flex flex-1 flex-col gap-1">
+            <span className="text-[0.68rem] font-semibold uppercase tracking-[0.3em] text-primary/80">
+              Редактирование сообщения
+            </span>
+            <p className="max-w-2xl text-sm text-primary/90 line-clamp-2">{editingPreview}</p>
+            {editingTimestamp ? (
+              <span className="text-[0.65rem] uppercase tracking-[0.28em] text-primary/60">
+                Отправлено: {editingTimestamp}
+              </span>
+            ) : null}
+          </div>
+          {onCancelEdit ? (
+            <button
+              type="button"
+              onClick={onCancelEdit}
+              className="mt-2 inline-flex items-center gap-2 rounded-lg border border-primary/40 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary transition-colors hover:border-primary hover:bg-primary/20 md:mt-0"
+            >
+              Отменить правку
+            </button>
+          ) : null}
+        </div>
+      ) : null}
       <div className="flex flex-col gap-3 border-b border-border/60 px-4 py-3 text-xs text-text-muted md:flex-row md:items-center md:justify-between">
         <div className="flex flex-wrap items-center gap-3">
           <label htmlFor={textAreaId} className="text-[0.65rem] uppercase tracking-[0.3em]">
@@ -313,7 +361,7 @@ const ChatInput = ({
               type="button"
               onClick={handleAttachClick}
               className="inline-flex items-center gap-2 rounded-lg border border-border/70 bg-surface px-3 py-2 transition-colors hover:text-text"
-              disabled={isBusy}
+              disabled={isBusy || isEditing}
             >
               <Paperclip className="h-4 w-4" />
               Вложить
@@ -322,10 +370,10 @@ const ChatInput = ({
               type="button"
               onClick={handleClearDraft}
               className="inline-flex items-center gap-2 rounded-lg border border-border/70 bg-surface px-3 py-2 transition-colors hover:text-text"
-              disabled={isBusy}
+              disabled={isBusy && !isEditing}
             >
               <RefreshCw className="h-4 w-4" />
-              Сбросить
+              {isEditing ? "Отменить" : "Сбросить"}
             </button>
             <span className="inline-flex items-center gap-2 rounded-lg border border-border/70 bg-surface px-3 py-2">
               <Keyboard className="h-4 w-4" />
