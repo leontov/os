@@ -22,6 +22,8 @@ const { askMock, resetMock, searchMock, configureMock, capabilitiesMock } = vi.h
   capabilitiesMock: vi.fn<[], Promise<{ wasm: boolean; simd: boolean; laneWidth: number }>>(),
 }));
 
+const originalFetch = globalThis.fetch;
+
 vi.mock("./core/kolibri-bridge", () => ({
   default: {
     ready: Promise.resolve(),
@@ -54,10 +56,21 @@ describe("App contextual retrieval", () => {
     configureMock.mockResolvedValue();
     capabilitiesMock.mockResolvedValue({ wasm: true, simd: false, laneWidth: 1 });
     consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        status: "ok",
+        response_mode: "script",
+        sso_enabled: false,
+        prometheus_namespace: "kolibri",
+      }),
+    } as Response);
   });
 
   afterEach(() => {
     consoleErrorSpy.mockRestore();
+    globalThis.fetch = originalFetch;
   });
 
   it("prepends retrieved context to the prompt and surfaces it in the UI", async () => {

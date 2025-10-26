@@ -91,6 +91,7 @@ const meta: Meta<typeof ChatView> = {
     onModeChange: fn(),
     onModelChange: fn(),
     onOpenKnowledge: fn(),
+    onOpenReadiness: fn(),
     onOpenAnalytics: fn(),
     onOpenActions: fn(),
     onOpenSwarm: fn(),

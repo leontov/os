@@ -7,6 +7,7 @@ import DemoPage, { DemoMetrics } from "./components/DemoPage";
 import InspectorPanel from "./components/InspectorPanel";
 import KernelControlsPanel from "./components/KernelControlsPanel";
 import KnowledgeView from "./components/KnowledgeView";
+import ReadinessPanel from "./components/ReadinessPanel";
 import SwarmView from "./components/SwarmView";
 import ActionsPanel from "./features/actions/ActionsPanel";
 import WelcomeScreen from "./components/WelcomeScreen";
@@ -16,6 +17,7 @@ import useKolibriChat from "./core/useKolibriChat";
 import { MODE_OPTIONS, findModeLabel } from "./core/modes";
 import { usePersonaTheme } from "./core/usePersonaTheme";
 import useInspectorSession from "./core/useInspectorSession";
+import { useBackendHealth } from "./core/useBackendHealth";
 import type { ModelId } from "./core/models";
 import { MODEL_OPTIONS } from "./core/models";
 import { fetchPopularGpts, fetchWhatsNewHighlights } from "./core/recommendations";
@@ -26,6 +28,7 @@ type PanelKey =
   | "knowledge"
   | "swarm"
   | "analytics"
+  | "readiness"
   | "controls"
   | "actions"
   | "settings"
@@ -37,6 +40,14 @@ const DEFAULT_SUGGESTIONS = [
   "Выпиши ключевые идеи",
   "Помоги подготовить письмо по теме диалога",
 ];
+
+interface EditingState {
+  messageId: string;
+  originalContent: string;
+  timestamp?: string;
+  isoTimestamp?: string;
+  previousDraft: string;
+}
 
 const App = () => {
   const {
@@ -113,8 +124,39 @@ const App = () => {
   const [whatsNewHighlights, setWhatsNewHighlights] = useState<WhatsNewHighlight[]>([]);
   const [popularLoading, setPopularLoading] = useState(true);
   const [whatsNewLoading, setWhatsNewLoading] = useState(true);
+  const {
+    snapshot: backendHealth,
+    error: backendHealthError,
+    checkedAt: backendHealthCheckedAt,
+    isLoading: isBackendHealthLoading,
+    refresh: refreshBackendHealth,
+  } = useBackendHealth();
+  const [editingState, setEditingState] = useState<EditingState | null>(null);
 
   const modeLabel = useMemo(() => findModeLabel(mode), [mode]);
+  const editingContext = useMemo(
+    () =>
+      editingState
+        ? {
+            id: editingState.messageId,
+            originalContent: editingState.originalContent,
+            timestampLabel: editingState.isoTimestamp ?? editingState.timestamp,
+          }
+        : null,
+    [editingState],
+  );
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void refreshBackendHealth({ signal: controller.signal });
+    return () => {
+      controller.abort();
+    };
+  }, [refreshBackendHealth]);
+
+  useEffect(() => {
+    setEditingState(null);
+  }, [conversationId]);
 
   const handleSuggestionSelect = useCallback(
     (suggestion: string) => {
@@ -141,15 +183,32 @@ const App = () => {
   );
 
   const handleSendMessage = useCallback(async () => {
+    if (editingState) {
+      const trimmed = draft.trim();
+      if (!trimmed) {
+        return;
+      }
+      logInspectorAction("message.edit", "Повторная отправка после правки", {
+        messageId: editingState.messageId,
+        length: trimmed.length,
+      });
+      await resendMessage(editingState.messageId, { content: trimmed });
+      setDraft(editingState.previousDraft);
+      clearAttachments();
+      setEditingState(null);
+      return;
+    }
+
     logInspectorAction("message.user", "Отправка сообщения", {
       draftLength: draft.trim().length,
       attachments: attachments.length,
     });
     await sendMessage();
-  }, [attachments.length, draft, logInspectorAction, sendMessage]);
+  }, [attachments.length, clearAttachments, draft, editingState, logInspectorAction, resendMessage, sendMessage, setDraft]);
 
   const handleResetConversation = useCallback(async () => {
     logInspectorAction("conversation.reset", "Начат новый диалог", { conversationId });
+    setEditingState(null);
     await resetConversation();
   }, [conversationId, logInspectorAction, resetConversation]);
 
@@ -226,6 +285,11 @@ const App = () => {
     logInspectorAction("knowledge.refresh", "Запрошено обновление памяти");
     void refreshKnowledgeStatus();
   }, [logInspectorAction, refreshKnowledgeStatus]);
+
+  const handleBackendHealthRefresh = useCallback(() => {
+    logInspectorAction("system.health.refresh", "Проверка статуса backend");
+    void refreshBackendHealth();
+  }, [logInspectorAction, refreshBackendHealth]);
 
   const handleUpdatePreferences = useCallback(
     (next: Partial<typeof preferences>) => {
@@ -357,22 +421,34 @@ const App = () => {
       if (message.role !== "user") {
         return;
       }
-      const edited = window.prompt("Отредактируйте сообщение перед повторной отправкой:", message.content);
-      if (edited === null) {
-        return;
-      }
-      const trimmed = edited.trim();
-      if (!trimmed) {
-        return;
-      }
-      logInspectorAction("message.edit", "Повторная отправка после правки", {
+      setEditingState({
         messageId: message.id,
-        length: trimmed.length,
+        originalContent: message.content,
+        timestamp: message.timestamp,
+        isoTimestamp: message.isoTimestamp,
+        previousDraft: draft,
       });
-      void resendMessage(message.id, { content: trimmed });
+      setDraft(message.content);
+      clearAttachments();
+      logInspectorAction("message.edit", "Редактирование сообщения начато", {
+        messageId: message.id,
+        originalLength: message.content.trim().length,
+      });
     },
-    [logInspectorAction, resendMessage],
+    [clearAttachments, draft, logInspectorAction, setDraft],
   );
+
+  const handleCancelEdit = useCallback(() => {
+    if (!editingState) {
+      return;
+    }
+    setDraft(editingState.previousDraft);
+    clearAttachments();
+    logInspectorAction("message.edit", "Редактирование отменено", {
+      messageId: editingState.messageId,
+    });
+    setEditingState(null);
+  }, [clearAttachments, editingState, logInspectorAction, setDraft]);
 
   const handleMessageRegenerate = useCallback(
     ({ assistantMessage, userMessage }: { assistantMessage: ChatMessage; userMessage?: ChatMessage }) => {
@@ -469,6 +545,9 @@ const App = () => {
         onRemoveAttachment={handleRemoveAttachment}
         onClearAttachments={handleClearAttachments}
         onOpenControls={() => setActivePanel("controls")}
+        isEditing={Boolean(editingState)}
+        editingMessage={editingContext}
+        onCancelEdit={handleCancelEdit}
       />
       {quickSuggestions.length > 0 ? (
         <div className="rounded-2xl border border-border/60 bg-surface px-4 py-3 text-sm text-text-muted shadow-sm">
@@ -677,6 +756,7 @@ const App = () => {
           onModeChange={handleModeChange}
           onModelChange={handleModelChange}
           onOpenKnowledge={() => setActivePanel("knowledge")}
+          onOpenReadiness={() => setActivePanel("readiness")}
           onOpenAnalytics={() => setActivePanel("analytics")}
           onOpenActions={() => setActivePanel("actions")}
           onOpenSwarm={() => setActivePanel("swarm")}
@@ -733,6 +813,28 @@ const App = () => {
             void refreshKnowledgeStatus();
           }}
           usage={knowledgeUsage}
+        />
+      </PanelDialog>
+
+      <PanelDialog
+        title="Готовность продукта"
+        description="Проверьте состояние backend, памяти и wasm ядра перед демонстрацией."
+        isOpen={activePanel === "readiness"}
+        onClose={() => setActivePanel(null)}
+        maxWidthClass="max-w-5xl"
+      >
+        <ReadinessPanel
+          backend={backendHealth}
+          backendError={backendHealthError}
+          backendCheckedAt={backendHealthCheckedAt}
+          isBackendLoading={isBackendHealthLoading}
+          onBackendRefresh={handleBackendHealthRefresh}
+          knowledgeStatus={knowledgeStatus}
+          knowledgeError={knowledgeError}
+          isKnowledgeLoading={statusLoading}
+          onKnowledgeRefresh={handleRefreshKnowledge}
+          bridgeReady={bridgeReady}
+          kernelCapabilities={kernelCapabilities}
         />
       </PanelDialog>
 
