@@ -1,12 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import html2canvas from "html2canvas";
 import type { ChatMessage } from "../types/chat";
-import type {
-  ConversationMetrics,
-  ConversationPreferences,
-  KernelCapabilities,
-  KernelControlsState,
-} from "./useKolibriChat";
+import type { ConversationMetrics, ConversationPreferences, KernelControlsState } from "./useKolibriChat";
+import type { KernelCapabilities } from "./kolibri-bridge";
 
 export type InspectorActionType =
   | "conversation.title"
@@ -16,6 +12,8 @@ export type InspectorActionType =
   | "mode.change"
   | "message.user"
   | "message.assistant"
+  | "message.stop"
+  | "message.regenerate"
   | "attachment.add"
   | "attachment.remove"
   | "attachment.clear"

@@ -43,10 +43,16 @@ export interface KolibriBridge {
     mode?: string,
     context?: KnowledgeSnippet[],
     attachments?: SerializedAttachment[],
+    options?: AskOptions,
   ): Promise<string>;
   reset(): Promise<void>;
   configure(controls: KernelControlPayload): Promise<void>;
   capabilities(): Promise<KernelCapabilities>;
+}
+
+export interface AskOptions {
+  signal?: AbortSignal;
+  onToken?: (token: string) => void;
 }
 
 interface KolibriWasmExports {
@@ -97,6 +103,105 @@ const PROGRAM_END_PATTERN = /конец\./i;
 
 const textDecoder = new TextDecoder("utf-8");
 const textEncoder = new TextEncoder();
+
+const parseSseStream = async (
+  stream: ReadableStream<Uint8Array>,
+  onToken?: (token: string) => void,
+): Promise<string> => {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder("utf-8");
+  let buffer = "";
+  let combined = "";
+
+  const extractChunk = (payload: string): string | null => {
+    const trimmed = payload.trim();
+    if (!trimmed) {
+      return "";
+    }
+    if (trimmed === "[DONE]") {
+      return null;
+    }
+    if ((trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]"))) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (typeof parsed === "string") {
+          return parsed;
+        }
+        if (parsed && typeof parsed === "object") {
+          if (typeof parsed.text === "string") {
+            return parsed.text;
+          }
+          if (typeof parsed.delta === "string") {
+            return parsed.delta;
+          }
+          if (typeof parsed.token === "string") {
+            return parsed.token;
+          }
+          if (typeof parsed.content === "string") {
+            return parsed.content;
+          }
+        }
+      } catch {
+        // Если это не JSON, трактуем как обычный текст.
+      }
+    }
+    return payload;
+  };
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (value) {
+      buffer += decoder.decode(value, { stream: !done });
+    }
+    if (done) {
+      buffer += decoder.decode();
+    }
+
+    buffer = buffer.replace(/\r/g, "");
+
+    let separatorIndex = buffer.indexOf("\n\n");
+    while (separatorIndex !== -1) {
+      const rawEvent = buffer.slice(0, separatorIndex);
+      buffer = buffer.slice(separatorIndex + 2);
+
+      const dataLines = rawEvent
+        .split("\n")
+        .filter((line) => line.startsWith("data:"))
+        .map((line) => line.slice(5).trimStart());
+
+      if (dataLines.length > 0) {
+        const payload = dataLines.join("");
+        const chunk = extractChunk(payload);
+        if (chunk === null) {
+          return combined;
+        }
+        if (chunk) {
+          combined += chunk;
+          onToken?.(chunk);
+        }
+      }
+
+      separatorIndex = buffer.indexOf("\n\n");
+    }
+
+    if (done) {
+      const leftover = buffer.trim();
+      if (leftover) {
+        const chunk = extractChunk(leftover);
+        if (chunk === null) {
+          return combined;
+        }
+        if (chunk) {
+          combined += chunk;
+          onToken?.(chunk);
+        }
+      }
+      break;
+    }
+  }
+
+  return combined;
+};
 
 const WASI_ERRNO_SUCCESS = 0;
 const WASI_ERRNO_INVAL = 28;
@@ -522,13 +627,22 @@ class KolibriScriptBridge implements KolibriBridge {
     mode: string = DEFAULT_MODE_LABEL,
     context: KnowledgeSnippet[] = [],
     attachments: SerializedAttachment[] = [],
+    options: AskOptions = {},
   ): Promise<string> {
+    const { signal, onToken } = options;
+    if (signal?.aborted) {
+      throw new DOMException("Aborted", "AbortError");
+    }
     if (attachments.length) {
       console.info(
         `[kolibri-bridge] KolibriScript пока игнорирует ${attachments.length} вложения(ий).`,
       );
     }
-    return this.runtime.execute(prompt, mode, context);
+    const answer = await this.runtime.execute(prompt, mode, context);
+    if (onToken) {
+      onToken(answer);
+    }
+    return answer;
   }
 
   async reset(): Promise<void> {
@@ -556,7 +670,11 @@ class KolibriFallbackBridge implements KolibriBridge {
     _mode?: string,
     _context?: KnowledgeSnippet[],
     attachments: SerializedAttachment[] = [],
+    options: AskOptions = {},
   ): Promise<string> {
+    if (options.signal?.aborted) {
+      throw new DOMException("Aborted", "AbortError");
+    }
     if (attachments.length) {
       console.info(
         `[kolibri-bridge] Получено ${attachments.length} вложения(ий), но KolibriScript недоступен.`,
@@ -564,11 +682,13 @@ class KolibriFallbackBridge implements KolibriBridge {
     }
     const details = this.reason.trim();
     const reasonText = details ? `Причина: ${details}` : "Причина: неизвестна.";
-    return [
+    const message = [
       "KolibriScript недоступен: kolibri.wasm не был загружен.",
       reasonText,
       "Запустите scripts/build_wasm.sh или установите переменную KOLIBRI_ALLOW_WASM_STUB=1 для деградированного режима.",
     ].join("\n");
+    options.onToken?.(message);
+    return message;
   }
 
   async reset(): Promise<void> {
@@ -595,19 +715,33 @@ class KolibriLLMBridge implements KolibriBridge {
     mode: string = DEFAULT_MODE_LABEL,
     context: KnowledgeSnippet[] = [],
     attachments: SerializedAttachment[] = [],
+    options: AskOptions = {},
   ): Promise<string> {
+    const { signal, onToken } = options;
     const payload = attachments.length
-      ? { prompt, mode, context, attachments }
-      : { prompt, mode, context };
+      ? { prompt, mode, context, attachments, stream: Boolean(onToken) }
+      : { prompt, mode, context, stream: Boolean(onToken) };
     try {
       const response = await fetch(this.endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
+        signal,
       });
 
       if (!response.ok) {
         throw new Error(`LLM proxy responded with ${response.status} ${response.statusText}`);
+      }
+
+      const contentType = response.headers.get("content-type") ?? "";
+
+      if (contentType.includes("text/event-stream")) {
+        const body = response.body;
+        if (!body) {
+          throw new Error("LLM proxy did not provide a response body.");
+        }
+        const streamed = await parseSseStream(body, onToken);
+        return streamed.trim();
       }
 
       const data = (await response.json()) as { response?: unknown };
@@ -615,11 +749,23 @@ class KolibriLLMBridge implements KolibriBridge {
         throw new Error("LLM proxy returned an unexpected payload.");
       }
 
-      return data.response.trim();
+      const text = data.response.trim();
+      if (onToken) {
+        onToken(text);
+      }
+      return text;
     } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        throw error;
+      }
+      if (error && typeof error === "object" && "name" in error && error.name === "AbortError") {
+        throw error as Error;
+      }
       console.warn("[kolibri-bridge] Ошибка при запросе к LLM, выполняем KolibriScript.", error);
-      const fallbackResponse = await this.fallback.ask(prompt, mode, context);
-      return `${fallbackResponse}\n\n(Ответ сгенерирован KolibriScript из-за ошибки LLM.)`;
+      const fallbackResponse = await this.fallback.ask(prompt, mode, context, attachments, options);
+      const note = "\n\n(Ответ сгенерирован KolibriScript из-за ошибки LLM.)";
+      onToken?.(note);
+      return `${fallbackResponse}${note}`;
     }
   }
 
@@ -678,9 +824,10 @@ const kolibriBridge: KolibriBridge = {
     mode?: string,
     context: KnowledgeSnippet[] = [],
     attachments: SerializedAttachment[] = [],
+    options?: AskOptions,
   ): Promise<string> {
     const bridge = await bridgePromise;
-    return bridge.ask(prompt, mode, context, attachments);
+    return bridge.ask(prompt, mode, context, attachments, options);
   },
   async reset(): Promise<void> {
     const bridge = await bridgePromise;

@@ -36,6 +36,7 @@ interface ChatViewProps {
   onToggleZenMode: () => void;
   personaName: string;
   onViewportElementChange?: (element: HTMLElement | null) => void;
+  onRegenerateMessage: (message: ChatMessage, userMessage?: ChatMessage) => void;
 }
 
 const ChatView = ({
@@ -60,6 +61,7 @@ const ChatView = ({
   onToggleZenMode,
   personaName,
   onViewportElementChange,
+  onRegenerateMessage,
 }: ChatViewProps) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [isNearBottom, setIsNearBottom] = useState(true);
@@ -149,13 +151,18 @@ const ChatView = ({
 
       items.push(
         <div key={message.id} className="px-2">
-          <ChatMessageView message={message} latestUserMessage={contextUserMessage} />
+          <ChatMessageView
+            message={message}
+            latestUserMessage={contextUserMessage}
+            disableActions={isLoading}
+            onRegenerate={onRegenerateMessage}
+          />
         </div>,
       );
     });
 
     return items;
-  }, [messages]);
+  }, [messages, isLoading, onRegenerateMessage]);
 
   const conversationShortId = useMemo(() => conversationId.slice(0, 8), [conversationId]);
 
@@ -295,7 +302,7 @@ const ChatView = ({
             {isLoading ? (
               <div className="mx-2 flex items-center gap-2 rounded-xl border border-dashed border-brand/40 bg-brand/10 px-4 py-3 text-sm text-text">
                 <span className="h-2 w-2 animate-pulse rounded-full bg-brand" />
-                Колибри формирует ответ...
+                ChatGPT is typing…
               </div>
             ) : null}
           </div>

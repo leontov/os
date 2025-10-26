@@ -734,6 +734,7 @@ interface UseKolibriChatResult {
   draft: string;
   mode: string;
   isProcessing: boolean;
+  isStreaming: boolean;
   bridgeReady: boolean;
   conversationId: string;
   conversationTitle: string;
@@ -758,10 +759,12 @@ interface UseKolibriChatResult {
   removeAttachment: (id: string) => void;
   clearAttachments: () => void;
   sendMessage: () => Promise<void>;
+  regenerateMessage: (message?: ChatMessage, sourceUserMessage?: ChatMessage) => Promise<void>;
   resetConversation: () => Promise<void>;
   selectConversation: (id: string) => void;
   createConversation: () => Promise<void>;
   refreshKnowledgeStatus: () => Promise<void>;
+  stopGeneration: () => void;
 }
 
 const useKolibriChat = (): UseKolibriChatResult => {
@@ -772,6 +775,7 @@ const useKolibriChat = (): UseKolibriChatResult => {
   const [draft, setDraft] = useState(initialActiveConversation.draft ?? "");
   const [mode, setMode] = useState(initialActiveConversation.mode ?? DEFAULT_MODE_VALUE);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
   const [bridgeReady, setBridgeReady] = useState(false);
   const [conversationId, setConversationId] = useState(initialActiveConversation.id);
   const [conversationTitle, setConversationTitle] = useState(initialActiveConversation.title);
@@ -786,7 +790,9 @@ const useKolibriChat = (): UseKolibriChatResult => {
   );
 
   const knowledgeSearchAbortRef = useRef<AbortController | null>(null);
+  const streamingAbortRef = useRef<AbortController | null>(null);
   const conversationsRef = useRef<ConversationRecord[]>(initialConversations);
+  const lastTurnRef = useRef<{ prompt: string; attachments: SerializedAttachment[]; mode: string } | null>(null);
 
   useEffect(() => {
     conversationsRef.current = conversations;
@@ -838,6 +844,17 @@ const useKolibriChat = (): UseKolibriChatResult => {
     setAttachments([]);
   }, []);
 
+  const stopGeneration = useCallback(() => {
+    if (knowledgeSearchAbortRef.current) {
+      knowledgeSearchAbortRef.current.abort();
+      knowledgeSearchAbortRef.current = null;
+    }
+    if (streamingAbortRef.current) {
+      streamingAbortRef.current.abort();
+      streamingAbortRef.current = null;
+    }
+  }, []);
+
   const updateKernelControls = useCallback((controls: Partial<KernelControlsState>) => {
     setKernelControlsState((prev) => ({
       ...prev,
@@ -882,6 +899,186 @@ const useKolibriChat = (): UseKolibriChatResult => {
       },
     ]);
   }, []);
+
+  const streamAssistantResponse = useCallback(
+    async ({
+      prompt,
+      knowledgeContext,
+      contextError,
+      serializedAttachments,
+      modeValue,
+    }: {
+      prompt: string;
+      knowledgeContext: KnowledgeSnippet[];
+      contextError?: string;
+      serializedAttachments: SerializedAttachment[];
+      modeValue: string;
+    }): Promise<void> => {
+      const moment = nowPair();
+      const assistantId = crypto.randomUUID();
+      const baseMessage: ChatMessage = {
+        id: assistantId,
+        role: "assistant",
+        content: "",
+        timestamp: moment.display,
+        isoTimestamp: moment.iso,
+        modeValue,
+        modeLabel: findModeLabel(modeValue),
+        context: knowledgeContext.length ? knowledgeContext : undefined,
+        contextError,
+      };
+
+      setMessages((prev) => [...prev, baseMessage]);
+      setIsStreaming(true);
+
+      const controller = new AbortController();
+      streamingAbortRef.current = controller;
+
+      let accumulated = "";
+
+      try {
+        const answer = await kolibriBridge.ask(prompt, modeValue, knowledgeContext, serializedAttachments, {
+          signal: controller.signal,
+          onToken: (chunk) => {
+            if (!chunk) {
+              return;
+            }
+            accumulated += chunk;
+            setMessages((prev) =>
+              prev.map((message) =>
+                message.id === assistantId
+                  ? {
+                      ...message,
+                      content: accumulated,
+                    }
+                  : message,
+              ),
+            );
+          },
+        });
+
+        const finalText = answer.trim() || accumulated;
+        setMessages((prev) =>
+          prev.map((message) =>
+            message.id === assistantId
+              ? {
+                  ...message,
+                  content: finalText || accumulated,
+                }
+              : message,
+          ),
+        );
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          const note = accumulated
+            ? `${accumulated.replace(/\s+$/, "")}\n\n*Ответ остановлен пользователем.*`
+            : "*Ответ остановлен пользователем.*";
+          setMessages((prev) =>
+            prev.map((message) =>
+              message.id === assistantId
+                ? {
+                    ...message,
+                    content: note,
+                  }
+                : message,
+            ),
+          );
+          throw error;
+        }
+
+        const fallbackText =
+          error instanceof Error && error.message
+            ? `Не удалось получить ответ: ${error.message}`
+            : "Не удалось получить ответ от ядра Колибри.";
+        setMessages((prev) =>
+          prev.map((message) =>
+            message.id === assistantId
+              ? {
+                  ...message,
+                  content: fallbackText,
+                  context: undefined,
+                  contextError: undefined,
+                }
+              : message,
+          ),
+        );
+        throw error;
+      } finally {
+        streamingAbortRef.current = null;
+        setIsStreaming(false);
+      }
+    },
+    [],
+  );
+
+  const requestAssistantResponse = useCallback(
+    async ({
+      rawPrompt,
+      serializedAttachments,
+      modeOverride,
+    }: {
+      rawPrompt: string;
+      serializedAttachments: SerializedAttachment[];
+      modeOverride?: string;
+    }): Promise<boolean> => {
+      const trimmedPrompt = rawPrompt || "";
+      const controller = new AbortController();
+      knowledgeSearchAbortRef.current = controller;
+
+      let knowledgeContext: KnowledgeSnippet[] = [];
+      let contextError: string | undefined;
+      let aborted = false;
+
+      try {
+        knowledgeContext = await searchKnowledge(trimmedPrompt, { topK: 3, signal: controller.signal });
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          aborted = true;
+        } else {
+          contextError =
+            error instanceof Error && error.message
+              ? error.message
+              : "Не удалось получить контекст из памяти.";
+        }
+      } finally {
+        knowledgeSearchAbortRef.current = null;
+      }
+
+      if (aborted) {
+        return false;
+      }
+
+      const preparedPrompt = knowledgeContext.length
+        ? formatPromptWithContext(trimmedPrompt, knowledgeContext)
+        : trimmedPrompt;
+
+      const effectiveMode = modeOverride ?? mode;
+
+      lastTurnRef.current = {
+        prompt: rawPrompt,
+        attachments: serializedAttachments,
+        mode: effectiveMode,
+      };
+
+      try {
+        await streamAssistantResponse({
+          prompt: preparedPrompt,
+          knowledgeContext,
+          contextError,
+          serializedAttachments,
+          modeValue: effectiveMode,
+        });
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return false;
+        }
+        throw error;
+      }
+
+      return true;
+    },
+    [mode, streamAssistantResponse],
+  );
 
   const describePreferences = useCallback(
     (prefs: ConversationPreferences): string => {
@@ -1053,8 +1250,7 @@ const useKolibriChat = (): UseKolibriChatResult => {
   }, [conversationId, conversationTitle, draft, messages, mode, preferences]);
 
   const resetConversation = useCallback(async () => {
-    knowledgeSearchAbortRef.current?.abort();
-    knowledgeSearchAbortRef.current = null;
+    stopGeneration();
     clearAttachments();
 
     if (!bridgeReady) {
@@ -1083,7 +1279,7 @@ const useKolibriChat = (): UseKolibriChatResult => {
     } finally {
       setIsProcessing(false);
     }
-  }, [beginNewConversation, bridgeReady, clearAttachments]);
+  }, [beginNewConversation, bridgeReady, clearAttachments, stopGeneration]);
 
   const executeQuickCommand = useCallback(
     async (raw: string, attachmentsPresent: boolean): Promise<boolean> => {
@@ -1228,10 +1424,9 @@ const useKolibriChat = (): UseKolibriChatResult => {
       }
     }
 
-    const pendingAttachments = attachments;
     let serializedAttachments: SerializedAttachment[] = [];
     try {
-      serializedAttachments = await serializeAttachments(pendingAttachments);
+      serializedAttachments = await serializeAttachments(attachments);
     } catch (error) {
       console.error("Не удалось сериализовать вложения", error);
     }
@@ -1251,68 +1446,86 @@ const useKolibriChat = (): UseKolibriChatResult => {
     clearAttachments();
     setIsProcessing(true);
 
-    knowledgeSearchAbortRef.current?.abort();
-    const controller = new AbortController();
-    knowledgeSearchAbortRef.current = controller;
-
-    let knowledgeContext: KnowledgeSnippet[] = [];
-    let contextError: string | undefined;
-    let aborted = false;
-
     try {
-      knowledgeContext = await searchKnowledge(content || "", { topK: 3, signal: controller.signal });
+      await requestAssistantResponse({
+        rawPrompt: content || "",
+        serializedAttachments,
+        modeOverride: mode,
+      });
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") {
-        aborted = true;
+        // Поколение остановлено пользователем.
       } else {
-        contextError =
-          error instanceof Error && error.message ? error.message : "Не удалось получить контекст из памяти.";
+        console.error("Не удалось получить ответ", error);
       }
     } finally {
-      knowledgeSearchAbortRef.current = null;
-    }
-
-    if (aborted) {
-      setIsProcessing(false);
-      void refreshKnowledgeStatus();
-      return;
-    }
-
-    const prompt = knowledgeContext.length ? formatPromptWithContext(content || "", knowledgeContext) : content;
-
-    try {
-      const answer = await kolibriBridge.ask(prompt, mode, knowledgeContext, serializedAttachments);
-      const moment = nowPair();
-      const assistantMessage: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: answer,
-        timestamp: moment.display,
-        isoTimestamp: moment.iso,
-        modeValue: mode,
-        modeLabel: findModeLabel(mode),
-        context: knowledgeContext.length ? knowledgeContext : undefined,
-        contextError,
-      };
-      setMessages((prev) => [...prev, assistantMessage]);
-    } catch (error) {
-      const moment = nowPair();
-      const assistantMessage: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content:
-          error instanceof Error
-            ? `Не удалось получить ответ: ${error.message}`
-            : "Не удалось получить ответ от ядра Колибри.",
-        timestamp: moment.display,
-        isoTimestamp: moment.iso,
-      };
-      setMessages((prev) => [...prev, assistantMessage]);
-    } finally {
       setIsProcessing(false);
       void refreshKnowledgeStatus();
     }
-  }, [attachments, bridgeReady, clearAttachments, draft, executeQuickCommand, isProcessing, mode, refreshKnowledgeStatus]);
+  }, [
+    attachments,
+    bridgeReady,
+    clearAttachments,
+    draft,
+    executeQuickCommand,
+    isProcessing,
+    mode,
+    refreshKnowledgeStatus,
+    requestAssistantResponse,
+  ]);
+
+  const regenerateMessage = useCallback(
+    async (message?: ChatMessage, sourceUserMessage?: ChatMessage) => {
+      if (isProcessing || !bridgeReady) {
+        return;
+      }
+
+      let promptSource = sourceUserMessage?.content ?? "";
+      let attachmentsSource: SerializedAttachment[] = sourceUserMessage?.attachments ?? [];
+      let modeOverride = message?.modeValue ?? mode;
+
+      if (!promptSource.trim()) {
+        if (lastTurnRef.current) {
+          promptSource = lastTurnRef.current.prompt;
+          attachmentsSource = lastTurnRef.current.attachments;
+          modeOverride = lastTurnRef.current.mode;
+        } else {
+          for (let index = messages.length - 1; index >= 0; index -= 1) {
+            const candidate = messages[index];
+            if (candidate.role === "user" && candidate.content.trim()) {
+              promptSource = candidate.content;
+              attachmentsSource = candidate.attachments ?? [];
+              break;
+            }
+          }
+        }
+      }
+
+      if (!promptSource.trim()) {
+        return;
+      }
+
+      setIsProcessing(true);
+
+      try {
+        await requestAssistantResponse({
+          rawPrompt: promptSource,
+          serializedAttachments: attachmentsSource,
+          modeOverride,
+        });
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          // Пользователь остановил повтор.
+        } else {
+          console.error("Не удалось повторить ответ", error);
+        }
+      } finally {
+        setIsProcessing(false);
+        void refreshKnowledgeStatus();
+      }
+    },
+    [bridgeReady, isProcessing, messages, mode, refreshKnowledgeStatus, requestAssistantResponse],
+  );
 
   const renameConversation = useCallback((nextTitle: string) => {
     const trimmed = nextTitle.trim();
@@ -1379,6 +1592,7 @@ const useKolibriChat = (): UseKolibriChatResult => {
     draft,
     mode,
     isProcessing,
+    isStreaming,
     bridgeReady,
     conversationId,
     conversationTitle,
@@ -1400,9 +1614,11 @@ const useKolibriChat = (): UseKolibriChatResult => {
     attachFiles,
     removeAttachment,
     clearAttachments,
+    stopGeneration,
     updateKernelControls,
     updatePreferences,
     sendMessage,
+    regenerateMessage,
     resetConversation,
     selectConversation,
     createConversation,

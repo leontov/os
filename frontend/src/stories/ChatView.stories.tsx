@@ -21,18 +21,21 @@ const messages: ChatMessage[] = [
     id: "1",
     role: "user",
     content: "Привет! Давай составим план исследования.",
+    timestamp: "12:00",
     isoTimestamp: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
   },
   {
     id: "2",
     role: "assistant",
     content: "Здравствуйте! Я подготовлю структуру и предложу ближайшие шаги.",
+    timestamp: "12:01",
     isoTimestamp: new Date(Date.now() - 1000 * 60 * 14).toISOString(),
   },
   {
     id: "3",
     role: "user",
     content: "Отлично, добавь ссылку на прошлый анализ.",
+    timestamp: "12:02",
     isoTimestamp: new Date(Date.now() - 1000 * 60 * 12).toISOString(),
   },
 ];
@@ -60,6 +63,7 @@ const meta: Meta<typeof ChatView> = {
     isZenMode: false,
     onToggleZenMode: fn(),
     personaName: "Aurora",
+    onRegenerateMessage: fn(),
   },
   parameters: {
     layout: "fullscreen",

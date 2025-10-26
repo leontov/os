@@ -1,10 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearCachedProfile, fetchCloudProfile, updateCloudProfile } from "../cloudProfile";
 
-declare global {
-  var fetch: typeof fetch;
-}
-
 describe("cloudProfile", () => {
   const originalFetch = globalThis.fetch;
 
@@ -26,7 +22,7 @@ describe("cloudProfile", () => {
       JSON.stringify({ personaId: "nocturne", motionPreference: "expressive", appearance: "dark", voiceId: "nocturne-voice" }),
     );
 
-    globalThis.fetch = vi.fn().mockRejectedValue(new Error("network"));
+    globalThis.fetch = vi.fn().mockRejectedValue(new Error("network")) as unknown as typeof fetch;
 
     const profile = await fetchCloudProfile();
 
@@ -40,7 +36,7 @@ describe("cloudProfile", () => {
       JSON.stringify({ personaId: "prism", appearance: "light", motionPreference: "expressive", voiceId: "prism-voice" }),
       { status: 200, headers: { "Content-Type": "application/json" } },
     );
-    globalThis.fetch = vi.fn().mockResolvedValue(mockResponse);
+    globalThis.fetch = vi.fn().mockResolvedValue(mockResponse) as unknown as typeof fetch;
 
     const result = await updateCloudProfile({
       personaId: "prism",

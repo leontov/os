@@ -1,7 +1,7 @@
 import { Sparkles } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AnalyticsView from "./components/AnalyticsView";
-import ChatInput from "./components/ChatInput";
+import ChatComposer from "./components/ChatComposer";
 import ChatView from "./components/ChatView";
 import ConversationPreferencesBar from "./components/ConversationPreferencesBar";
 import DemoPage, { DemoMetrics } from "./components/DemoPage";
@@ -19,6 +19,8 @@ import { findModeLabel } from "./core/modes";
 import useMediaQuery from "./core/useMediaQuery";
 import { usePersonaTheme } from "./core/usePersonaTheme";
 import useInspectorSession from "./core/useInspectorSession";
+import type { ChatMessage } from "./types/chat";
+import type { ConversationPreferences } from "./core/useKolibriChat";
 
 type PanelKey = "knowledge" | "swarm" | "analytics" | "controls" | "preferences" | "actions" | null;
 
@@ -35,6 +37,7 @@ const App = () => {
     draft,
     mode,
     isProcessing,
+    isStreaming,
     bridgeReady,
     conversationId,
     conversationTitle,
@@ -59,10 +62,12 @@ const App = () => {
     removeAttachment,
     clearAttachments,
     sendMessage,
+    regenerateMessage,
     resetConversation,
     selectConversation,
     createConversation,
     refreshKnowledgeStatus,
+    stopGeneration,
   } = useKolibriChat();
 
   const inspectorSession = useInspectorSession({
@@ -129,6 +134,30 @@ const App = () => {
     await sendMessage();
   }, [attachments.length, draft, logInspectorAction, sendMessage]);
 
+  const handleStopGeneration = useCallback(() => {
+    logInspectorAction("message.stop", "Остановлена генерация ответа");
+    stopGeneration();
+  }, [logInspectorAction, stopGeneration]);
+
+  const handleRegenerateMessage = useCallback(
+    (message?: ChatMessage, userMessage?: ChatMessage) => {
+      logInspectorAction("message.regenerate", "Повтор генерации ответа", {
+        messageId: message?.id,
+        userMessageId: userMessage?.id,
+      });
+      void regenerateMessage(message, userMessage);
+    },
+    [logInspectorAction, regenerateMessage],
+  );
+
+  const handleComposerRegenerate = useCallback(() => {
+    if (latestAssistantMessage) {
+      handleRegenerateMessage(latestAssistantMessage);
+    } else {
+      handleRegenerateMessage();
+    }
+  }, [handleRegenerateMessage, latestAssistantMessage]);
+
   const handleResetConversation = useCallback(async () => {
     logInspectorAction("conversation.reset", "Начат новый диалог", { conversationId });
     await resetConversation();
@@ -190,8 +219,8 @@ const App = () => {
   }, [logInspectorAction, refreshKnowledgeStatus]);
 
   const handleUpdatePreferences = useCallback(
-    (next: typeof preferences) => {
-      logInspectorAction("preferences.update", "Изменены настройки беседы", next);
+    (next: Partial<ConversationPreferences>) => {
+      logInspectorAction("preferences.update", "Изменены настройки беседы", { preferences: next });
       updatePreferences(next);
     },
     [logInspectorAction, updatePreferences],
@@ -313,20 +342,9 @@ const App = () => {
     setDemoMode(false);
   }, []);
 
-  const handleCreateConversation = useCallback(() => {
-    void createConversation();
-  }, [createConversation]);
-
   const handleToggleZenMode = useCallback(() => {
     setZenMode((previous) => !previous);
   }, []);
-
-  const handleSelectConversation = useCallback(
-    (id: string) => {
-      selectConversation(id);
-    },
-    [selectConversation],
-  );
 
   if (isDemoMode) {
     return <DemoPage metrics={demoMetrics} onLaunchApp={handleExitDemo} />;
@@ -347,10 +365,11 @@ const App = () => {
         onSidebarOpenChange={setSidebarOpen}
         footer={
           <div className="flex flex-col gap-4">
-            <ChatInput
+            <ChatComposer
               value={draft}
               mode={mode}
               isBusy={isProcessing || !bridgeReady}
+              isStreaming={isStreaming}
               attachments={attachments}
               onChange={setDraft}
               onModeChange={handleModeChange}
@@ -364,6 +383,8 @@ const App = () => {
               onRemoveAttachment={handleRemoveAttachment}
               onClearAttachments={handleClearAttachments}
               onOpenControls={() => setActivePanel("controls")}
+              onStop={handleStopGeneration}
+              onRegenerate={latestAssistantMessage ? handleComposerRegenerate : undefined}
             />
             {quickSuggestions.length > 0 ? (
               <div className="rounded-2xl border border-border/60 bg-surface px-4 py-3 text-sm text-text-muted shadow-sm">
@@ -417,6 +438,7 @@ const App = () => {
           onToggleZenMode={handleToggleZenMode}
           personaName={activePersona.name}
           onViewportElementChange={registerCaptureTarget}
+          onRegenerateMessage={handleRegenerateMessage}
         />
       </ChatLayout>
 
