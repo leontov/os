@@ -4,6 +4,8 @@ import type { ChatMessage } from "../types/chat";
 import type { KnowledgeSnippet } from "../types/knowledge";
 import { fetchKnowledgeStatus, searchKnowledge } from "./knowledge";
 import kolibriBridge, { type KernelCapabilities, type KernelControlPayload } from "./kolibri-bridge";
+
+export type { KernelCapabilities } from "./kolibri-bridge";
 import { MODE_OPTIONS, findModeLabel } from "./modes";
 import { DEFAULT_MODEL_ID, MODEL_OPTIONS, type ModelId } from "./models";
 
@@ -943,6 +945,13 @@ const useKolibriChat = (): UseKolibriChatResult => {
     return DEFAULT_MODEL_ID;
   });
 
+  const setModelId = useCallback(
+    (nextModel: ModelId) => {
+      setModelIdState(nextModel);
+    },
+    [setModelIdState],
+  );
+
   const knowledgeSearchAbortRef = useRef<AbortController | null>(null);
   const conversationsRef = useRef<ConversationRecord[]>(initialConversations);
 
@@ -1024,7 +1033,7 @@ const useKolibriChat = (): UseKolibriChatResult => {
         .then((serialized) => {
           setAttachments((prev) => {
             let updated = false;
-            const next = prev.map((item) => {
+            const next = prev.map<PendingAttachment>((item) => {
               if (item.id !== attachmentId) {
                 return item;
               }
@@ -1035,7 +1044,7 @@ const useKolibriChat = (): UseKolibriChatResult => {
                 progress: 100,
                 error: undefined,
                 serialized,
-              };
+              } satisfies PendingAttachment;
             });
             return updated ? next : prev;
           });
@@ -1046,7 +1055,7 @@ const useKolibriChat = (): UseKolibriChatResult => {
           let shouldNotify = true;
           setAttachments((prev) => {
             let updated = false;
-            const next = prev.map((item) => {
+            const next = prev.map<PendingAttachment>((item) => {
               if (item.id !== attachmentId) {
                 return item;
               }
@@ -1057,7 +1066,7 @@ const useKolibriChat = (): UseKolibriChatResult => {
                 error: message,
                 progress: 100,
                 serialized: undefined,
-              };
+              } satisfies PendingAttachment;
             });
             if (!updated) {
               shouldNotify = false;
@@ -1660,6 +1669,7 @@ const useKolibriChat = (): UseKolibriChatResult => {
     executeQuickCommand,
     isProcessing,
     mode,
+    modelId,
     refreshKnowledgeStatus,
   ]);
 

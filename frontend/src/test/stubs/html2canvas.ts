@@ -10,7 +10,8 @@ const createMockCanvas = (): HTMLCanvasElement => {
   return canvas;
 };
 
-const html2canvas = async (_element?: HTMLElement | null): Promise<HTMLCanvasElement> => {
+const html2canvas = async (element?: HTMLElement | null): Promise<HTMLCanvasElement> => {
+  void element;
   return createMockCanvas();
 };
 

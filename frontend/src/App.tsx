@@ -221,7 +221,7 @@ const App = () => {
   }, [logInspectorAction, refreshKnowledgeStatus]);
 
   const handleUpdatePreferences = useCallback(
-    (next: typeof preferences) => {
+    (next: Partial<typeof preferences>) => {
       logInspectorAction("preferences.update", "Изменены настройки беседы", next);
       updatePreferences(next);
     },

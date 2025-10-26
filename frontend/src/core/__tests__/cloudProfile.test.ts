@@ -1,10 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearCachedProfile, fetchCloudProfile, updateCloudProfile } from "../cloudProfile";
 
-declare global {
-  var fetch: typeof fetch;
-}
-
 describe("cloudProfile", () => {
   const originalFetch = globalThis.fetch;
 
