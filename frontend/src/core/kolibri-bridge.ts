@@ -43,6 +43,7 @@ export interface KolibriBridge {
     mode?: string,
     context?: KnowledgeSnippet[],
     attachments?: SerializedAttachment[],
+    options?: { model?: string },
   ): Promise<string>;
   reset(): Promise<void>;
   configure(controls: KernelControlPayload): Promise<void>;
@@ -522,6 +523,7 @@ class KolibriScriptBridge implements KolibriBridge {
     mode: string = DEFAULT_MODE_LABEL,
     context: KnowledgeSnippet[] = [],
     attachments: SerializedAttachment[] = [],
+    _options?: { model?: string },
   ): Promise<string> {
     if (attachments.length) {
       console.info(
@@ -556,6 +558,7 @@ class KolibriFallbackBridge implements KolibriBridge {
     _mode?: string,
     _context?: KnowledgeSnippet[],
     attachments: SerializedAttachment[] = [],
+    _options?: { model?: string },
   ): Promise<string> {
     if (attachments.length) {
       console.info(
@@ -595,10 +598,15 @@ class KolibriLLMBridge implements KolibriBridge {
     mode: string = DEFAULT_MODE_LABEL,
     context: KnowledgeSnippet[] = [],
     attachments: SerializedAttachment[] = [],
+    options?: { model?: string },
   ): Promise<string> {
-    const payload = attachments.length
-      ? { prompt, mode, context, attachments }
-      : { prompt, mode, context };
+    const payload: Record<string, unknown> = { prompt, mode, context };
+    if (attachments.length) {
+      payload.attachments = attachments;
+    }
+    if (options?.model) {
+      payload.model = options.model;
+    }
     try {
       const response = await fetch(this.endpoint, {
         method: "POST",
@@ -678,9 +686,10 @@ const kolibriBridge: KolibriBridge = {
     mode?: string,
     context: KnowledgeSnippet[] = [],
     attachments: SerializedAttachment[] = [],
+    options?: { model?: string },
   ): Promise<string> {
     const bridge = await bridgePromise;
-    return bridge.ask(prompt, mode, context, attachments);
+    return bridge.ask(prompt, mode, context, attachments, options);
   },
   async reset(): Promise<void> {
     const bridge = await bridgePromise;

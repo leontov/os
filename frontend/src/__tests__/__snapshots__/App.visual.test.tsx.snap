@@ -87,6 +87,122 @@ exports[`App layout snapshots > renders chat with history 1`] = `
           </li>
         </ul>
         <div
+          class="rounded-xl border border-border/70 bg-surface px-4 py-4 text-sm text-text-muted"
+        >
+          <p
+            class="text-xs font-semibold uppercase tracking-[0.3em] text-text-muted"
+          >
+            Аккаунт
+          </p>
+          <h3
+            class="mt-1 text-sm font-semibold text-text"
+          >
+            Профиль Kolibri
+          </h3>
+          <p
+            class="mt-1 text-xs leading-relaxed text-text-muted"
+          >
+            Управляйте подпиской, настройками организации и получайте быстрый доступ к поддержке.
+          </p>
+          <div
+            class="mt-3 flex flex-col gap-2"
+          >
+            <button
+              class="inline-flex items-center justify-center gap-2 rounded-xl border border-primary/40 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary transition-colors hover:border-primary/60 hover:text-primary"
+              type="button"
+            >
+              <svg
+                class="lucide lucide-sparkles h-4 w-4"
+                fill="none"
+                height="24"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"
+                />
+                <path
+                  d="M20 3v4"
+                />
+                <path
+                  d="M22 5h-4"
+                />
+                <path
+                  d="M4 17v2"
+                />
+                <path
+                  d="M5 18H3"
+                />
+              </svg>
+              Upgrade
+            </button>
+            <button
+              class="inline-flex items-center justify-center gap-2 rounded-xl border border-border/70 bg-surface-muted px-4 py-2 text-sm font-semibold text-text transition-colors hover:border-primary/40 hover:text-primary"
+              type="button"
+            >
+              <svg
+                class="lucide lucide-user h-4 w-4"
+                fill="none"
+                height="24"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"
+                />
+                <circle
+                  cx="12"
+                  cy="7"
+                  r="4"
+                />
+              </svg>
+              Профиль
+            </button>
+          </div>
+          <a
+            class="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-text-muted transition-colors hover:text-text"
+            href="https://kolibri.ai/help"
+            rel="noreferrer"
+            target="_blank"
+          >
+            <svg
+              class="lucide lucide-circle-help h-4 w-4"
+              fill="none"
+              height="24"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+              width="24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <circle
+                cx="12"
+                cy="12"
+                r="10"
+              />
+              <path
+                d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"
+              />
+              <path
+                d="M12 17h.01"
+              />
+            </svg>
+            Центр помощи
+          </a>
+        </div>
+        <div
           class="rounded-xl border border-border/70 bg-surface px-4 py-3 text-sm text-text-muted"
         >
           <p
@@ -429,6 +545,37 @@ exports[`App layout snapshots > renders chat with history 1`] = `
                     />
                     <path
                       d="M9 21V9"
+                    />
+                  </svg>
+                </button>
+                <button
+                  aria-label="Настройки модели и памяти"
+                  class="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/70 text-text-muted transition-colors hover:text-text"
+                  type="button"
+                >
+                  <svg
+                    class="lucide lucide-database h-4 w-4"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <ellipse
+                      cx="12"
+                      cy="5"
+                      rx="9"
+                      ry="3"
+                    />
+                    <path
+                      d="M3 5V19A9 3 0 0 0 21 19V5"
+                    />
+                    <path
+                      d="M3 12A9 3 0 0 0 21 12"
                     />
                   </svg>
                 </button>
@@ -1268,6 +1415,122 @@ exports[`App layout snapshots > renders empty chat state 1`] = `
           </li>
         </ul>
         <div
+          class="rounded-xl border border-border/70 bg-surface px-4 py-4 text-sm text-text-muted"
+        >
+          <p
+            class="text-xs font-semibold uppercase tracking-[0.3em] text-text-muted"
+          >
+            Аккаунт
+          </p>
+          <h3
+            class="mt-1 text-sm font-semibold text-text"
+          >
+            Профиль Kolibri
+          </h3>
+          <p
+            class="mt-1 text-xs leading-relaxed text-text-muted"
+          >
+            Управляйте подпиской, настройками организации и получайте быстрый доступ к поддержке.
+          </p>
+          <div
+            class="mt-3 flex flex-col gap-2"
+          >
+            <button
+              class="inline-flex items-center justify-center gap-2 rounded-xl border border-primary/40 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary transition-colors hover:border-primary/60 hover:text-primary"
+              type="button"
+            >
+              <svg
+                class="lucide lucide-sparkles h-4 w-4"
+                fill="none"
+                height="24"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"
+                />
+                <path
+                  d="M20 3v4"
+                />
+                <path
+                  d="M22 5h-4"
+                />
+                <path
+                  d="M4 17v2"
+                />
+                <path
+                  d="M5 18H3"
+                />
+              </svg>
+              Upgrade
+            </button>
+            <button
+              class="inline-flex items-center justify-center gap-2 rounded-xl border border-border/70 bg-surface-muted px-4 py-2 text-sm font-semibold text-text transition-colors hover:border-primary/40 hover:text-primary"
+              type="button"
+            >
+              <svg
+                class="lucide lucide-user h-4 w-4"
+                fill="none"
+                height="24"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"
+                />
+                <circle
+                  cx="12"
+                  cy="7"
+                  r="4"
+                />
+              </svg>
+              Профиль
+            </button>
+          </div>
+          <a
+            class="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-text-muted transition-colors hover:text-text"
+            href="https://kolibri.ai/help"
+            rel="noreferrer"
+            target="_blank"
+          >
+            <svg
+              class="lucide lucide-circle-help h-4 w-4"
+              fill="none"
+              height="24"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+              width="24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <circle
+                cx="12"
+                cy="12"
+                r="10"
+              />
+              <path
+                d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"
+              />
+              <path
+                d="M12 17h.01"
+              />
+            </svg>
+            Центр помощи
+          </a>
+        </div>
+        <div
           class="rounded-xl border border-border/70 bg-surface px-4 py-3 text-sm text-text-muted"
         >
           <p
@@ -1610,6 +1873,37 @@ exports[`App layout snapshots > renders empty chat state 1`] = `
                     />
                     <path
                       d="M9 21V9"
+                    />
+                  </svg>
+                </button>
+                <button
+                  aria-label="Настройки модели и памяти"
+                  class="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/70 text-text-muted transition-colors hover:text-text"
+                  type="button"
+                >
+                  <svg
+                    class="lucide lucide-database h-4 w-4"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <ellipse
+                      cx="12"
+                      cy="5"
+                      rx="9"
+                      ry="3"
+                    />
+                    <path
+                      d="M3 5V19A9 3 0 0 0 21 19V5"
+                    />
+                    <path
+                      d="M3 12A9 3 0 0 0 21 12"
                     />
                   </svg>
                 </button>
@@ -2493,6 +2787,122 @@ exports[`App layout snapshots > renders mobile layout 1`] = `
           </li>
         </ul>
         <div
+          class="rounded-xl border border-border/70 bg-surface px-4 py-4 text-sm text-text-muted"
+        >
+          <p
+            class="text-xs font-semibold uppercase tracking-[0.3em] text-text-muted"
+          >
+            Аккаунт
+          </p>
+          <h3
+            class="mt-1 text-sm font-semibold text-text"
+          >
+            Профиль Kolibri
+          </h3>
+          <p
+            class="mt-1 text-xs leading-relaxed text-text-muted"
+          >
+            Управляйте подпиской, настройками организации и получайте быстрый доступ к поддержке.
+          </p>
+          <div
+            class="mt-3 flex flex-col gap-2"
+          >
+            <button
+              class="inline-flex items-center justify-center gap-2 rounded-xl border border-primary/40 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary transition-colors hover:border-primary/60 hover:text-primary"
+              type="button"
+            >
+              <svg
+                class="lucide lucide-sparkles h-4 w-4"
+                fill="none"
+                height="24"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"
+                />
+                <path
+                  d="M20 3v4"
+                />
+                <path
+                  d="M22 5h-4"
+                />
+                <path
+                  d="M4 17v2"
+                />
+                <path
+                  d="M5 18H3"
+                />
+              </svg>
+              Upgrade
+            </button>
+            <button
+              class="inline-flex items-center justify-center gap-2 rounded-xl border border-border/70 bg-surface-muted px-4 py-2 text-sm font-semibold text-text transition-colors hover:border-primary/40 hover:text-primary"
+              type="button"
+            >
+              <svg
+                class="lucide lucide-user h-4 w-4"
+                fill="none"
+                height="24"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"
+                />
+                <circle
+                  cx="12"
+                  cy="7"
+                  r="4"
+                />
+              </svg>
+              Профиль
+            </button>
+          </div>
+          <a
+            class="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-text-muted transition-colors hover:text-text"
+            href="https://kolibri.ai/help"
+            rel="noreferrer"
+            target="_blank"
+          >
+            <svg
+              class="lucide lucide-circle-help h-4 w-4"
+              fill="none"
+              height="24"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+              width="24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <circle
+                cx="12"
+                cy="12"
+                r="10"
+              />
+              <path
+                d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"
+              />
+              <path
+                d="M12 17h.01"
+              />
+            </svg>
+            Центр помощи
+          </a>
+        </div>
+        <div
           class="rounded-xl border border-border/70 bg-surface px-4 py-3 text-sm text-text-muted"
         >
           <p
@@ -2835,6 +3245,37 @@ exports[`App layout snapshots > renders mobile layout 1`] = `
                     />
                     <path
                       d="M9 21V9"
+                    />
+                  </svg>
+                </button>
+                <button
+                  aria-label="Настройки модели и памяти"
+                  class="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/70 text-text-muted transition-colors hover:text-text"
+                  type="button"
+                >
+                  <svg
+                    class="lucide lucide-database h-4 w-4"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <ellipse
+                      cx="12"
+                      cy="5"
+                      rx="9"
+                      ry="3"
+                    />
+                    <path
+                      d="M3 5V19A9 3 0 0 0 21 19V5"
+                    />
+                    <path
+                      d="M3 12A9 3 0 0 0 21 12"
                     />
                   </svg>
                 </button>
