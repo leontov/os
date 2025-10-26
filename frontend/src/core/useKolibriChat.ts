@@ -900,6 +900,7 @@ interface UseKolibriChatResult {
   removeAttachment: (id: string) => void;
   clearAttachments: () => void;
   sendMessage: () => Promise<void>;
+  resendMessage: (id: string, overrides?: { content?: string }) => Promise<void>;
   resetConversation: () => Promise<void>;
   selectConversation: (id: string) => void;
   createConversation: () => Promise<void>;
@@ -954,10 +955,45 @@ const useKolibriChat = (): UseKolibriChatResult => {
 
   const knowledgeSearchAbortRef = useRef<AbortController | null>(null);
   const conversationsRef = useRef<ConversationRecord[]>(initialConversations);
+  const preferencesChangeRef = useRef(preferences);
 
   useEffect(() => {
     conversationsRef.current = conversations;
   }, [conversations]);
+
+  useEffect(() => {
+    const previous = preferencesChangeRef.current;
+    if (previous === preferences) {
+      return;
+    }
+
+    const changedKeys = (Object.keys(preferences) as Array<keyof ConversationPreferences>).filter(
+      (key) => previous?.[key] !== preferences[key],
+    );
+
+    if (!changedKeys.length) {
+      preferencesChangeRef.current = preferences;
+      return;
+    }
+
+    setConversations((records) => {
+      const index = records.findIndex((record) => record.id === conversationId);
+      if (index === -1) {
+        return records;
+      }
+
+      const record = records[index];
+      if (record.preferences === preferences) {
+        return records;
+      }
+
+      const next = [...records];
+      next[index] = { ...record, preferences };
+      return next;
+    });
+
+    preferencesChangeRef.current = preferences;
+  }, [conversationId, preferences]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -1518,19 +1554,103 @@ const useKolibriChat = (): UseKolibriChatResult => {
     [appendAssistantNotice, describePreferences, preferences, resetConversation, updatePreferences],
   );
 
+  const deliverMessage = useCallback(
+    async (content: string, serializedAttachments: SerializedAttachment[] = []) => {
+      const timestamp = nowPair();
+      const userMessage: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "user",
+        content,
+        timestamp: timestamp.display,
+        isoTimestamp: timestamp.iso,
+        attachments: serializedAttachments.length ? serializedAttachments : undefined,
+        modeValue: mode,
+        modeLabel: findModeLabel(mode),
+      };
+
+      setMessages((prev) => [...prev, userMessage]);
+      setIsProcessing(true);
+
+      knowledgeSearchAbortRef.current?.abort();
+      const controller = new AbortController();
+      knowledgeSearchAbortRef.current = controller;
+
+      let knowledgeContext: KnowledgeSnippet[] = [];
+      let contextError: string | undefined;
+      let aborted = false;
+
+      try {
+        knowledgeContext = await searchKnowledge(content || "", { topK: 3, signal: controller.signal });
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          aborted = true;
+        } else {
+          contextError =
+            error instanceof Error && error.message ? error.message : "Не удалось получить контекст из памяти.";
+        }
+      } finally {
+        knowledgeSearchAbortRef.current = null;
+      }
+
+      if (aborted) {
+        setIsProcessing(false);
+        void refreshKnowledgeStatus();
+        return;
+      }
+
+      const prompt = knowledgeContext.length ? formatPromptWithContext(content || "", knowledgeContext) : content;
+
+      try {
+        const answer = await kolibriBridge.ask(prompt, mode, knowledgeContext, serializedAttachments, {
+          model: modelId,
+        });
+        const moment = nowPair();
+        const assistantMessage: ChatMessage = {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: answer,
+          timestamp: moment.display,
+          isoTimestamp: moment.iso,
+          modeValue: mode,
+          modeLabel: findModeLabel(mode),
+          context: knowledgeContext.length ? knowledgeContext : undefined,
+          contextError,
+        };
+        setMessages((prev) => [...prev, assistantMessage]);
+      } catch (error) {
+        const moment = nowPair();
+        const assistantMessage: ChatMessage = {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content:
+            error instanceof Error
+              ? `Не удалось получить ответ: ${error.message}`
+              : "Не удалось получить ответ от ядра Колибри.",
+          timestamp: moment.display,
+          isoTimestamp: moment.iso,
+        };
+        setMessages((prev) => [...prev, assistantMessage]);
+      } finally {
+        setIsProcessing(false);
+        void refreshKnowledgeStatus();
+      }
+    },
+    [mode, modelId, refreshKnowledgeStatus],
+  );
+
   const sendMessage = useCallback(async () => {
-    const content = draft.trim();
+    const trimmedContent = draft.trim();
     const hasReadyAttachments = attachments.some((item) => item.status === "success");
 
-    if (!content && !hasReadyAttachments) {
+    if (!trimmedContent && !hasReadyAttachments) {
       return;
     }
     if (isProcessing || !bridgeReady) {
       return;
     }
 
-    if (content.startsWith("/")) {
-      const handled = await executeQuickCommand(content, attachments.length > 0);
+    if (trimmedContent.startsWith("/")) {
+      const handled = await executeQuickCommand(trimmedContent, attachments.length > 0);
       if (handled) {
         setDraft("");
         clearAttachments();
@@ -1567,7 +1687,7 @@ const useKolibriChat = (): UseKolibriChatResult => {
         });
         return next;
       });
-      if (!content && !pendingAttachments.some((item) => item.status === "success")) {
+      if (!trimmedContent && !pendingAttachments.some((item) => item.status === "success")) {
         return;
       }
     }
@@ -1582,96 +1702,43 @@ const useKolibriChat = (): UseKolibriChatResult => {
       }
     }
 
-    const timestamp = nowPair();
-    const userMessage: ChatMessage = {
-      id: crypto.randomUUID(),
-      role: "user",
-      content,
-      timestamp: timestamp.display,
-      isoTimestamp: timestamp.iso,
-      attachments: serializedAttachments.length ? serializedAttachments : undefined,
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
     setDraft("");
     clearAttachments();
-    setIsProcessing(true);
 
-    knowledgeSearchAbortRef.current?.abort();
-    const controller = new AbortController();
-    knowledgeSearchAbortRef.current = controller;
-
-    let knowledgeContext: KnowledgeSnippet[] = [];
-    let contextError: string | undefined;
-    let aborted = false;
-
-    try {
-      knowledgeContext = await searchKnowledge(content || "", { topK: 3, signal: controller.signal });
-    } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") {
-        aborted = true;
-      } else {
-        contextError =
-          error instanceof Error && error.message ? error.message : "Не удалось получить контекст из памяти.";
-      }
-    } finally {
-      knowledgeSearchAbortRef.current = null;
-    }
-
-    if (aborted) {
-      setIsProcessing(false);
-      void refreshKnowledgeStatus();
-      return;
-    }
-
-    const prompt = knowledgeContext.length ? formatPromptWithContext(content || "", knowledgeContext) : content;
-
-    try {
-      const answer = await kolibriBridge.ask(prompt, mode, knowledgeContext, serializedAttachments, {
-        model: modelId,
-      });
-      const moment = nowPair();
-      const assistantMessage: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: answer,
-        timestamp: moment.display,
-        isoTimestamp: moment.iso,
-        modeValue: mode,
-        modeLabel: findModeLabel(mode),
-        context: knowledgeContext.length ? knowledgeContext : undefined,
-        contextError,
-      };
-      setMessages((prev) => [...prev, assistantMessage]);
-    } catch (error) {
-      const moment = nowPair();
-      const assistantMessage: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content:
-          error instanceof Error
-            ? `Не удалось получить ответ: ${error.message}`
-            : "Не удалось получить ответ от ядра Колибри.",
-        timestamp: moment.display,
-        isoTimestamp: moment.iso,
-      };
-      setMessages((prev) => [...prev, assistantMessage]);
-    } finally {
-      setIsProcessing(false);
-      void refreshKnowledgeStatus();
-    }
+    await deliverMessage(trimmedContent, serializedAttachments);
   }, [
     appendAssistantNotice,
     attachments,
     bridgeReady,
     clearAttachments,
+    deliverMessage,
     draft,
     executeQuickCommand,
     isProcessing,
-    mode,
-    modelId,
-    refreshKnowledgeStatus,
   ]);
+
+  const resendMessage = useCallback(
+    async (id: string, overrides?: { content?: string }) => {
+      if (isProcessing || !bridgeReady) {
+        return;
+      }
+      const target = messages.find((item) => item.id === id && item.role === "user");
+      if (!target) {
+        return;
+      }
+
+      const originalContent = overrides?.content ?? target.content ?? "";
+      const normalizedContent = originalContent.trim();
+      const serializedAttachments = target.attachments ?? [];
+
+      if (!normalizedContent && serializedAttachments.length === 0) {
+        return;
+      }
+
+      await deliverMessage(normalizedContent, serializedAttachments);
+    },
+    [bridgeReady, deliverMessage, isProcessing, messages],
+  );
 
   const renameConversation = useCallback(
     (nextTitle: string, targetId?: string) => {
@@ -1905,6 +1972,7 @@ const useKolibriChat = (): UseKolibriChatResult => {
     updatePreferences,
     setModelId,
     sendMessage,
+    resendMessage,
     resetConversation,
     selectConversation,
     createConversation,

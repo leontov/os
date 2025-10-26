@@ -4,10 +4,11 @@ import {
   Check,
   Copy,
   Link2,
+  Sparkles,
   ThumbsDown,
   ThumbsUp,
 } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AttachmentPreviewList, {
   type AttachmentPreviewItem,
 } from "./attachments/AttachmentPreviewList";
@@ -17,6 +18,8 @@ import type { ChatMessage as ChatMessageModel } from "../types/chat";
 interface ChatMessageProps {
   message: ChatMessageModel;
   latestUserMessage?: ChatMessageModel;
+  memoryEnabled: boolean;
+  onToggleMemory: () => void;
 }
 
 const formatScore = (value: number): string => {
@@ -26,12 +29,14 @@ const formatScore = (value: number): string => {
   return value.toFixed(2);
 };
 
-const ChatMessageView = ({ message, latestUserMessage }: ChatMessageProps) => {
+const ChatMessageView = ({ message, latestUserMessage, memoryEnabled, onToggleMemory }: ChatMessageProps) => {
   const isUser = message.role === "user";
   const [isContextExpanded, setIsContextExpanded] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [reaction, setReaction] = useState<"up" | "down" | null>(null);
   const [isPinned, setIsPinned] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
   const hasContext = !isUser && Boolean(message.context?.length);
   const contextCount = message.context?.length ?? 0;
 
@@ -99,12 +104,75 @@ const ChatMessageView = ({ message, latestUserMessage }: ChatMessageProps) => {
     setIsContextExpanded((previous) => !previous);
   }, []);
 
+  const toggleMenu = useCallback(() => {
+    setIsMenuOpen((previous) => !previous);
+  }, []);
+
+  const closeMenu = useCallback(() => {
+    setIsMenuOpen(false);
+  }, []);
+
+  useEffect(() => {
+    if (!isMenuOpen) {
+      return;
+    }
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isMenuOpen]);
+
+  const handleEdit = useCallback(() => {
+    if (!onEditMessage) {
+      return;
+    }
+    onEditMessage(message);
+    closeMenu();
+  }, [closeMenu, message, onEditMessage]);
+
+  const handleContinue = useCallback(() => {
+    if (!onContinueMessage) {
+      return;
+    }
+    onContinueMessage({ assistantMessage: message, userMessage: latestUserMessage });
+    closeMenu();
+  }, [closeMenu, latestUserMessage, message, onContinueMessage]);
+
+  const handleRegenerate = useCallback(() => {
+    if (!onRegenerateMessage) {
+      return;
+    }
+    onRegenerateMessage({ assistantMessage: message, userMessage: latestUserMessage });
+    closeMenu();
+  }, [closeMenu, latestUserMessage, message, onRegenerateMessage]);
+
+  const handleCopyLink = useCallback(() => {
+    if (!onCopyLink) {
+      return;
+    }
+    onCopyLink(message);
+    closeMenu();
+  }, [closeMenu, message, onCopyLink]);
+
+  const canEdit = isUser && Boolean(onEditMessage);
+  const canContinue = !isUser && Boolean(latestUserMessage) && Boolean(onContinueMessage);
+  const canRegenerate = !isUser && Boolean(latestUserMessage) && Boolean(onRegenerateMessage);
+  const canCopyLink = Boolean(onCopyLink);
+
   const bubbleClasses = isUser
     ? "border-white/10 bg-[rgba(64,65,79,0.88)] text-white shadow-[0_26px_60px_-34px_rgba(15,23,42,0.7)]"
     : "border-border/60 bg-surface/95 text-text shadow-[0_26px_68px_-38px_rgba(15,23,42,0.5)]";
 
   return (
-    <article className={`group relative flex w-full gap-4 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
+    <article
+      id={`message-${message.id}`}
+      className={`group relative flex w-full gap-4 ${isUser ? "flex-row-reverse" : "flex-row"}`}
+    >
       <span
         className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border/60 bg-surface text-[0.65rem] font-semibold uppercase tracking-[0.22em] ${
           isUser ? "text-white" : "text-primary"
@@ -124,6 +192,71 @@ const ChatMessageView = ({ message, latestUserMessage }: ChatMessageProps) => {
             <span>{actorLabel}</span>
             <div className="flex items-center gap-2 text-[0.7rem]">
               <span className={isUser ? "text-white/70" : "text-text-muted"}>{isoDate ?? message.timestamp}</span>
+              <div ref={menuRef} className="relative">
+                <button
+                  type="button"
+                  onClick={toggleMenu}
+                  className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[0.68rem] font-semibold transition-colors ${
+                    isUser
+                      ? "border-white/30 bg-white/10 text-white/80 hover:border-white/60 hover:bg-white/20 hover:text-white"
+                      : "border-border/70 bg-surface text-text-muted hover:border-primary hover:text-primary"
+                  }`}
+                  aria-haspopup="true"
+                  aria-expanded={isMenuOpen}
+                >
+                  <MoreHorizontal className="h-3.5 w-3.5" />
+                  Действия
+                </button>
+                {isMenuOpen ? (
+                  <div
+                    className={`absolute right-0 top-11 z-20 w-44 overflow-hidden rounded-xl border border-border/70 bg-surface text-left shadow-lg ${
+                      isUser ? "text-white" : "text-text"
+                    }`}
+                  >
+                    <div className="flex flex-col divide-y divide-border/60 text-sm">
+                      {canEdit ? (
+                        <button
+                          type="button"
+                          onClick={handleEdit}
+                          className="flex items-center gap-2 px-4 py-2 text-left transition-colors hover:bg-surface-muted"
+                        >
+                          <Pencil className="h-4 w-4" /> Edit
+                        </button>
+                      ) : null}
+                      {canContinue ? (
+                        <button
+                          type="button"
+                          onClick={handleContinue}
+                          className="flex items-center gap-2 px-4 py-2 text-left transition-colors hover:bg-surface-muted"
+                        >
+                          <PlayCircle className="h-4 w-4" /> Continue
+                        </button>
+                      ) : null}
+                      {canRegenerate ? (
+                        <button
+                          type="button"
+                          onClick={handleRegenerate}
+                          className="flex items-center gap-2 px-4 py-2 text-left transition-colors hover:bg-surface-muted"
+                        >
+                          <RefreshCcw className="h-4 w-4" /> Regenerate
+                        </button>
+                      ) : null}
+                      {canCopyLink ? (
+                        <button
+                          type="button"
+                          onClick={handleCopyLink}
+                          className="flex items-center gap-2 px-4 py-2 text-left transition-colors hover:bg-surface-muted"
+                        >
+                          <Link2 className="h-4 w-4" /> Copy link
+                        </button>
+                      ) : null}
+                      {!canEdit && !canContinue && !canRegenerate && !canCopyLink ? (
+                        <span className="px-4 py-2 text-xs text-text-muted">Нет доступных действий</span>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
               <button
                 type="button"
                 onClick={handleCopy}
@@ -221,6 +354,17 @@ const ChatMessageView = ({ message, latestUserMessage }: ChatMessageProps) => {
 
           {!isUser ? (
             <div className="ml-auto flex items-center gap-1 rounded-full border border-border/60 bg-surface px-2 py-1 text-text-muted">
+              <button
+                type="button"
+                onClick={onToggleMemory}
+                className={`flex items-center gap-1 rounded-full px-2 py-1 transition-colors ${
+                  memoryEnabled ? "text-primary" : "hover:text-primary"
+                }`}
+                aria-pressed={memoryEnabled}
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                Memory {memoryEnabled ? "on" : "off"}
+              </button>
               <button
                 type="button"
                 onClick={() => toggleReaction("up")}

@@ -1,8 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { fn } from "@storybook/test";
 import ChatView from "../components/ChatView";
-import type { ConversationMetrics, ConversationSummary } from "../core/useKolibriChat";
+import type { ConversationMetrics, ConversationPreferences, ConversationSummary } from "../core/useKolibriChat";
 import { MODE_OPTIONS } from "../core/modes";
+import { DEFAULT_MODEL_ID, MODEL_OPTIONS } from "../core/models";
 import type { ChatMessage } from "../types/chat";
 
 const metrics: ConversationMetrics = {
@@ -58,6 +59,14 @@ const summaries: ConversationSummary[] = [
   },
 ];
 
+const preferences: ConversationPreferences = {
+  learningEnabled: true,
+  privateMode: false,
+  allowOnline: false,
+  profilePreset: "balanced",
+  safeTone: false,
+};
+
 const meta: Meta<typeof ChatView> = {
   title: "Conversation/ChatView",
   component: ChatView,
@@ -70,6 +79,8 @@ const meta: Meta<typeof ChatView> = {
     mode: "neutral",
     modeLabel: "Нейтральный",
     modeOptions: MODE_OPTIONS,
+    modelId: DEFAULT_MODEL_ID,
+    modelOptions: MODEL_OPTIONS,
     isLoading: false,
     emptyState: <span>Нет сообщений</span>,
     onConversationTitleChange: fn(),
@@ -78,23 +89,32 @@ const meta: Meta<typeof ChatView> = {
     onConversationRename: fn(),
     onConversationDelete: fn(),
     onModeChange: fn(),
+    onModelChange: fn(),
     onOpenKnowledge: fn(),
     onOpenAnalytics: fn(),
     onOpenActions: fn(),
     onOpenSwarm: fn(),
-    onOpenPreferences: fn(),
     onOpenSettings: fn(),
     onRefreshKnowledge: fn(),
+    onShareConversation: fn(),
+    onExportConversation: fn(),
+    onManagePlan: fn(),
     isKnowledgeLoading: false,
     bridgeReady: true,
     isZenMode: false,
     onToggleZenMode: fn(),
     personaName: "Aurora",
+    preferences,
+    onPreferencesChange: fn(),
     composer: (
       <div className="rounded-xl border border-dashed border-border/60 px-4 py-3 text-sm text-text-muted">
         Composer placeholder
       </div>
     ),
+    onMessageEdit: fn(),
+    onMessageContinue: fn(),
+    onMessageRegenerate: fn(),
+    onMessageCopyLink: fn(),
   },
   parameters: {
     layout: "fullscreen",

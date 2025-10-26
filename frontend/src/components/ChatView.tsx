@@ -2,15 +2,17 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   ArrowDownWideNarrow,
   BarChart3,
+  ChevronDown,
   Crosshair,
   Database,
+  Download,
   ListChecks,
   Menu,
   PanelsTopLeft,
   Pencil,
   RefreshCcw,
-  Settings2,
   Sparkles,
+  UserRoundCog,
 } from "lucide-react";
 import {
   useCallback,
@@ -18,15 +20,21 @@ import {
   useMemo,
   useRef,
   useState,
-  type KeyboardEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from "react";
 import useMediaQuery from "../core/useMediaQuery";
-import type { ConversationMetrics, ConversationSummary } from "../core/useKolibriChat";
+import type {
+  ConversationMetrics,
+  ConversationPreferences,
+  ConversationSummary,
+} from "../core/useKolibriChat";
 import type { ModeOption } from "../core/modes";
+import type { ModelId, ModelOption } from "../core/models";
 import { usePersonaTheme } from "../core/usePersonaTheme";
 import type { ChatMessage } from "../types/chat";
 import ChatMessageView from "./ChatMessageView";
+import ConversationPreferencesBar from "./ConversationPreferencesBar";
 import { MessageSkeleton } from "./loading";
 import ChatSidebar from "./sidebar/ChatSidebar";
 
@@ -39,7 +47,10 @@ interface ChatViewProps {
   mode: string;
   modeLabel: string;
   modeOptions: ModeOption[];
+  modelId: ModelId;
+  modelOptions: ModelOption[];
   metrics: ConversationMetrics;
+  preferences: ConversationPreferences;
   emptyState?: ReactNode;
   composer?: ReactNode;
   onConversationTitleChange: (title: string) => void;
@@ -48,19 +59,27 @@ interface ChatViewProps {
   onConversationRename: (id: string, title: string) => void;
   onConversationDelete: (id: string) => void;
   onModeChange: (mode: string) => void;
+  onModelChange: (model: ModelId) => void;
   onOpenKnowledge: () => void;
   onOpenAnalytics: () => void;
   onOpenSwarm: () => void;
-  onOpenPreferences: () => void;
   onOpenSettings: () => void;
   onOpenActions: () => void;
   onRefreshKnowledge: () => void;
+  onShareConversation: () => void | Promise<void>;
+  onExportConversation: () => void;
+  onManagePlan: () => void;
   isKnowledgeLoading: boolean;
   bridgeReady: boolean;
   isZenMode: boolean;
   onToggleZenMode: () => void;
   personaName: string;
+  onPreferencesChange: (update: Partial<ConversationPreferences>) => void;
   onViewportElementChange?: (element: HTMLElement | null) => void;
+  onMessageEdit?: (message: ChatMessage) => void;
+  onMessageContinue?: (options: { assistantMessage: ChatMessage; userMessage?: ChatMessage }) => void;
+  onMessageRegenerate?: (options: { assistantMessage: ChatMessage; userMessage?: ChatMessage }) => void;
+  onMessageCopyLink?: (message: ChatMessage) => void;
 }
 
 type TimelineItem =
@@ -76,7 +95,10 @@ const ChatView = ({
   mode,
   modeLabel,
   modeOptions,
+  modelId,
+  modelOptions,
   metrics,
+  preferences,
   emptyState,
   composer,
   onConversationTitleChange,
@@ -85,19 +107,27 @@ const ChatView = ({
   onConversationRename,
   onConversationDelete,
   onModeChange,
+  onModelChange,
   onOpenKnowledge,
   onOpenAnalytics,
   onOpenSwarm,
-  onOpenPreferences,
   onOpenSettings,
   onOpenActions,
   onRefreshKnowledge,
+  onShareConversation,
+  onExportConversation,
+  onManagePlan,
   isKnowledgeLoading,
   bridgeReady,
   isZenMode,
   onToggleZenMode,
   personaName,
+  onPreferencesChange,
   onViewportElementChange,
+  onMessageEdit,
+  onMessageContinue,
+  onMessageRegenerate,
+  onMessageCopyLink,
 }: ChatViewProps) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const titleInputRef = useRef<HTMLInputElement | null>(null);
@@ -106,12 +136,17 @@ const ChatView = ({
   const [isSidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isRenamingTitle, setIsRenamingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(conversationTitle);
+  const [activeMenu, setActiveMenu] = useState<null | "model" | "share" | "export" | "settings">(null);
   const { resolvedMotion } = usePersonaTheme();
   const prefersReducedMotion = useReducedMotion();
   const shouldReduceMotion = resolvedMotion === "reduced" || Boolean(prefersReducedMotion);
   const easeCurve: [number, number, number, number] = [0.22, 0.61, 0.36, 1];
   const isDesktop = useMediaQuery("(min-width: 1024px)");
   const isMobileViewport = useMediaQuery("(max-width: 1023px)");
+  const modelMenuRef = useRef<HTMLDivElement | null>(null);
+  const shareMenuRef = useRef<HTMLDivElement | null>(null);
+  const exportMenuRef = useRef<HTMLDivElement | null>(null);
+  const settingsMenuRef = useRef<HTMLDivElement | null>(null);
 
   const rootRef = useCallback(
     (element: HTMLElement | null) => {
@@ -234,6 +269,11 @@ const ChatView = ({
 
   const totalMessages = metrics.userMessages + metrics.assistantMessages;
 
+  const currentModelOption = useMemo(
+    () => modelOptions.find((option) => option.id === modelId) ?? null,
+    [modelId, modelOptions],
+  );
+
   const lastUpdatedLabel = useMemo(() => {
     if (!metrics.lastUpdatedIso) {
       return "—";
@@ -265,6 +305,10 @@ const ChatView = ({
     }
   }, [isDesktop, onConversationCreate]);
 
+  const handleToggleMemory = useCallback(() => {
+    onPreferencesChange({ learningEnabled: !preferences.learningEnabled });
+  }, [onPreferencesChange, preferences.learningEnabled]);
+
   const commitTitle = useCallback(() => {
     const trimmed = titleDraft.trim();
     if (trimmed && trimmed !== conversationTitle) {
@@ -282,7 +326,7 @@ const ChatView = ({
   }, [conversationTitle]);
 
   const handleTitleKeyDown = useCallback(
-    (event: KeyboardEvent<HTMLInputElement>) => {
+    (event: ReactKeyboardEvent<HTMLInputElement>) => {
       if (event.key === "Enter") {
         event.preventDefault();
         commitTitle();
@@ -293,6 +337,52 @@ const ChatView = ({
       }
     },
     [cancelRename, commitTitle],
+  );
+
+  useEffect(() => {
+    if (!activeMenu) {
+      return undefined;
+    }
+
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      const containers = [
+        modelMenuRef.current,
+        shareMenuRef.current,
+        exportMenuRef.current,
+        settingsMenuRef.current,
+      ];
+      const isInside = containers.some((container) => container?.contains(target));
+      if (!isInside) {
+        setActiveMenu(null);
+      }
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setActiveMenu(null);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [activeMenu]);
+
+  const closeMenu = useCallback(() => {
+    setActiveMenu(null);
+  }, []);
+
+  const handleModelSelect = useCallback(
+    (option: ModelOption) => {
+      onModelChange(option.id);
+      closeMenu();
+    },
+    [closeMenu, onModelChange],
   );
 
   return (
@@ -368,6 +458,61 @@ const ChatView = ({
             </div>
 
             <div className="flex items-center gap-2">
+              <div ref={modelMenuRef} className="relative hidden md:block">
+                <button
+                  type="button"
+                  onClick={() => setActiveMenu((previous) => (previous === "model" ? null : "model"))}
+                  className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-semibold transition-colors ${
+                    activeMenu === "model"
+                      ? "border-primary/60 bg-primary/10 text-primary"
+                      : "border-border/60 bg-surface text-text-muted hover:border-primary/50 hover:text-text"
+                  }`}
+                  aria-haspopup="menu"
+                  aria-expanded={activeMenu === "model"}
+                >
+                  <span className="max-w-[8.5rem] truncate">
+                    {currentModelOption ? currentModelOption.label : "Выбрать модель"}
+                  </span>
+                  <ChevronDown className="h-3.5 w-3.5" />
+                </button>
+                {activeMenu === "model" ? (
+                  <div
+                    role="menu"
+                    className="absolute right-0 z-30 mt-2 w-64 rounded-2xl border border-border/70 bg-surface/95 p-2 shadow-card"
+                  >
+                    <div className="space-y-1">
+                      {modelOptions.map((option) => {
+                        const isActive = option.id === modelId;
+                        return (
+                          <button
+                            key={option.id}
+                            type="button"
+                            role="menuitemradio"
+                            aria-checked={isActive}
+                            onClick={() => handleModelSelect(option)}
+                            className={`w-full rounded-xl px-3 py-2 text-left text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40 ${
+                              isActive
+                                ? "bg-primary/10 text-primary"
+                                : "text-text-muted hover:bg-background-card hover:text-text"
+                            }`}
+                          >
+                            <span className="flex items-center justify-between gap-3">
+                              <span className="font-semibold">{option.label}</span>
+                              {isActive ? (
+                                <span className="text-[0.65rem] uppercase tracking-[0.28em] text-primary/80">Текущая</span>
+                              ) : null}
+                            </span>
+                            <span className="mt-1 block text-xs text-text-muted/80">{option.description}</span>
+                            <span className="mt-1 block text-[0.65rem] uppercase tracking-[0.28em] text-text-muted/70">
+                              {option.contextWindow}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
               <button
                 type="button"
                 onClick={onToggleZenMode}
@@ -421,14 +566,6 @@ const ChatView = ({
               >
                 <Database className="h-4 w-4" />
               </button>
-              <button
-                type="button"
-                onClick={onOpenPreferences}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border/70 text-text-muted transition-colors hover:text-text"
-                aria-label="Настройки беседы"
-              >
-                <Settings2 className="h-4 w-4" />
-              </button>
             </div>
           </div>
 
@@ -442,12 +579,25 @@ const ChatView = ({
                 <span className={`h-2 w-2 rounded-full ${bridgeReady ? "bg-primary" : "bg-border"}`} />
                 {bridgeReady ? "Ядро готово" : "Ожидание"}
               </span>
+              {currentModelOption ? (
+                <span className="rounded-full border border-border/60 bg-surface px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.3em] text-text-muted">
+                  {currentModelOption.label}
+                </span>
+              ) : null}
               <span className="rounded-full border border-border/60 bg-surface px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.3em] text-text-muted">
                 {modeLabel}
               </span>
               <span className="rounded-full border border-border/60 bg-surface px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.3em] text-text-muted">
                 {personaName}
               </span>
+              <button
+                type="button"
+                onClick={onManagePlan}
+                className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-surface px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.3em] text-text-muted transition-colors hover:border-primary hover:text-primary"
+              >
+                <UserRoundCog className="h-3.5 w-3.5" />
+                Сменить план
+              </button>
               <button
                 type="button"
                 onClick={onRefreshKnowledge}
@@ -464,6 +614,12 @@ const ChatView = ({
             </div>
           </div>
         </header>
+
+        <div className="border-b border-border/60 bg-surface/70">
+          <div className="mx-auto w-full max-w-4xl px-4 py-4 sm:px-6 lg:px-8">
+            <ConversationPreferencesBar preferences={preferences} onChange={onPreferencesChange} />
+          </div>
+        </div>
 
         <main className="relative flex-1 overflow-hidden">
           <div
@@ -513,7 +669,12 @@ const ChatView = ({
                       exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -12, scale: 0.98 }}
                       transition={shouldReduceMotion ? { duration: 0.18 } : { duration: 0.32, ease: easeCurve }}
                     >
-                      <ChatMessageView message={item.message} latestUserMessage={item.contextUserMessage} />
+                      <ChatMessageView
+                        message={item.message}
+                        latestUserMessage={item.contextUserMessage}
+                        memoryEnabled={preferences.learningEnabled}
+                        onToggleMemory={handleToggleMemory}
+                      />
                     </motion.div>
                   );
                 })}

@@ -1,13 +1,13 @@
 declare module "@storybook/react" {
-  export type Meta<TArgs = unknown> = {
+  export type Meta<TArgs = Record<string, unknown>> = {
     title?: string;
     component?: unknown;
-    args?: Record<string, unknown>;
+    args?: Partial<TArgs>;
     parameters?: Record<string, unknown>;
   } & Record<string, unknown>;
 
-  export type StoryObj<TArgs = unknown> = {
-    args?: Partial<Record<string, unknown>>;
+  export type StoryObj<TArgs = Record<string, unknown>> = {
+    args?: Partial<TArgs>;
   } & Record<string, unknown>;
 }
 

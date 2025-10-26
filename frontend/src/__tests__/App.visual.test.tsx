@@ -133,6 +133,7 @@ const baseState = {
   removeAttachment: vi.fn(),
   clearAttachments: vi.fn(),
   sendMessage: vi.fn(),
+  resendMessage: vi.fn(),
   resetConversation: vi.fn(),
   selectConversation: vi.fn(),
   createConversation: vi.fn(),
