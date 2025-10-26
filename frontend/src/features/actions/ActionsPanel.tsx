@@ -515,7 +515,7 @@ const ActionsPanel = () => {
     refreshMacros();
   }, [refreshMacros]);
 
-  const recipes = catalog?.recipes ?? [];
+  const recipes = useMemo(() => catalog?.recipes ?? [], [catalog]);
   const selectedRecipe = useMemo(
     () => recipes.find((recipe) => recipe.name === activeRecipeName) ?? null,
     [recipes, activeRecipeName],

@@ -313,20 +313,9 @@ const App = () => {
     setDemoMode(false);
   }, []);
 
-  const handleCreateConversation = useCallback(() => {
-    void createConversation();
-  }, [createConversation]);
-
   const handleToggleZenMode = useCallback(() => {
     setZenMode((previous) => !previous);
   }, []);
-
-  const handleSelectConversation = useCallback(
-    (id: string) => {
-      selectConversation(id);
-    },
-    [selectConversation],
-  );
 
   if (isDemoMode) {
     return <DemoPage metrics={demoMetrics} onLaunchApp={handleExitDemo} />;

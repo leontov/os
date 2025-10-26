@@ -1,3 +1,5 @@
+import { CHAT_GPT_THEME_ID, chatGptThemeTokens } from "../styles/theme";
+
 export type ThemeAppearance = "light" | "dark";
 export type ThemeAppearancePreference = ThemeAppearance | "system";
 export type MotionPreference = "expressive" | "reduced" | "auto";
@@ -200,6 +202,50 @@ export class PersonaThemeRegistry {
 
 export const defaultPersonaThemes: PersonaTheme[] = [
   {
+    id: CHAT_GPT_THEME_ID,
+    name: "ChatGPT",
+    description:
+      "Классическое оформление ChatGPT с характерными зелёными акцентами и сбалансированной типографикой.",
+    tags: ["chatgpt", "classic", "balanced"],
+    tokens: chatGptThemeTokens,
+    motion: {
+      expressive: {
+        id: "chatgpt-expressive",
+        name: "ChatGPT Expressive",
+        description: "Плавные появления и мягкие сдвиги, повторяющие фирменную анимацию диалогов.",
+        durations: { quick: 180, gentle: 260, slow: 420 },
+        easing: {
+          standard: "cubic-bezier(0.22, 0.61, 0.36, 1)",
+          emphasized: "cubic-bezier(0.16, 1, 0.3, 1)",
+          gesture: "cubic-bezier(0.16, 1, 0.3, 1)",
+        },
+        gestures: { edgeZone: 28, swipeThreshold: 72 },
+      },
+      reduced: {
+        id: "chatgpt-reduced",
+        name: "ChatGPT Minimal",
+        description: "Укороченные анимации для пользователей, предпочитающих статичную подачу.",
+        durations: { quick: 90, gentle: 150, slow: 240 },
+        easing: {
+          standard: "linear",
+          emphasized: "linear",
+          gesture: "linear",
+        },
+        gestures: { edgeZone: 32, swipeThreshold: 88 },
+      },
+    },
+    voice: {
+      id: "chatgpt-voice",
+      name: "ChatGPT",
+      locale: "ru-RU",
+      previewText: "Привет! Чем я могу помочь сегодня?",
+      description: "Нейтральный и чёткий голос, подходящий для продуктивных диалогов.",
+      pitch: 0,
+      rate: 1,
+      timbre: "neutral",
+    },
+  },
+  {
     id: "aurora",
     name: "Aurora",
     description: "Северное сияние с мягкой подсветкой и деликатными акцентами.",
@@ -210,6 +256,8 @@ export const defaultPersonaThemes: PersonaTheme[] = [
           brand: "79 70 229",
           "brand-foreground": "255 255 255",
           "app-background": "245 248 255",
+          "background-main": "245 248 255",
+          "background-accent": "232 238 255",
           surface: "255 255 255",
           "surface-muted": "232 238 255",
           sidebar: "233 237 254",
@@ -250,6 +298,8 @@ export const defaultPersonaThemes: PersonaTheme[] = [
           brand: "165 180 252",
           "brand-foreground": "19 20 42",
           "app-background": "16 19 45",
+          "background-main": "16 19 45",
+          "background-accent": "18 21 50",
           surface: "24 28 61",
           "surface-muted": "20 24 55",
           sidebar: "18 21 50",
@@ -334,6 +384,8 @@ export const defaultPersonaThemes: PersonaTheme[] = [
           brand: "37 99 235",
           "brand-foreground": "250 250 250",
           "app-background": "245 247 253",
+          "background-main": "245 247 253",
+          "background-accent": "236 240 255",
           surface: "249 250 255",
           "surface-muted": "231 234 250",
           sidebar: "226 231 248",
@@ -374,6 +426,8 @@ export const defaultPersonaThemes: PersonaTheme[] = [
           brand: "59 130 246",
           "brand-foreground": "12 20 35",
           "app-background": "10 13 25",
+          "background-main": "10 13 25",
+          "background-accent": "14 18 34",
           surface: "14 18 34",
           "surface-muted": "12 16 30",
           sidebar: "11 15 29",
@@ -458,6 +512,8 @@ export const defaultPersonaThemes: PersonaTheme[] = [
           brand: "236 72 153",
           "brand-foreground": "255 255 255",
           "app-background": "255 247 250",
+          "background-main": "255 247 250",
+          "background-accent": "255 240 246",
           surface: "255 255 255",
           "surface-muted": "255 240 246",
           sidebar: "255 232 241",
@@ -498,6 +554,8 @@ export const defaultPersonaThemes: PersonaTheme[] = [
           brand: "244 114 182",
           "brand-foreground": "28 13 34",
           "app-background": "24 10 33",
+          "background-main": "24 10 33",
+          "background-accent": "34 14 45",
           surface: "34 14 45",
           "surface-muted": "30 12 41",
           sidebar: "28 10 38",
