@@ -311,10 +311,10 @@ const ChatInput = ({
                 {editingMessage.originalContent || "(пустое сообщение)"}
               </p>
             </div>
-            {onCancelEditing ? (
+            {onCancelEdit ? (
               <button
                 type="button"
-                onClick={onCancelEditing}
+                onClick={onCancelEdit}
                 className="inline-flex items-center gap-2 rounded-lg border border-primary/40 bg-surface px-3 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-primary transition-colors hover:border-primary hover:text-primary/90"
               >
                 Отменить
