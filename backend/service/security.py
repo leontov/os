@@ -77,6 +77,8 @@ DEFAULT_RBAC_MAPPING: Dict[str, Sequence[str]] = {
         "kolibri.infer",
         "kolibri.analytics.view",
         "kolibri.audit.read",
+        "kolibri.actions.run",
+        "kolibri.actions.macros",
     ),
     "auditor": (
         "kolibri.audit.read",

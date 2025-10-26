@@ -5,6 +5,7 @@ from typing import Any, Dict
 import pytest
 from fastapi.testclient import TestClient
 
+from backend.service.actions import reset_actions_registry
 from backend.service.config import get_settings
 from backend.service.main import app
 from backend.service.security import AuthContext, issue_session_token
@@ -37,6 +38,7 @@ def clear_settings_cache(monkeypatch: pytest.MonkeyPatch) -> None:
     ):
         monkeypatch.delenv(key, raising=False)
     get_settings.cache_clear()
+    reset_actions_registry()
 
 
 @pytest.fixture()
@@ -207,3 +209,71 @@ def test_infer_accepts_valid_token(monkeypatch: pytest.MonkeyPatch, client: Test
 
     assert response.status_code == 200
     assert dummy_client.post_calls
+
+
+def test_actions_catalog_available_offline(monkeypatch: pytest.MonkeyPatch, client: TestClient) -> None:
+    monkeypatch.setenv("KOLIBRI_SSO_ENABLED", "false")
+    get_settings.cache_clear()
+
+    response = client.get("/api/v1/actions/catalog")
+    assert response.status_code == 200
+    payload = response.json()
+    assert any(recipe["name"] == "ingest_dataset" for recipe in payload["recipes"])
+    assert "automation" in payload["categories"]
+
+
+def test_run_action_returns_timeline(monkeypatch: pytest.MonkeyPatch, client: TestClient) -> None:
+    monkeypatch.setenv("KOLIBRI_SSO_ENABLED", "false")
+    get_settings.cache_clear()
+
+    response = client.post(
+        "/api/v1/actions/run",
+        json={"action": "ingest_dataset", "parameters": {"dataset": "intranet"}},
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "succeeded"
+    assert any(entry["status"] in {"completed", "failed"} for entry in payload["timeline"])
+    assert payload["output"]["dataset"] == "intranet"
+
+
+def test_macro_crud(monkeypatch: pytest.MonkeyPatch, client: TestClient) -> None:
+    monkeypatch.setenv("KOLIBRI_SSO_ENABLED", "false")
+    get_settings.cache_clear()
+
+    create_response = client.post(
+        "/api/v1/actions/macros",
+        json={
+            "name": "Sync portal",
+            "action": "ingest_dataset",
+            "parameters": {"dataset": "intranet"},
+            "tags": ["daily"],
+        },
+    )
+    assert create_response.status_code == 200
+    macro_id = create_response.json()["id"]
+
+    list_response = client.get("/api/v1/actions/macros")
+    assert list_response.status_code == 200
+    items = list_response.json()["items"]
+    assert any(item["id"] == macro_id for item in items)
+
+    update_response = client.put(
+        f"/api/v1/actions/macros/{macro_id}",
+        json={
+            "name": "Sync intranet",
+            "action": "ingest_dataset",
+            "parameters": {"dataset": "intranet", "priority": "high"},
+            "tags": ["daily", "priority"],
+        },
+    )
+    assert update_response.status_code == 200
+    assert update_response.json()["name"] == "Sync intranet"
+    assert update_response.json()["parameters"]["priority"] == "high"
+
+    delete_response = client.delete(f"/api/v1/actions/macros/{macro_id}")
+    assert delete_response.status_code == 204
+
+    list_after_delete = client.get("/api/v1/actions/macros")
+    assert list_after_delete.status_code == 200
+    assert not any(item["id"] == macro_id for item in list_after_delete.json()["items"])
