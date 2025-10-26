@@ -124,6 +124,7 @@ const App = () => {
   const [whatsNewHighlights, setWhatsNewHighlights] = useState<WhatsNewHighlight[]>([]);
   const [popularLoading, setPopularLoading] = useState(true);
   const [whatsNewLoading, setWhatsNewLoading] = useState(true);
+  const backendHealthState = useBackendHealth();
   const {
     snapshot: backendHealthSnapshot,
     snapshot: backendHealth,
@@ -153,6 +154,11 @@ const App = () => {
 
   useEffect(() => {
     const controller = new AbortController();
+    void backendHealthState.refresh({ signal: controller.signal });
+    return () => {
+      controller.abort();
+    };
+  }, [backendHealthState.refresh]);
     void refreshBackendHealth({ signal: controller.signal });
     return () => {
       controller.abort();
@@ -299,6 +305,8 @@ const App = () => {
 
   const handleBackendHealthRefresh = useCallback(() => {
     logInspectorAction("system.health.refresh", "Проверка статуса backend");
+    void backendHealthState.refresh();
+  }, [backendHealthState.refresh, logInspectorAction]);
     void refreshBackendHealth();
   }, [logInspectorAction, refreshBackendHealth]);
 
@@ -868,6 +876,10 @@ const App = () => {
         maxWidthClass="max-w-5xl"
       >
         <ReadinessPanel
+          backend={backendHealthState.snapshot}
+          backendError={backendHealthState.error}
+          backendCheckedAt={backendHealthState.checkedAt}
+          isBackendLoading={backendHealthState.isLoading}
           backend={backendHealthSnapshot}
           backend={backendHealth}
           backendError={backendHealthError}
