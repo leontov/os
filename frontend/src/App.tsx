@@ -541,6 +541,8 @@ const App = () => {
           mode={mode}
           modeLabel={modeLabel}
           modeOptions={MODE_OPTIONS}
+          modelId={modelId}
+          modelOptions={MODEL_OPTIONS}
           metrics={metrics}
           emptyState={<WelcomeScreen onSuggestionSelect={setDraft} />}
           composer={composer}
@@ -550,6 +552,7 @@ const App = () => {
           onConversationRename={handleRenameConversationById}
           onConversationDelete={handleDeleteConversation}
           onModeChange={handleModeChange}
+          onModelChange={handleModelChange}
           onOpenKnowledge={() => setActivePanel("knowledge")}
           onOpenAnalytics={() => setActivePanel("analytics")}
           onOpenActions={() => setActivePanel("actions")}
@@ -557,6 +560,9 @@ const App = () => {
           onOpenPreferences={() => setActivePanel("preferences")}
           onOpenSettings={() => setActivePanel("settings")}
           onRefreshKnowledge={handleRefreshKnowledge}
+          onShareConversation={handleShareConversation}
+          onExportConversation={handleExportConversation}
+          onManagePlan={handleManagePlan}
           isKnowledgeLoading={statusLoading}
           bridgeReady={bridgeReady}
           isZenMode={isZenMode}
