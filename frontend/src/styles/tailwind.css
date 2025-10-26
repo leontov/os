@@ -79,6 +79,20 @@ body {
   transition-timing-function: var(--motion-easing-standard);
 }
 
+@media (max-width: 640px) {
+  :root {
+    --font-size-base: 17px;
+    --font-line-height: 1.72;
+    --font-letter-spacing: 0.015em;
+  }
+
+  body {
+    font-size: var(--font-size-base);
+    line-height: var(--font-line-height);
+    letter-spacing: var(--font-letter-spacing);
+  }
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     color-scheme: dark;
