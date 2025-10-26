@@ -17,6 +17,7 @@ import { MODE_OPTIONS, findModeLabel } from "./core/modes";
 import { usePersonaTheme } from "./core/usePersonaTheme";
 import useInspectorSession from "./core/useInspectorSession";
 import type { ModelId } from "./core/models";
+import type { ChatMessage } from "./types/chat";
 
 type PanelKey =
   | "knowledge"
@@ -68,6 +69,7 @@ const App = () => {
     removeAttachment,
     clearAttachments,
     sendMessage,
+    resendMessage,
     resetConversation,
     selectConversation,
     createConversation,
@@ -290,6 +292,82 @@ const App = () => {
     }
   }, [conversationId, conversationTitle, exportConversationAsMarkdown, logInspectorAction]);
 
+  const handleMessageEdit = useCallback(
+    (message: ChatMessage) => {
+      if (message.role !== "user") {
+        return;
+      }
+      const edited = window.prompt("Отредактируйте сообщение перед повторной отправкой:", message.content);
+      if (edited === null) {
+        return;
+      }
+      const trimmed = edited.trim();
+      if (!trimmed) {
+        return;
+      }
+      logInspectorAction("message.edit", "Повторная отправка после правки", {
+        messageId: message.id,
+        length: trimmed.length,
+      });
+      void resendMessage(message.id, { content: trimmed });
+    },
+    [logInspectorAction, resendMessage],
+  );
+
+  const handleMessageRegenerate = useCallback(
+    ({ assistantMessage, userMessage }: { assistantMessage: ChatMessage; userMessage?: ChatMessage }) => {
+      const target = userMessage ?? ("user" === assistantMessage.role ? assistantMessage : undefined);
+      if (!target || target.role !== "user") {
+        return;
+      }
+      logInspectorAction("message.regenerate", "Повторный запрос ответа", {
+        messageId: target.id,
+        assistantId: assistantMessage.id,
+      });
+      void resendMessage(target.id);
+    },
+    [logInspectorAction, resendMessage],
+  );
+
+  const handleMessageContinue = useCallback(
+    ({ assistantMessage, userMessage }: { assistantMessage: ChatMessage; userMessage?: ChatMessage }) => {
+      if (!userMessage || userMessage.role !== "user") {
+        return;
+      }
+      const continuedPrompt = `${userMessage.content.trim()}\n\nПродолжи ответ.`;
+      logInspectorAction("message.continue", "Запрошено продолжение ответа", {
+        messageId: userMessage.id,
+        assistantId: assistantMessage.id,
+      });
+      void resendMessage(userMessage.id, { content: continuedPrompt });
+    },
+    [logInspectorAction, resendMessage],
+  );
+
+  const handleMessageCopyLink = useCallback(
+    async (message: ChatMessage) => {
+      if (typeof window === "undefined") {
+        return;
+      }
+      const baseUrl = `${window.location.origin}${window.location.pathname}${window.location.search}`;
+      const link = `${baseUrl}#message-${message.id}`;
+      try {
+        if (navigator?.clipboard?.writeText) {
+          await navigator.clipboard.writeText(link);
+        } else {
+          void window.prompt("Скопируйте ссылку на сообщение", link);
+        }
+        logInspectorAction("message.copy-link", "Скопирована ссылка на сообщение", {
+          messageId: message.id,
+          link,
+        });
+      } catch (error) {
+        console.warn("[kolibri-chat] Не удалось скопировать ссылку", error);
+      }
+    },
+    [logInspectorAction],
+  );
+
   const quickSuggestions = useMemo(() => {
     const suggestions = new Set<string>();
 
@@ -461,6 +539,8 @@ const App = () => {
           mode={mode}
           modeLabel={modeLabel}
           modeOptions={MODE_OPTIONS}
+          modelId={modelId}
+          modelOptions={MODEL_OPTIONS}
           metrics={metrics}
           emptyState={<WelcomeScreen onSuggestionSelect={setDraft} />}
           composer={composer}
@@ -470,12 +550,16 @@ const App = () => {
           onConversationRename={handleRenameConversationById}
           onConversationDelete={handleDeleteConversation}
           onModeChange={handleModeChange}
+          onModelChange={handleModelChange}
           onOpenKnowledge={() => setActivePanel("knowledge")}
           onOpenAnalytics={() => setActivePanel("analytics")}
           onOpenActions={() => setActivePanel("actions")}
           onOpenSwarm={() => setActivePanel("swarm")}
           onOpenSettings={() => setActivePanel("settings")}
           onRefreshKnowledge={handleRefreshKnowledge}
+          onShareConversation={handleShareConversation}
+          onExportConversation={handleExportConversation}
+          onManagePlan={handleManagePlan}
           isKnowledgeLoading={statusLoading}
           bridgeReady={bridgeReady}
           isZenMode={isZenMode}
@@ -484,6 +568,10 @@ const App = () => {
           preferences={preferences}
           onPreferencesChange={handleUpdatePreferences}
           onViewportElementChange={registerCaptureTarget}
+          onMessageEdit={handleMessageEdit}
+          onMessageContinue={handleMessageContinue}
+          onMessageRegenerate={handleMessageRegenerate}
+          onMessageCopyLink={handleMessageCopyLink}
         />
       </div>
 

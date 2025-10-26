@@ -3,6 +3,7 @@ import { fn } from "@storybook/test";
 import ChatView from "../components/ChatView";
 import type { ConversationMetrics, ConversationPreferences, ConversationSummary } from "../core/useKolibriChat";
 import { MODE_OPTIONS } from "../core/modes";
+import { DEFAULT_MODEL_ID, MODEL_OPTIONS } from "../core/models";
 import type { ChatMessage } from "../types/chat";
 
 const metrics: ConversationMetrics = {
@@ -78,6 +79,8 @@ const meta: Meta<typeof ChatView> = {
     mode: "neutral",
     modeLabel: "Нейтральный",
     modeOptions: MODE_OPTIONS,
+    modelId: DEFAULT_MODEL_ID,
+    modelOptions: MODEL_OPTIONS,
     isLoading: false,
     emptyState: <span>Нет сообщений</span>,
     onConversationTitleChange: fn(),
@@ -86,12 +89,16 @@ const meta: Meta<typeof ChatView> = {
     onConversationRename: fn(),
     onConversationDelete: fn(),
     onModeChange: fn(),
+    onModelChange: fn(),
     onOpenKnowledge: fn(),
     onOpenAnalytics: fn(),
     onOpenActions: fn(),
     onOpenSwarm: fn(),
     onOpenSettings: fn(),
     onRefreshKnowledge: fn(),
+    onShareConversation: fn(),
+    onExportConversation: fn(),
+    onManagePlan: fn(),
     isKnowledgeLoading: false,
     bridgeReady: true,
     isZenMode: false,
@@ -104,6 +111,10 @@ const meta: Meta<typeof ChatView> = {
         Composer placeholder
       </div>
     ),
+    onMessageEdit: fn(),
+    onMessageContinue: fn(),
+    onMessageRegenerate: fn(),
+    onMessageCopyLink: fn(),
   },
   parameters: {
     layout: "fullscreen",
