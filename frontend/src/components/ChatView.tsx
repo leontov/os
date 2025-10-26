@@ -7,6 +7,7 @@ import {
   PanelsTopLeft,
   RefreshCcw,
   Settings2,
+  Database,
   Sparkles,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -28,6 +29,7 @@ interface ChatViewProps {
   onOpenAnalytics: () => void;
   onOpenSwarm: () => void;
   onOpenPreferences: () => void;
+  onOpenSettings: () => void;
   onOpenActions: () => void;
   onRefreshKnowledge: () => void;
   isKnowledgeLoading: boolean;
@@ -52,6 +54,7 @@ const ChatView = ({
   onOpenAnalytics,
   onOpenSwarm,
   onOpenPreferences,
+  onOpenSettings,
   onOpenActions,
   onRefreshKnowledge,
   isKnowledgeLoading,
@@ -271,6 +274,14 @@ const ChatView = ({
               aria-label="Открыть swarm"
             >
               <PanelsTopLeft className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={onOpenSettings}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/70 text-text-muted transition-colors hover:text-text"
+              aria-label="Настройки модели и памяти"
+            >
+              <Database className="h-4 w-4" />
             </button>
             <button
               type="button"
