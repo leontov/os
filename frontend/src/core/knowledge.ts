@@ -403,9 +403,7 @@ export async function sendKnowledgeFeedback(
   q: string,
   a: string,
 ): Promise<void> {
-  if (knowledgeConfig.strategy !== "remote") {
-    await sendLocalKnowledgeFeedback();
-  }
+  await sendLocalKnowledgeFeedback(rating, q, a);
 
   if (!remoteEnabled) {
     return;
@@ -421,9 +419,7 @@ export async function sendKnowledgeFeedback(
 }
 
 export async function teachKnowledge(q: string, a: string): Promise<void> {
-  if (knowledgeConfig.strategy !== "remote") {
-    await teachLocalKnowledge();
-  }
+  await teachLocalKnowledge(q, a);
 
   if (!remoteEnabled) {
     return;
