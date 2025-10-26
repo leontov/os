@@ -11,7 +11,7 @@ import {
   Sparkles,
   Terminal,
 } from "lucide-react";
-import { useMemo, useRef, type ChangeEvent, type ComponentType } from "react";
+import { useMemo, useRef, type ChangeEvent, type ComponentType, type CSSProperties } from "react";
 import type { ConversationSummary } from "../core/useKolibriChat";
 import type { PopularGptRecommendation, WhatsNewHighlight } from "../types/recommendations";
 
@@ -233,12 +233,12 @@ const WelcomeScreen = ({
   };
 
   return (
-    <section className="relative flex h-full min-h-[620px] flex-col gap-10 overflow-hidden rounded-[2.5rem] border border-white/10 bg-gradient-to-br from-[#080A1C] via-[#050712] to-[#01030A] p-10 text-white shadow-[0_32px_120px_-48px_rgba(15,23,42,0.75)]">
+    <section className="relative flex h-full min-h-screen flex-col gap-8 overflow-hidden rounded-[2.5rem] border border-white/10 bg-gradient-to-br from-[#080A1C] via-[#050712] to-[#01030A] px-4 py-8 text-white shadow-[0_32px_120px_-48px_rgba(15,23,42,0.75)] sm:px-8 sm:py-10 md:min-h-[620px] xl:px-12 xl:py-12">
       <div className="pointer-events-none absolute -left-32 top-10 h-72 w-72 rounded-full bg-[#4A44FF]/25 blur-[120px]" />
       <div className="pointer-events-none absolute -right-20 bottom-0 h-80 w-80 rounded-full bg-[#00D8FF]/20 blur-[120px]" />
 
-      <div className="relative grid flex-1 gap-10 lg:grid-cols-[320px_minmax(0,1fr)_200px]">
-        <div className="flex flex-col justify-between gap-8">
+      <div className="relative grid flex-1 gap-8 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)_minmax(0,220px)] xl:gap-10">
+        <div className="flex flex-col justify-between gap-6 sm:gap-8">
           <div className="space-y-6">
             <header className="flex items-start justify-between gap-6">
               <div className="flex items-center gap-4">
@@ -390,37 +390,38 @@ const WelcomeScreen = ({
           </div>
         </div>
 
-        <div className="flex flex-col items-center justify-center gap-8">
-          <div className="relative flex h-[320px] w-[320px] items-center justify-center">
-            <div className="absolute inset-8 rounded-full border border-cyan-400/40 blur-[2px]" />
-            <div className="absolute inset-16 rounded-full border border-white/10" />
+        <div className="flex flex-col items-center justify-center gap-6 sm:gap-8">
+          <div className="relative flex aspect-square w-full max-w-[min(280px,80vw)] items-center justify-center [--orbit-radius:6.25rem] sm:max-w-[min(320px,70vw)] sm:[--orbit-radius:7rem] md:max-w-[360px] md:[--orbit-radius:7.75rem] lg:max-w-[400px] lg:[--orbit-radius:8.75rem]">
+            <div className="absolute inset-[12%] rounded-full border border-cyan-400/40 blur-[2px]" />
+            <div className="absolute inset-[22%] rounded-full border border-white/10" />
             <div className="absolute inset-0 rounded-full bg-gradient-to-br from-white/10 via-white/5 to-transparent blur-3xl" />
 
             {orbitItems.map((item, index) => {
               const angle = (360 / orbitItems.length) * index - 90;
-              const radians = (angle * Math.PI) / 180;
-              const radius = 120;
-              const x = Math.cos(radians) * radius;
-              const y = Math.sin(radians) * radius;
+              const style = {
+                "--orbit-angle": `${angle}deg`,
+                transform:
+                  "translate(calc(-50% + (cos(var(--orbit-angle)) * var(--orbit-radius))), calc(-50% + (sin(var(--orbit-angle)) * var(--orbit-radius))))",
+              } as CSSProperties;
 
               return (
                 <button
                   key={item.id}
                   type="button"
                   onClick={() => onSuggestionSelect(item.prompt)}
-                  style={{ transform: `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))` }}
-                  className="group absolute left-1/2 top-1/2 flex h-16 w-16 flex-col items-center justify-center rounded-2xl border border-white/20 bg-white/10 text-xs font-semibold uppercase tracking-[0.18em] text-white/70 shadow-[0_10px_40px_-20px_rgba(56,189,248,0.75)] transition hover:border-cyan-300/60 hover:text-white"
+                  style={style}
+                  className="group absolute left-1/2 top-1/2 flex h-14 w-14 flex-col items-center justify-center rounded-2xl border border-white/20 bg-white/10 text-[0.6rem] font-semibold uppercase tracking-[0.18em] text-white/70 shadow-[0_10px_40px_-20px_rgba(56,189,248,0.75)] transition hover:border-cyan-300/60 hover:text-white md:h-16 md:w-16 md:text-xs"
                 >
                   <span className={`absolute inset-0 -z-10 rounded-2xl bg-gradient-to-br ${item.accentClass} opacity-0 transition-opacity group-hover:opacity-60`} />
-                  <item.Icon className="h-5 w-5" />
-                  <span className="mt-1 max-w-[3.5rem] truncate">{item.label}</span>
+                  <item.Icon className="h-4 w-4 md:h-5 md:w-5" />
+                  <span className="mt-1 max-w-[3.5rem] truncate md:max-w-[4rem]">{item.label}</span>
                 </button>
               );
             })}
 
-            <div className="relative z-10 flex h-40 w-40 flex-col items-center justify-center rounded-full border border-white/20 bg-black/40 text-center shadow-[0_20px_60px_-30px_rgba(99,102,241,0.8)]">
-              <div className="rounded-full bg-gradient-to-br from-cyan-400/40 via-sky-500/30 to-indigo-500/40 p-6">
-                <Sparkles className="h-8 w-8 text-cyan-200" />
+            <div className="relative z-10 flex size-32 flex-col items-center justify-center rounded-full border border-white/20 bg-black/40 text-center shadow-[0_20px_60px_-30px_rgba(99,102,241,0.8)] sm:size-36 md:size-40">
+              <div className="rounded-full bg-gradient-to-br from-cyan-400/40 via-sky-500/30 to-indigo-500/40 p-5 md:p-6">
+                <Sparkles className="h-6 w-6 text-cyan-200 md:h-8 md:w-8" />
               </div>
               <p className="mt-3 text-xs uppercase tracking-[0.48em] text-white/50">Kolibri</p>
               <p className="text-lg font-semibold">Core Orbit</p>
@@ -433,13 +434,13 @@ const WelcomeScreen = ({
             ) : null}
           </div>
 
-          <div className="grid w-full grid-cols-3 gap-4 text-center text-xs uppercase tracking-[0.35em] text-white/60 sm:grid-cols-6">
-            <span className="rounded-full border border-white/15 bg-white/5 px-4 py-2">Chat</span>
-            <span className="rounded-full border border-white/15 bg-white/5 px-4 py-2">CLI</span>
-            <span className="rounded-full border border-white/15 bg-white/5 px-4 py-2">Memory</span>
-            <span className="rounded-full border border-white/15 bg-white/5 px-4 py-2">Analysis</span>
-            <span className="rounded-full border border-white/15 bg-white/5 px-4 py-2">Settings</span>
-            <span className="rounded-full border border-white/15 bg-white/5 px-4 py-2">Network</span>
+          <div className="grid w-full grid-cols-2 gap-3 text-center text-xs uppercase tracking-[0.35em] text-white/60 sm:grid-cols-3 md:grid-cols-6">
+            <span className="rounded-full border border-white/15 bg-white/5 px-3 py-2 sm:px-4">Chat</span>
+            <span className="rounded-full border border-white/15 bg-white/5 px-3 py-2 sm:px-4">CLI</span>
+            <span className="rounded-full border border-white/15 bg-white/5 px-3 py-2 sm:px-4">Memory</span>
+            <span className="rounded-full border border-white/15 bg-white/5 px-3 py-2 sm:px-4">Analysis</span>
+            <span className="rounded-full border border-white/15 bg-white/5 px-3 py-2 sm:px-4">Settings</span>
+            <span className="rounded-full border border-white/15 bg-white/5 px-3 py-2 sm:px-4">Network</span>
           </div>
         </div>
 
@@ -449,7 +450,7 @@ const WelcomeScreen = ({
             <p className="text-3xl font-semibold">{memoryUsage} MB</p>
           </div>
 
-          <div className="grid w-full grid-cols-3 gap-3 text-center md:grid-cols-1">
+          <div className="grid w-full grid-cols-2 gap-2 text-center sm:grid-cols-3 lg:grid-cols-1">
             {Array.from({ length: 10 }).map((_, index) => {
               const value = index === 9 ? 0 : index + 1;
               return (
@@ -457,7 +458,8 @@ const WelcomeScreen = ({
                   // eslint-disable-next-line react/no-array-index-key
                   key={`pad-${value}-${index}`}
                   type="button"
-                  className="rounded-2xl border border-white/15 bg-black/40 py-4 text-lg font-semibold text-white/70 transition hover:border-cyan-300/60 hover:text-white"
+                  className="rounded-2xl border border-white/15 bg-black/40 py-3 text-base font-semibold text-white/70 transition hover:border-cyan-300/60 hover:text-white sm:py-4 sm:text-lg"
+                  aria-label={`Ввести ${value}`}
                 >
                   {value}
                 </button>
