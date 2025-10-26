@@ -820,6 +820,7 @@ const useKolibriChat = (): UseKolibriChatResult => {
     setMode(DEFAULT_MODE_VALUE);
     setAttachments([]);
     setPreferences(DEFAULT_PREFERENCES);
+    lastTurnRef.current = null;
     return record;
   }, []);
 
@@ -1252,6 +1253,7 @@ const useKolibriChat = (): UseKolibriChatResult => {
   const resetConversation = useCallback(async () => {
     stopGeneration();
     clearAttachments();
+    lastTurnRef.current = null;
 
     if (!bridgeReady) {
       beginNewConversation();
@@ -1545,6 +1547,7 @@ const useKolibriChat = (): UseKolibriChatResult => {
       setMode(record.mode);
       setAttachments([]);
       setPreferences(record.preferences ?? DEFAULT_PREFERENCES);
+      lastTurnRef.current = null;
     },
     [],
   );
