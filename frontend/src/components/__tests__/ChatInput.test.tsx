@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 
 const { useMediaQueryMock } = vi.hoisted(() => ({
-  useMediaQueryMock: vi.fn<(query: string) => boolean>(),
+  useMediaQueryMock: vi.fn<[string], boolean>(),
 }));
 
 vi.mock("../../core/useMediaQuery", () => ({
