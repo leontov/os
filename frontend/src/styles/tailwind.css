@@ -47,11 +47,22 @@
   --motion-easing-standard: cubic-bezier(0.22, 0.61, 0.36, 1);
   --motion-easing-emphasized: cubic-bezier(0.33, 1, 0.68, 1);
   --motion-easing-gesture: cubic-bezier(0.16, 1, 0.3, 1);
+  --safe-area-inset-top: env(safe-area-inset-top);
+  --safe-area-inset-bottom: env(safe-area-inset-bottom);
+  --safe-area-padding-top: calc(2rem + var(--safe-area-inset-top));
+  --safe-area-sticky-offset: calc(2.5rem + var(--safe-area-inset-top));
   --gesture-edge-zone: 28;
   --gesture-swipe-threshold: 72;
   color: rgb(var(--color-text));
   background-color: rgb(var(--color-app-background));
   font-family: var(--font-family-base);
+}
+
+@supports not (padding: env(safe-area-inset-top)) {
+  :root {
+    --safe-area-inset-top: 0px;
+    --safe-area-inset-bottom: 0px;
+  }
 }
 
 body {

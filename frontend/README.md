@@ -18,6 +18,7 @@
 - Цветовые токены определены в `src/styles/tailwind.css` и повторно экспортируются через `tailwind.config.ts`.
 - Сохранены алиасы старых токенов (`primary`, `accent`, `background-card` и т.д.), что позволяет использовать их в существующих компонентах.
 - Классы `glass-panel`, `glass-panel-strong`, `pill-badge`, `ghost-button` переработаны под минималистичную тему.
+- Safe-area отступы вынесены в CSS custom properties (`--safe-area-padding-top`, `--safe-area-sticky-offset`) и подключены как Tailwind-spacing токены (`pt-safe-area-content`, `top-safe-area-sticky`), чтобы единообразно учитывать `env(safe-area-inset-*)` на iOS-устройствах.
 
 ## Тестирование
 - Vitest-снапшоты для базовых сценариев (`App.visual.test.tsx`) фиксируют пустой чат, чат с историей и мобильное состояние.

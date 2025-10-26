@@ -16,11 +16,11 @@ const AppShell = ({ navigation, mobileNavigation, header, inspector, footer, chi
       <div className="absolute bottom-[-18rem] left-1/2 h-[42rem] w-[42rem] -translate-x-1/2 rounded-full bg-primary/15 blur-[220px]" aria-hidden="true" />
       <div className="absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-white/10 via-transparent to-transparent opacity-40 mix-blend-overlay" aria-hidden="true" />
     </div>
-    <div className="relative z-10 mx-auto flex w-full max-w-[120rem] flex-1 flex-col px-4 pb-[calc(5.75rem+env(safe-area-inset-bottom))] pt-8 transition-[padding] sm:px-6 lg:px-12 lg:pb-16">
+    <div className="relative z-10 mx-auto flex w-full max-w-[120rem] flex-1 flex-col px-4 pb-[calc(5.75rem+env(safe-area-inset-bottom))] pt-safe-area-content transition-[padding] sm:px-6 lg:px-12 lg:pb-16">
       <div className="grid flex-1 gap-6 lg:grid-cols-[auto,minmax(0,1fr)] xl:grid-cols-[auto,minmax(0,1fr),24rem] xl:gap-10">
         {navigation ? (
           <aside className="relative hidden lg:block">
-            <div className="sticky top-10 flex h-[calc(100vh-9rem)] w-[5.5rem] flex-col xl:w-[6.5rem]">
+            <div className="sticky top-safe-area-sticky flex h-[calc(100vh-9rem)] w-[5.5rem] flex-col xl:w-[6.5rem]">
               {navigation}
             </div>
           </aside>
@@ -32,7 +32,7 @@ const AppShell = ({ navigation, mobileNavigation, header, inspector, footer, chi
         </div>
         {inspector ? (
           <aside className="relative hidden xl:block">
-            <div className="sticky top-10 h-[calc(100vh-9rem)] overflow-hidden rounded-[2.5rem] border border-white/5 bg-background-panel/70 p-5 backdrop-blur-xl">
+            <div className="sticky top-safe-area-sticky h-[calc(100vh-9rem)] overflow-hidden rounded-[2.5rem] border border-white/5 bg-background-panel/70 p-5 backdrop-blur-xl">
               <div className="soft-scroll h-full overflow-y-auto pr-2">
                 {inspector}
               </div>
