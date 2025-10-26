@@ -10,6 +10,7 @@ import KernelControlsPanel from "./components/KernelControlsPanel";
 import KnowledgeView from "./components/KnowledgeView";
 import Sidebar from "./components/Sidebar";
 import SwarmView from "./components/SwarmView";
+import ActionsPanel from "./features/actions/ActionsPanel";
 import WelcomeScreen from "./components/WelcomeScreen";
 import ChatLayout from "./components/layout/ChatLayout";
 import PanelDialog from "./components/layout/PanelDialog";
@@ -17,7 +18,7 @@ import useKolibriChat from "./core/useKolibriChat";
 import { findModeLabel } from "./core/modes";
 import useMediaQuery from "./core/useMediaQuery";
 
-type PanelKey = "knowledge" | "swarm" | "analytics" | "controls" | "preferences" | null;
+type PanelKey = "knowledge" | "swarm" | "analytics" | "controls" | "preferences" | "actions" | null;
 
 const DEFAULT_SUGGESTIONS = [
   "Сформулируй краткое резюме беседы",
@@ -281,6 +282,7 @@ const App = () => {
           onOpenSidebar={() => setSidebarOpen(true)}
           onOpenKnowledge={() => setActivePanel("knowledge")}
           onOpenAnalytics={() => setActivePanel("analytics")}
+          onOpenActions={() => setActivePanel("actions")}
           onOpenSwarm={() => setActivePanel("swarm")}
           onOpenPreferences={() => setActivePanel("preferences")}
           onRefreshKnowledge={() => {
@@ -332,6 +334,16 @@ const App = () => {
         onClose={() => setActivePanel(null)}
       >
         <AnalyticsView analytics={analytics} />
+      </PanelDialog>
+
+      <PanelDialog
+        title="Действия и макросы"
+        description="Запускайте серверные инструменты, отслеживайте ход выполнения и собирайте личные рецепты."
+        isOpen={activePanel === "actions"}
+        onClose={() => setActivePanel(null)}
+        maxWidthClass="max-w-6xl"
+      >
+        <ActionsPanel />
       </PanelDialog>
 
       <PanelDialog

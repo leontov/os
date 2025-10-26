@@ -7,11 +7,14 @@ interface PanelDialogProps {
   isOpen: boolean;
   onClose: () => void;
   footer?: ReactNode;
+  maxWidthClass?: string;
 }
 
-const PanelDialog = ({ title, description, isOpen, onClose, footer, children }: PropsWithChildren<PanelDialogProps>) => {
+const PanelDialog = ({ title, description, isOpen, onClose, footer, children, maxWidthClass }: PropsWithChildren<PanelDialogProps>) => {
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const previouslyFocusedElementRef = useRef<Element | null>(null);
+
+  const widthClass = maxWidthClass ?? "max-w-4xl";
 
   useEffect(() => {
     if (!isOpen) {
@@ -78,7 +81,7 @@ const PanelDialog = ({ title, description, isOpen, onClose, footer, children }: 
       onClick={onClose}
     >
       <div
-        className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-border/70 bg-surface shadow-card"
+        className={`flex max-h-[90vh] w-full ${widthClass} flex-col overflow-hidden rounded-2xl border border-border/70 bg-surface shadow-card`}
         data-panel-dialog
         onClick={(event) => event.stopPropagation()}
       >

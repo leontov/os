@@ -1,6 +1,7 @@
 import {
   ArrowDownWideNarrow,
   BarChart3,
+  ListChecks,
   Menu,
   PanelsTopLeft,
   RefreshCcw,
@@ -26,6 +27,7 @@ interface ChatViewProps {
   onOpenAnalytics: () => void;
   onOpenSwarm: () => void;
   onOpenPreferences: () => void;
+  onOpenActions: () => void;
   onRefreshKnowledge: () => void;
   isKnowledgeLoading: boolean;
   bridgeReady: boolean;
@@ -45,6 +47,7 @@ const ChatView = ({
   onOpenAnalytics,
   onOpenSwarm,
   onOpenPreferences,
+  onOpenActions,
   onRefreshKnowledge,
   isKnowledgeLoading,
   bridgeReady,
@@ -216,6 +219,14 @@ const ChatView = ({
               aria-label="Открыть аналитику"
             >
               <BarChart3 className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={onOpenActions}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/70 text-text-muted transition-colors hover:text-text"
+              aria-label="Открыть действия"
+            >
+              <ListChecks className="h-4 w-4" />
             </button>
             <button
               type="button"
