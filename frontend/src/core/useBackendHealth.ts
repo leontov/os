@@ -45,13 +45,13 @@ export const useBackendHealth = (): UseBackendHealthResult => {
       setSnapshot(null);
       setError(getHealthErrorMessage(refreshError));
     } finally {
-      if (signal?.aborted) {
-        return;
+      const aborted = signal?.aborted ?? false;
+      if (!aborted) {
+        if (!suppressLoading) {
+          setLoading(false);
+        }
+        setCheckedAt(new Date().toISOString());
       }
-      if (!suppressLoading) {
-        setLoading(false);
-      }
-      setCheckedAt(new Date().toISOString());
     }
   }, []);
 

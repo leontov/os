@@ -99,6 +99,102 @@ const PROGRAM_END_PATTERN = /конец\./i;
 const textDecoder = new TextDecoder("utf-8");
 const textEncoder = new TextEncoder();
 
+const FALLBACK_PROMPT_POINT_LIMIT = 5;
+const FALLBACK_CONTEXT_LIMIT = 2;
+const FALLBACK_CONTEXT_SNIPPET_LIMIT = 200;
+
+const NORMALISE_BULLET_PREFIX = /^[\s>*•\-–—+\d.]+/u;
+
+function normaliseWhitespace(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function extractPromptPoints(prompt: string): string[] {
+  const rawLines = prompt
+    .replace(/\r\n?/g, "\n")
+    .split(/\n+/)
+    .map((line) => normaliseWhitespace(line.replace(NORMALISE_BULLET_PREFIX, "")))
+    .filter(Boolean);
+
+  if (rawLines.length === 0 && prompt.trim().length > 0) {
+    return [normaliseWhitespace(prompt)];
+  }
+
+  const unique: string[] = [];
+  for (const line of rawLines) {
+    if (!unique.includes(line)) {
+      unique.push(line);
+    }
+    if (unique.length >= FALLBACK_PROMPT_POINT_LIMIT) {
+      break;
+    }
+  }
+  return unique;
+}
+
+function summariseContext(context: KnowledgeSnippet[]): string[] {
+  const summaries: string[] = [];
+  for (const snippet of context) {
+    if (summaries.length >= FALLBACK_CONTEXT_LIMIT) {
+      break;
+    }
+    const title = normaliseWhitespace(snippet.title ?? "");
+    const content = normaliseWhitespace(snippet.content ?? "");
+    if (!title && !content) {
+      continue;
+    }
+    let body = content;
+    if (body.length > FALLBACK_CONTEXT_SNIPPET_LIMIT) {
+      const truncated = body.slice(0, FALLBACK_CONTEXT_SNIPPET_LIMIT);
+      body = `${truncated.replace(/[\s,;:.\-–—]+$/u, "")}…`;
+    }
+    const source = snippet.source ? ` (${snippet.source})` : "";
+    const lead = title || "Фрагмент знаний";
+    summaries.push(`${lead}${source}: ${body}`);
+  }
+  return summaries;
+}
+
+function buildAnswerForEmptyOutput(
+  prompt: string,
+  mode: string,
+  context: KnowledgeSnippet[],
+): string {
+  const safeMode = mode && mode.trim().length > 0 ? mode.trim() : DEFAULT_MODE_LABEL;
+  const promptPoints = extractPromptPoints(prompt);
+  const contextHighlights = summariseContext(context ?? []);
+
+  const sections: string[] = [];
+  sections.push(
+    "KolibriScript не сформировал прямой вывод, поэтому подготовлен краткий ответ на основе входных данных.",
+  );
+  sections.push(`Режим выполнения: «${safeMode}».`);
+
+  if (promptPoints.length) {
+    sections.push(
+      [
+        "Основные намерения запроса:",
+        ...promptPoints.map((point) => `• ${point}`),
+      ].join("\n"),
+    );
+  } else {
+    sections.push(
+      "Запрос не содержит текста, KolibriScript завершил выполнение без вывода. Уточните запрос для получения конкретного ответа.",
+    );
+  }
+
+  if (contextHighlights.length) {
+    sections.push(
+      [
+        "Поддерживающие сведения из памяти:",
+        ...contextHighlights.map((highlight) => `• ${highlight}`),
+      ].join("\n"),
+    );
+  }
+
+  return sections.join("\n\n");
+}
+
 const WASI_ERRNO_SUCCESS = 0;
 const WASI_ERRNO_INVAL = 28;
 const WASI_ERRNO_IO = 29;
@@ -443,7 +539,8 @@ class KolibriWasmRuntime {
 
       const outputBytes = heap.subarray(outputPtr, outputPtr + written);
       const rawText = textDecoder.decode(outputBytes).trim();
-      const answer = rawText.length === 0 ? "KolibriScript завершил работу без вывода." : rawText;
+      const answer =
+        rawText.length === 0 ? buildAnswerForEmptyOutput(prompt, mode, context) : rawText;
 
       void teachKnowledge(prompt, answer);
       void sendKnowledgeFeedback("good", prompt, answer);
