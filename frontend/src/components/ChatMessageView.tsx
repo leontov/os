@@ -99,9 +99,29 @@ const ChatMessageView = ({ message, latestUserMessage }: ChatMessageProps) => {
     setIsContextExpanded((previous) => !previous);
   }, []);
 
+  const isStreaming = message.status === "streaming";
+  const isErrorStatus = message.status === "error";
+  const latencyLabel =
+    typeof message.latencyMs === "number" && Number.isFinite(message.latencyMs)
+      ? `${Math.round(message.latencyMs)} мс`
+      : null;
+  const tokenCount = typeof message.tokenCount === "number" ? Math.max(0, Math.floor(message.tokenCount)) : 0;
+  const statusLabel = isStreaming ? "Печатает…" : isErrorStatus ? "Ошибка" : "Готово";
+  const statusToneClasses = isStreaming
+    ? "border-primary/60 bg-primary/10 text-primary"
+    : isErrorStatus
+    ? "border-accent/60 bg-accent/10 text-accent"
+    : "border-emerald-400/40 bg-emerald-500/10 text-emerald-200";
+
   const bubbleClasses = isUser
     ? "border-white/10 bg-[rgba(64,65,79,0.88)] text-white shadow-[0_26px_60px_-34px_rgba(15,23,42,0.7)]"
-    : "border-border/60 bg-surface/95 text-text shadow-[0_26px_68px_-38px_rgba(15,23,42,0.5)]";
+    : `${
+        isStreaming
+          ? "border-primary/60 shadow-[0_26px_68px_-38px_rgba(16,163,127,0.35)]"
+          : isErrorStatus
+          ? "border-accent/60 shadow-[0_26px_68px_-38px_rgba(248,113,113,0.35)]"
+          : "border-border/60 shadow-[0_26px_68px_-38px_rgba(15,23,42,0.5)]"
+      } bg-surface/95 text-text`;
 
   return (
     <article className={`group relative flex w-full gap-4 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
@@ -121,7 +141,18 @@ const ChatMessageView = ({ message, latestUserMessage }: ChatMessageProps) => {
               isUser ? "justify-end text-white/70" : "justify-between text-text-muted"
             }`}
           >
-            <span>{actorLabel}</span>
+            <div className={`flex items-center gap-2 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
+              <span>{actorLabel}</span>
+              {!isUser ? (
+                <span
+                  className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[0.58rem] tracking-[0.28em] ${statusToneClasses} ${
+                    isStreaming ? "animate-pulse" : ""
+                  }`}
+                >
+                  {statusLabel}
+                </span>
+              ) : null}
+            </div>
             <div className="flex items-center gap-2 text-[0.7rem]">
               <span className={isUser ? "text-white/70" : "text-text-muted"}>{isoDate ?? message.timestamp}</span>
               <button
@@ -141,6 +172,11 @@ const ChatMessageView = ({ message, latestUserMessage }: ChatMessageProps) => {
 
           {message.content ? (
             <ChatMarkdown content={message.content} tone={isUser ? "user" : "assistant"} />
+          ) : !isUser && isStreaming ? (
+            <div className="flex items-center gap-2 text-sm text-primary" aria-live="polite">
+              <span className="h-2.5 w-2.5 animate-ping rounded-full bg-primary/80" aria-hidden="true" />
+              <span>Kolibri печатает ответ…</span>
+            </div>
           ) : null}
 
           {attachmentItems.length ? (
@@ -202,6 +238,21 @@ const ChatMessageView = ({ message, latestUserMessage }: ChatMessageProps) => {
           {!isUser && message.modeLabel ? (
             <span className="rounded-full border border-border/60 bg-surface px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.3em] text-text-muted">
               {message.modeLabel}
+            </span>
+          ) : null}
+          {!isUser && message.provider ? (
+            <span className="rounded-full border border-border/60 bg-surface px-3 py-1 text-[0.68rem] uppercase tracking-[0.3em] text-text-muted">
+              Модель: {message.provider}
+            </span>
+          ) : null}
+          {!isUser && latencyLabel ? (
+            <span className="rounded-full border border-border/60 bg-surface px-3 py-1 text-[0.68rem] uppercase tracking-[0.3em] text-text-muted">
+              Латентность: {latencyLabel}
+            </span>
+          ) : null}
+          {!isUser && tokenCount > 0 ? (
+            <span className="rounded-full border border-border/60 bg-surface px-3 py-1 text-[0.68rem] uppercase tracking-[0.3em] text-text-muted">
+              Токенов: {tokenCount}
             </span>
           ) : null}
           {!isUser && latestUserMessage ? (

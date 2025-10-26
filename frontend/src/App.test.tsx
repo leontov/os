@@ -4,9 +4,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MockInstance } from "vitest";
 import App from "./App";
 import { MODE_OPTIONS } from "./core/modes";
-import type { KernelControlPayload } from "./core/kolibri-bridge";
+import type { KernelControlPayload, KolibriAskOptions } from "./core/kolibri-bridge";
 
-type AskFunction = (prompt: string, mode?: string) => Promise<string>;
+type AskFunction = (
+  prompt: string,
+  mode?: string,
+  context?: unknown,
+  attachments?: unknown,
+  options?: KolibriAskOptions,
+) => Promise<string>;
 
 type ResetFunction = () => Promise<void>;
 type SearchFunction = (
@@ -79,7 +85,8 @@ describe("App contextual retrieval", () => {
     expect(prompt).toContain("Описание Kolibri");
     expect(mode).toBe(MODE_OPTIONS[0]?.value ?? "neutral");
 
-    await waitFor(() => expect(screen.getByText("Ответ с контекстом")).toBeInTheDocument());
+    const contextualAnswers = await screen.findAllByText("Ответ с контекстом");
+    expect(contextualAnswers.length).toBeGreaterThan(0);
 
     const toggle = screen.getByRole("button", { name: "Показать контекст (1)" });
     await userEvent.click(toggle);
@@ -107,7 +114,8 @@ describe("App contextual retrieval", () => {
     const [prompt] = askMock.mock.calls[0] ?? [];
     expect(prompt).toBe("Где хранится знание?");
 
-    await waitFor(() => expect(screen.getByText("Ответ без контекста")).toBeInTheDocument());
+    const plainAnswers = await screen.findAllByText("Ответ без контекста");
+    expect(plainAnswers.length).toBeGreaterThan(0);
 
     expect(screen.getByText(/Контекст недоступен:/)).toHaveTextContent("модуль памяти недоступен");
     expect(screen.queryByRole("button", { name: /Контекст/ })).not.toBeInTheDocument();

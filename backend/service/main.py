@@ -3,10 +3,11 @@ from __future__ import annotations
 
 import json
 import time
-from typing import Any, Dict, Optional
+from typing import Any, AsyncIterator, Dict, Optional
 
 import httpx
-from fastapi import Depends, FastAPI, Form, HTTPException, Response, status
+from fastapi import Depends, FastAPI, Form, HTTPException, Request, Response, status
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from .actions import (
     ActionCatalogResponse,
@@ -102,6 +103,19 @@ def _extract_text(payload: Any) -> str:
     raise ValueError("Upstream response did not contain text output")
 
 
+def _format_sse(event: str, data: Dict[str, Any]) -> str:
+    payload = json.dumps(data, ensure_ascii=False)
+    return f"event: {event}\ndata: {payload}\n\n"
+
+
+def _iter_chunks(text: str, chunk_size: int = 80) -> AsyncIterator[str]:
+    async def generator() -> AsyncIterator[str]:
+        for start in range(0, len(text), chunk_size):
+            yield text[start : start + chunk_size]
+
+    return generator()
+
+
 async def _perform_upstream_call(
     request: InferenceRequest,
     settings: Settings,
@@ -173,6 +187,74 @@ async def _perform_upstream_call(
         provider = payload_json["provider"].strip() or provider
 
     return text, elapsed, provider
+
+
+async def _stream_inference_response(
+    request: InferenceRequest,
+    settings: Settings,
+    context: AuthContext,
+) -> StreamingResponse:
+    async def event_generator() -> AsyncIterator[str]:
+        try:
+            text, latency_ms, provider = await _perform_upstream_call(request, settings)
+        except HTTPException as exc:
+            INFER_REQUESTS.labels(outcome="error").inc()
+            log_audit_event(
+                event_type="llm.infer.error",
+                actor=context.subject,
+                payload={"mode": request.mode},
+                settings=settings,
+            )
+            yield _format_sse("error", {"message": exc.detail})
+            return
+        except Exception as exc:  # pragma: no cover - unexpected error path
+            INFER_REQUESTS.labels(outcome="error").inc()
+            log_audit_event(
+                event_type="llm.infer.error",
+                actor=context.subject,
+                payload={"mode": request.mode, "reason": "unexpected"},
+                settings=settings,
+            )
+            yield _format_sse("error", {"message": "Unexpected upstream failure"})
+            raise exc
+
+        INFER_REQUESTS.labels(outcome="success").inc()
+        INFER_LATENCY.labels(provider=provider or "unknown").observe((latency_ms or 0.0) / 1000.0)
+
+        log_audit_event(
+            event_type="llm.infer",
+            actor=context.subject,
+            payload={
+                "mode": request.mode,
+                "provider": provider,
+                "latency_ms": latency_ms,
+            },
+            settings=settings,
+        )
+        log_genome_event(
+            stage="response",
+            actor=context.subject,
+            payload={"provider": provider, "latency_ms": latency_ms},
+            settings=settings,
+        )
+
+        index = 0
+        async for chunk in _iter_chunks(text):
+            if chunk:
+                yield _format_sse("token", {"text": chunk, "index": index})
+                index += 1
+
+        yield _format_sse(
+            "done",
+            {
+                "provider": provider,
+                "latency_ms": latency_ms,
+                "text": text,
+            },
+        )
+
+    headers = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+    return StreamingResponse(event_generator(), media_type="text/event-stream", headers=headers)
 
 
 @app.get("/api/health", response_model=HealthResponse)
@@ -251,14 +333,23 @@ async def saml_session(context: AuthContext = Depends(require_permission("kolibr
 @app.post("/api/v1/infer", response_model=InferenceResponse)
 async def infer(
     request: InferenceRequest,
+    raw_request: Request,
     settings: Settings = Depends(get_settings),
     context: AuthContext = Depends(require_permission("kolibri.infer")),
-) -> InferenceResponse:
+) -> InferenceResponse | StreamingResponse:
     if settings.response_mode != "llm":
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="LLM mode is disabled",
         )
+
+    accept_header = raw_request.headers.get("accept", "")
+    wants_stream = "text/event-stream" in accept_header.lower()
+    if not wants_stream:
+        wants_stream = raw_request.query_params.get("stream") in {"1", "true", "yes"}
+
+    if wants_stream:
+        return await _stream_inference_response(request, settings, context)
 
     try:
         text, latency_ms, provider = await _perform_upstream_call(request, settings)

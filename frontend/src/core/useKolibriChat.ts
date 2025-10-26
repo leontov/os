@@ -386,6 +386,25 @@ const toChatMessage = (value: unknown, index: number): ChatMessage | null => {
   const modeLabel = typeof raw.modeLabel === "string" ? raw.modeLabel : undefined;
   const modeValue = typeof raw.modeValue === "string" ? raw.modeValue : undefined;
   const contextError = typeof raw.contextError === "string" ? raw.contextError : undefined;
+  const status =
+    raw.status === "streaming" || raw.status === "done" || raw.status === "error"
+      ? raw.status
+      : undefined;
+  const provider = typeof raw.provider === "string" && raw.provider ? raw.provider : undefined;
+  const latencyValue =
+    typeof raw.latencyMs === "number"
+      ? raw.latencyMs
+      : typeof raw.latencyMs === "string"
+      ? Number(raw.latencyMs)
+      : undefined;
+  const latencyMs = Number.isFinite(latencyValue) ? (latencyValue as number) : undefined;
+  const tokenCountValue =
+    typeof raw.tokenCount === "number"
+      ? raw.tokenCount
+      : typeof raw.tokenCount === "string"
+      ? Number(raw.tokenCount)
+      : undefined;
+  const tokenCount = Number.isFinite(tokenCountValue) ? (tokenCountValue as number) : undefined;
 
   let attachments: SerializedAttachment[] | undefined;
   if (Array.isArray(raw.attachments)) {
@@ -407,7 +426,22 @@ const toChatMessage = (value: unknown, index: number): ChatMessage | null => {
     }
   }
 
-  return { id, role, content, timestamp, isoTimestamp, modeLabel, modeValue, attachments, context, contextError };
+  return {
+    id,
+    role,
+    content,
+    timestamp,
+    isoTimestamp,
+    modeLabel,
+    modeValue,
+    attachments,
+    context,
+    contextError,
+    status,
+    provider,
+    latencyMs,
+    tokenCount,
+  };
 };
 
 const createConversationRecord = (overrides?: Partial<ConversationRecord>): ConversationRecord => {
@@ -1017,6 +1051,7 @@ const useKolibriChat = (): UseKolibriChatResult => {
         isoTimestamp: moment.iso,
         modeLabel: "Сервис",
         modeValue: "system",
+        status: "done",
       },
     ]);
   }, []);
@@ -1262,6 +1297,7 @@ const useKolibriChat = (): UseKolibriChatResult => {
               : "Не удалось инициализировать KolibriScript.",
           timestamp: moment.display,
           isoTimestamp: moment.iso,
+          status: "error",
         };
         setMessages((prev) => [...prev, assistantMessage]);
       }
@@ -1386,6 +1422,7 @@ const useKolibriChat = (): UseKolibriChatResult => {
             : "Не удалось сбросить KolibriScript.",
         timestamp: moment.display,
         isoTimestamp: moment.iso,
+        status: "error",
       };
       setMessages((prev) => [...prev, assistantMessage]);
     } finally {
@@ -1625,37 +1662,74 @@ const useKolibriChat = (): UseKolibriChatResult => {
     }
 
     const prompt = knowledgeContext.length ? formatPromptWithContext(content || "", knowledgeContext) : content;
+    const responseMoment = nowPair();
+    const assistantId = crypto.randomUUID();
+    const initialAssistant: ChatMessage = {
+      id: assistantId,
+      role: "assistant",
+      content: "",
+      timestamp: responseMoment.display,
+      isoTimestamp: responseMoment.iso,
+      modeValue: mode,
+      modeLabel: findModeLabel(mode),
+      context: knowledgeContext.length ? knowledgeContext : undefined,
+      contextError,
+      status: "streaming",
+      tokenCount: 0,
+    };
+    setMessages((prev) => [...prev, initialAssistant]);
 
     try {
       const answer = await kolibriBridge.ask(prompt, mode, knowledgeContext, serializedAttachments, {
         model: modelId,
+        onToken: (chunk, metadata) => {
+          setMessages((prev) =>
+            prev.map((message) => {
+              if (message.id !== assistantId) {
+                return message;
+              }
+              const nextTokenCount = chunk ? (message.tokenCount ?? 0) + 1 : message.tokenCount ?? 0;
+              const nextContent = chunk ? `${message.content}${chunk}` : message.content;
+              return {
+                ...message,
+                content: nextContent,
+                status: metadata?.done ? "done" : "streaming",
+                provider: metadata?.provider ?? message.provider,
+                latencyMs: metadata?.latencyMs ?? message.latencyMs,
+                tokenCount: nextTokenCount,
+              };
+            }),
+          );
+        },
       });
-      const moment = nowPair();
-      const assistantMessage: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: answer,
-        timestamp: moment.display,
-        isoTimestamp: moment.iso,
-        modeValue: mode,
-        modeLabel: findModeLabel(mode),
-        context: knowledgeContext.length ? knowledgeContext : undefined,
-        contextError,
-      };
-      setMessages((prev) => [...prev, assistantMessage]);
+
+      setMessages((prev) =>
+        prev.map((message) =>
+          message.id === assistantId
+            ? {
+                ...message,
+                content: answer,
+                status: "done",
+              }
+            : message,
+        ),
+      );
     } catch (error) {
-      const moment = nowPair();
-      const assistantMessage: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content:
-          error instanceof Error
-            ? `Не удалось получить ответ: ${error.message}`
-            : "Не удалось получить ответ от ядра Колибри.",
-        timestamp: moment.display,
-        isoTimestamp: moment.iso,
-      };
-      setMessages((prev) => [...prev, assistantMessage]);
+      const errorMessage =
+        error instanceof Error
+          ? `Не удалось получить ответ: ${error.message}`
+          : "Не удалось получить ответ от ядра Колибри.";
+      setMessages((prev) =>
+        prev.map((message) =>
+          message.id === assistantId
+            ? {
+                ...message,
+                content: errorMessage,
+                status: "error",
+              }
+            : message,
+        ),
+      );
     } finally {
       setIsProcessing(false);
       void refreshKnowledgeStatus();

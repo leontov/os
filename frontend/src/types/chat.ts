@@ -14,4 +14,8 @@ export interface ChatMessage {
   attachments?: SerializedAttachment[];
   context?: KnowledgeSnippet[];
   contextError?: string;
+  status?: "streaming" | "done" | "error";
+  provider?: string;
+  latencyMs?: number;
+  tokenCount?: number;
 }

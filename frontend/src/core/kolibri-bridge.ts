@@ -43,11 +43,23 @@ export interface KolibriBridge {
     mode?: string,
     context?: KnowledgeSnippet[],
     attachments?: SerializedAttachment[],
-    options?: { model?: string },
+    options?: KolibriAskOptions,
   ): Promise<string>;
   reset(): Promise<void>;
   configure(controls: KernelControlPayload): Promise<void>;
   capabilities(): Promise<KernelCapabilities>;
+}
+
+export interface KolibriChunkMetadata {
+  done?: boolean;
+  provider?: string;
+  latencyMs?: number;
+}
+
+export interface KolibriAskOptions {
+  model?: string;
+  onToken?: (chunk: string, metadata?: KolibriChunkMetadata) => void;
+  signal?: AbortSignal;
 }
 
 interface KolibriWasmExports {
@@ -98,6 +110,68 @@ const PROGRAM_END_PATTERN = /конец\./i;
 
 const textDecoder = new TextDecoder("utf-8");
 const textEncoder = new TextEncoder();
+
+interface ParsedSseEvent {
+  event: string;
+  data: string;
+}
+
+const parseSseEvent = (rawEvent: string): ParsedSseEvent => {
+  const lines = rawEvent.split(/\r?\n/);
+  let event = "message";
+  const dataLines: string[] = [];
+  for (const line of lines) {
+    if (!line) {
+      continue;
+    }
+    if (line.startsWith(":")) {
+      continue;
+    }
+    if (line.startsWith("event:")) {
+      const value = line.slice(6).trim();
+      if (value) {
+        event = value;
+      }
+      continue;
+    }
+    if (line.startsWith("data:")) {
+      dataLines.push(line.slice(5).trimStart());
+    }
+  }
+  return { event, data: dataLines.join("\n") };
+};
+
+const coerceString = (value: unknown): string | undefined => {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed || undefined;
+  }
+  return undefined;
+};
+
+const coerceNumber = (value: unknown): number | undefined => {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+  return undefined;
+};
+
+const extractChunk = (value: unknown): string | undefined => {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return coerceString(record.text) ?? coerceString(record.delta) ?? coerceString(record.token);
+  }
+  return undefined;
+};
 
 const WASI_ERRNO_SUCCESS = 0;
 const WASI_ERRNO_INVAL = 28;
@@ -523,15 +597,16 @@ class KolibriScriptBridge implements KolibriBridge {
     mode: string = DEFAULT_MODE_LABEL,
     context: KnowledgeSnippet[] = [],
     attachments: SerializedAttachment[] = [],
-    options?: { model?: string },
+    options?: KolibriAskOptions,
   ): Promise<string> {
-    void options;
     if (attachments.length) {
       console.info(
         `[kolibri-bridge] KolibriScript пока игнорирует ${attachments.length} вложения(ий).`,
       );
     }
-    return this.runtime.execute(prompt, mode, context);
+    const answer = await this.runtime.execute(prompt, mode, context);
+    options?.onToken?.(answer, { done: true, provider: "kolibri-script" });
+    return answer;
   }
 
   async reset(): Promise<void> {
@@ -559,7 +634,7 @@ class KolibriFallbackBridge implements KolibriBridge {
     _mode?: string,
     _context?: KnowledgeSnippet[],
     attachments: SerializedAttachment[] = [],
-    options?: { model?: string },
+    options?: KolibriAskOptions,
   ): Promise<string> {
     void options;
     if (attachments.length) {
@@ -569,11 +644,13 @@ class KolibriFallbackBridge implements KolibriBridge {
     }
     const details = this.reason.trim();
     const reasonText = details ? `Причина: ${details}` : "Причина: неизвестна.";
-    return [
+    const answer = [
       "KolibriScript недоступен: kolibri.wasm не был загружен.",
       reasonText,
       "Запустите scripts/build_wasm.sh или установите переменную KOLIBRI_ALLOW_WASM_STUB=1 для деградированного режима.",
     ].join("\n");
+    options?.onToken?.(answer, { done: true, provider: "kolibri-fallback" });
+    return answer;
   }
 
   async reset(): Promise<void> {
@@ -600,7 +677,7 @@ class KolibriLLMBridge implements KolibriBridge {
     mode: string = DEFAULT_MODE_LABEL,
     context: KnowledgeSnippet[] = [],
     attachments: SerializedAttachment[] = [],
-    options?: { model?: string },
+    options?: KolibriAskOptions,
   ): Promise<string> {
     const payload: Record<string, unknown> = { prompt, mode, context };
     if (attachments.length) {
@@ -612,24 +689,41 @@ class KolibriLLMBridge implements KolibriBridge {
     try {
       const response = await fetch(this.endpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "text/event-stream",
+        },
         body: JSON.stringify(payload),
+        signal: options?.signal,
       });
 
       if (!response.ok) {
         throw new Error(`LLM proxy responded with ${response.status} ${response.statusText}`);
       }
 
-      const data = (await response.json()) as { response?: unknown };
-      if (typeof data.response !== "string" || !data.response.trim()) {
-        throw new Error("LLM proxy returned an unexpected payload.");
+      const contentType = response.headers.get("Content-Type")?.toLowerCase() ?? "";
+      if (contentType.includes("text/event-stream")) {
+        return await this.consumeSseResponse(response, options);
       }
 
-      return data.response.trim();
+      const data = (await response.json()) as Record<string, unknown>;
+      const text = coerceString(data.response);
+      if (!text) {
+        throw new Error("LLM proxy returned an unexpected payload.");
+      }
+      const provider = coerceString(data.provider) ?? "llm";
+      const latencyMs = coerceNumber(data.latency_ms ?? data.latencyMs);
+      options?.onToken?.(text, { done: true, provider, latencyMs });
+      return text.trim();
     } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        throw error;
+      }
       console.warn("[kolibri-bridge] Ошибка при запросе к LLM, выполняем KolibriScript.", error);
-      const fallbackResponse = await this.fallback.ask(prompt, mode, context);
-      return `${fallbackResponse}\n\n(Ответ сгенерирован KolibriScript из-за ошибки LLM.)`;
+      const fallbackResponse = await this.fallback.ask(prompt, mode, context, attachments);
+      const finalResponse = `${fallbackResponse}\n\n(Ответ сгенерирован KolibriScript из-за ошибки LLM.)`;
+      options?.onToken?.("", { done: true, provider: "kolibri-script" });
+      return finalResponse;
     }
   }
 
@@ -643,6 +737,108 @@ class KolibriLLMBridge implements KolibriBridge {
 
   capabilities(): Promise<KernelCapabilities> {
     return this.fallback.capabilities();
+  }
+
+  private async consumeSseResponse(response: Response, options?: KolibriAskOptions): Promise<string> {
+    const body = response.body;
+    if (!body) {
+      throw new Error("Streaming response is not supported by this environment.");
+    }
+    const reader = body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let accumulated = "";
+    let provider: string | undefined = "llm";
+    let latencyMs: number | undefined;
+    let completed = false;
+
+    const applyMetadata = (payload: unknown): void => {
+      if (!payload || typeof payload !== "object") {
+        return;
+      }
+      const record = payload as Record<string, unknown>;
+      const providerCandidate = coerceString(record.provider);
+      if (providerCandidate) {
+        provider = providerCandidate;
+      }
+      const latencyCandidate = coerceNumber(record.latency_ms ?? record.latencyMs ?? record.latency);
+      if (latencyCandidate !== undefined) {
+        latencyMs = latencyCandidate;
+      }
+    };
+
+    const processEvent = (rawEvent: string): void => {
+      if (!rawEvent.trim()) {
+        return;
+      }
+      const parsed = parseSseEvent(rawEvent);
+      const data = parsed.data;
+      let payload: unknown = data;
+      if (data) {
+        try {
+          payload = JSON.parse(data);
+        } catch {
+          payload = data;
+        }
+      }
+
+      applyMetadata(payload);
+
+      if (parsed.event === "token") {
+        const chunk = extractChunk(payload);
+        if (chunk) {
+          accumulated += chunk;
+          options?.onToken?.(chunk, { done: false, provider, latencyMs });
+        }
+        return;
+      }
+
+      if (parsed.event === "done") {
+        const explicitText = extractChunk(payload) ?? coerceString(payload);
+        if (explicitText) {
+          accumulated = explicitText;
+        }
+        options?.onToken?.("", { done: true, provider, latencyMs });
+        completed = true;
+        return;
+      }
+
+      if (parsed.event === "error") {
+        const message =
+          typeof payload === "string"
+            ? payload
+            : coerceString((payload as Record<string, unknown>).message) ?? "LLM streaming error";
+        throw new Error(message);
+      }
+
+      // Metadata-only events update provider/latency without emitting tokens.
+      applyMetadata(payload);
+    };
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) {
+        break;
+      }
+      buffer += decoder.decode(value, { stream: true });
+      let separatorIndex = buffer.indexOf("\n\n");
+      while (separatorIndex !== -1) {
+        const rawEvent = buffer.slice(0, separatorIndex);
+        buffer = buffer.slice(separatorIndex + 2);
+        processEvent(rawEvent);
+        separatorIndex = buffer.indexOf("\n\n");
+      }
+    }
+
+    buffer += decoder.decode();
+    if (buffer.trim()) {
+      processEvent(buffer);
+    }
+
+    if (!completed) {
+      options?.onToken?.("", { done: true, provider, latencyMs });
+    }
+    return accumulated.trim();
   }
 }
 
@@ -688,7 +884,7 @@ const kolibriBridge: KolibriBridge = {
     mode?: string,
     context: KnowledgeSnippet[] = [],
     attachments: SerializedAttachment[] = [],
-    options?: { model?: string },
+    options?: KolibriAskOptions,
   ): Promise<string> {
     const bridge = await bridgePromise;
     return bridge.ask(prompt, mode, context, attachments, options);
