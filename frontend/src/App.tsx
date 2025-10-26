@@ -572,6 +572,7 @@ const App = () => {
         isEditing={Boolean(editingState)}
         editingMessage={editingContext}
         onCancelEdit={handleCancelEdit}
+        sendOnEnter={preferences.sendOnEnter}
       />
       {quickSuggestions.length > 0 ? (
         <div className="rounded-2xl border border-border/60 bg-surface px-4 py-3 text-sm text-text-muted shadow-sm">

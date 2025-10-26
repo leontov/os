@@ -108,6 +108,7 @@ export interface ConversationPreferences {
   allowOnline: boolean;
   profilePreset: ProfilePreset;
   safeTone: boolean;
+  sendOnEnter?: boolean;
 }
 
 const PROFILE_PRESETS: ProfilePreset[] = ["balanced", "concise", "detailed", "technical", "friendly"];
@@ -328,14 +329,23 @@ const parsePreferences = (value: unknown): ConversationPreferences => {
   const allowOnline = raw.allowOnline === undefined ? DEFAULT_PREFERENCES.allowOnline : Boolean(raw.allowOnline);
   const safeTone = raw.safeTone === undefined ? DEFAULT_PREFERENCES.safeTone : Boolean(raw.safeTone);
   const profilePreset = parseProfilePreset(raw.profilePreset);
+  const sendOnEnterValue = raw.sendOnEnter;
+  const sendOnEnter =
+    sendOnEnterValue === undefined || sendOnEnterValue === null ? undefined : Boolean(sendOnEnterValue);
 
-  return {
+  const base: ConversationPreferences = {
     learningEnabled,
     privateMode,
     allowOnline,
     profilePreset,
     safeTone,
   };
+
+  if (sendOnEnter !== undefined) {
+    base.sendOnEnter = sendOnEnter;
+  }
+
+  return base;
 };
 
 const toSerializedAttachment = (value: unknown, index: number): SerializedAttachment | null => {
@@ -1243,6 +1253,13 @@ const useKolibriChat = (): UseKolibriChatResult => {
         `Онлайн-доступ: ${prefs.allowOnline ? "разрешён" : "отключён"}`,
         `Профиль: ${profileLabelMap[prefs.profilePreset] ?? prefs.profilePreset}`,
         `Безопасный тон: ${prefs.safeTone ? "умеренный" : "по умолчанию"}`,
+        `Enter: ${
+          prefs.sendOnEnter === undefined
+            ? "авто (десктоп — отправка, мобильный — перенос)"
+            : prefs.sendOnEnter
+              ? "отправляет сообщение"
+              : "добавляет перенос"
+        }`,
       ].join("\n");
     },
     [],

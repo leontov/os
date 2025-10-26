@@ -14,6 +14,7 @@ import type { PendingAttachment } from "../types/attachments";
 import AttachmentPreviewList, {
   type AttachmentPreviewItem,
 } from "./attachments/AttachmentPreviewList";
+import useMediaQuery from "../core/useMediaQuery";
 
 interface EditingMessageMeta {
   id: string;
@@ -37,6 +38,7 @@ interface ChatInputProps {
   isEditing?: boolean;
   editingMessage?: EditingMessageMeta | null;
   onCancelEdit?: () => void;
+  sendOnEnter?: boolean;
 }
 
 const MAX_LENGTH = 4000;
@@ -57,10 +59,17 @@ const ChatInput = ({
   isEditing = false,
   editingMessage,
   onCancelEdit,
+  sendOnEnter,
 }: ChatInputProps) => {
   const textAreaId = useId();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const textAreaRef = useRef<HTMLTextAreaElement | null>(null);
+  const isCoarsePointer = useMediaQuery("(pointer: coarse)");
+  const effectiveSendOnEnter =
+    sendOnEnter === undefined ? !isCoarsePointer : Boolean(sendOnEnter);
+  const sendShortcutLabel = effectiveSendOnEnter
+    ? "Enter — отправить, Shift + Enter — перенос строки"
+    : "Enter — перенос строки, Ctrl/⌘ + Enter — отправить";
 
   const trimmedLength = useMemo(() => value.trim().length, [value]);
   const remaining = Math.max(0, MAX_LENGTH - value.length);
@@ -141,11 +150,28 @@ const ChatInput = ({
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      if (!sendDisabled) {
-        void onSubmit();
-      }
+    if (event.key !== "Enter") {
+      return;
+    }
+
+    if (event.nativeEvent.isComposing) {
+      return;
+    }
+
+    const hasModifier = event.ctrlKey || event.metaKey;
+    if (event.shiftKey && !hasModifier) {
+      return;
+    }
+
+    const shouldSend = hasModifier || effectiveSendOnEnter;
+    if (!shouldSend) {
+      return;
+    }
+
+    event.preventDefault();
+
+    if (!sendDisabled) {
+      void onSubmit();
     }
   };
 
@@ -398,7 +424,7 @@ const ChatInput = ({
             </button>
             <span className="inline-flex items-center gap-2 rounded-lg border border-border/70 bg-surface px-3 py-2">
               <Keyboard className="h-4 w-4" />
-              Enter — отправить, Shift + Enter — перенос строки
+              {sendShortcutLabel}
             </span>
           </div>
           <div className="flex items-center gap-3">
