@@ -1,4 +1,4 @@
-import { render } from "@testing-library/react";
+import { act, render } from "@testing-library/react";
 import { vi } from "vitest";
 import App from "../App";
 import type {
@@ -10,6 +10,7 @@ import type {
 import type { ChatMessage } from "../types/chat";
 import useKolibriChat from "../core/useKolibriChat";
 import useMediaQuery from "../core/useMediaQuery";
+import { fetchPopularGpts, fetchWhatsNewHighlights } from "../core/recommendations";
 
 vi.mock("../core/useKolibriChat", () => ({
   default: vi.fn(),
@@ -30,8 +31,15 @@ vi.mock("html2canvas", () => ({
   }),
 }));
 
+vi.mock("../core/recommendations", () => ({
+  fetchPopularGpts: vi.fn(),
+  fetchWhatsNewHighlights: vi.fn(),
+}));
+
 const useKolibriChatMock = vi.mocked(useKolibriChat);
 const useMediaQueryMock = vi.mocked(useMediaQuery);
+const fetchPopularGptsMock = vi.mocked(fetchPopularGpts);
+const fetchWhatsNewHighlightsMock = vi.mocked(fetchWhatsNewHighlights);
 
 const baseMetrics: ConversationMetrics = {
   userMessages: 0,
@@ -136,16 +144,42 @@ const baseState = {
 
 describe("App layout snapshots", () => {
   beforeEach(() => {
+    fetchPopularGptsMock.mockReset();
+    fetchWhatsNewHighlightsMock.mockReset();
     useKolibriChatMock.mockReturnValue({ ...baseState });
     useMediaQueryMock.mockReturnValue(true);
+    fetchPopularGptsMock.mockResolvedValue([
+      {
+        id: "gpt-sales",
+        title: "Kolibri Growth Strategist",
+        description: "Помогает сформировать GTM-план и коммерческие сообщения на основе последних метрик.",
+        prompt: "Собери GTM-план для Kolibri на следующий квартал.",
+        badge: "Sales",
+        author: "Команда RevOps",
+      },
+    ]);
+    fetchWhatsNewHighlightsMock.mockResolvedValue([
+      {
+        id: "update-ops",
+        title: "AI-ревью документов",
+        summary: "Коллекция промтов для быстрого ревью договоров, презентаций и аналитических отчётов.",
+        prompt: "Проверь этот документ на риски и сформируй резюме.",
+        publishedAtIso: new Date("2024-09-18T10:00:00Z").toISOString(),
+      },
+    ]);
   });
 
-  it("renders empty chat state", () => {
-    const { container } = render(<App />);
+  it("renders empty chat state", async () => {
+    let view: ReturnType<typeof render> | null = null;
+    await act(async () => {
+      view = render(<App />);
+      await Promise.resolve();
+    });
+    const { container } = view ?? render(<App />);
     expect(container.firstChild).toMatchSnapshot();
   });
 
-  it("renders chat with history", () => {
+  it("renders chat with history", async () => {
     const populatedMessages: ChatMessage[] = [
       {
         id: "m-1",
@@ -174,18 +208,28 @@ describe("App layout snapshots", () => {
       conversationTitle: "Проект Kolibri",
     });
 
-    const { container } = render(<App />);
+    let view: ReturnType<typeof render> | null = null;
+    await act(async () => {
+      view = render(<App />);
+      await Promise.resolve();
+    });
+    const { container } = view ?? render(<App />);
     expect(container.firstChild).toMatchSnapshot();
   });
 
-  it("renders mobile layout", () => {
+  it("renders mobile layout", async () => {
     useMediaQueryMock.mockReturnValue(false);
     useKolibriChatMock.mockReturnValue({
       ...baseState,
       messages: [],
     });
 
-    const { container } = render(<App />);
+    let view: ReturnType<typeof render> | null = null;
+    await act(async () => {
+      view = render(<App />);
+      await Promise.resolve();
+    });
+    const { container } = view ?? render(<App />);
     expect(container.firstChild).toMatchSnapshot();
   });
 });
