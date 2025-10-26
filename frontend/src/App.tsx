@@ -125,6 +125,7 @@ const App = () => {
   const [popularLoading, setPopularLoading] = useState(true);
   const [whatsNewLoading, setWhatsNewLoading] = useState(true);
   const {
+    snapshot: backendHealthSnapshot,
     snapshot: backendHealth,
     error: backendHealthError,
     checkedAt: backendHealthCheckedAt,
@@ -867,6 +868,7 @@ const App = () => {
         maxWidthClass="max-w-5xl"
       >
         <ReadinessPanel
+          backend={backendHealthSnapshot}
           backend={backendHealth}
           backendError={backendHealthError}
           backendCheckedAt={backendHealthCheckedAt}

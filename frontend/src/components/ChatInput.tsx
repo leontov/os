@@ -351,10 +351,10 @@ const ChatInput = ({
             </div>
             <AttachmentPreviewList
               items={attachmentItems}
-              onRemove={isBusy ? undefined : onRemoveAttachment}
+              onRemove={isBusy || isEditing ? undefined : onRemoveAttachment}
               tone="surface"
               compact
-              readOnly={isBusy || !onRemoveAttachment}
+              readOnly={isBusy || isEditing || !onRemoveAttachment}
             />
             {hasFailedAttachments ? (
               <p className="flex items-center gap-2 text-xs text-accent">
