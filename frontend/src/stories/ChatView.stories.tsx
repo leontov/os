@@ -23,18 +23,21 @@ const messages: ChatMessage[] = [
     role: "user",
     content: "Привет! Давай составим план исследования.",
     isoTimestamp: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
+    timestamp: "10:00",
   },
   {
     id: "2",
     role: "assistant",
     content: "Здравствуйте! Я подготовлю структуру и предложу ближайшие шаги.",
     isoTimestamp: new Date(Date.now() - 1000 * 60 * 14).toISOString(),
+    timestamp: "10:01",
   },
   {
     id: "3",
     role: "user",
     content: "Отлично, добавь ссылку на прошлый анализ.",
     isoTimestamp: new Date(Date.now() - 1000 * 60 * 12).toISOString(),
+    timestamp: "10:03",
   },
 ];
 

@@ -81,6 +81,7 @@ const baseState = {
   conversationId: "conv-1",
   conversationTitle: "Новая беседа",
   conversationSummaries: baseSummaries,
+  archivedConversations: [],
   knowledgeStatus: null,
   knowledgeError: undefined,
   statusLoading: false,
@@ -116,7 +117,10 @@ const baseState = {
   updateKernelControls: vi.fn(),
   preferences: basePreferences,
   updatePreferences: vi.fn(),
+  modelId: "kolibri-base",
+  setModelId: vi.fn(),
   renameConversation: vi.fn(),
+  deleteConversation: vi.fn(),
   attachFiles: vi.fn(),
   removeAttachment: vi.fn(),
   clearAttachments: vi.fn(),
@@ -125,6 +129,9 @@ const baseState = {
   selectConversation: vi.fn(),
   createConversation: vi.fn(),
   refreshKnowledgeStatus: vi.fn(),
+  archiveConversation: vi.fn(),
+  clearConversationHistory: vi.fn(),
+  exportConversationAsMarkdown: vi.fn(() => ""),
 };
 
 describe("App layout snapshots", () => {

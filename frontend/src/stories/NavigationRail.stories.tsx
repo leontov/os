@@ -49,7 +49,7 @@ export const AnalyticsSection: Story = {
 };
 
 export const SettingsOpen: Story = {
-  play: async ({ canvasElement }) => {
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByLabelText("Настройки оформления"));
   },

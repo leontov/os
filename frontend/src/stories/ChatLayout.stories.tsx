@@ -40,7 +40,7 @@ const InteractiveChatLayout = (props: ComponentProps<typeof ChatLayout>) => {
 };
 
 export const Default: Story = {
-  render: (args) => (
+  render: (args: ComponentProps<typeof ChatLayout>) => (
     <InteractiveChatLayout {...args}>
       <div className="rounded-2xl border border-border/70 bg-surface px-6 py-10 shadow-sm">
         <h2 className="text-xl font-semibold text-text">Главная область</h2>
@@ -56,7 +56,7 @@ export const ZenMode: Story = {
   args: {
     isZenMode: true,
   },
-  render: (args) => (
+  render: (args: ComponentProps<typeof ChatLayout>) => (
     <InteractiveChatLayout {...args}>
       <div className="rounded-2xl border border-border/70 bg-surface px-6 py-10 shadow-sm">
         <h2 className="text-xl font-semibold text-text">Фокус</h2>

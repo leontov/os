@@ -13,7 +13,13 @@ export type InspectorActionType =
   | "conversation.reset"
   | "conversation.create"
   | "conversation.select"
+  | "conversation.delete"
+  | "conversation.archive"
+  | "conversation.history.clear"
+  | "conversation.export"
+  | "conversation.export.failed"
   | "mode.change"
+  | "model.change"
   | "message.user"
   | "message.assistant"
   | "attachment.add"
@@ -35,7 +41,7 @@ export interface InspectorAction {
   timestampIso: string;
   type: InspectorActionType;
   summary: string;
-  payload?: Record<string, unknown>;
+  payload?: unknown;
 }
 
 export type ConsoleLevel = "log" | "warn" | "error";
@@ -117,7 +123,7 @@ interface UseInspectorSessionParams {
 export interface InspectorSessionApi {
   actions: InspectorAction[];
   consoleLogs: ConsoleLogEntry[];
-  logAction: (type: InspectorActionType, summary: string, payload?: Record<string, unknown>) => void;
+  logAction: (type: InspectorActionType, summary: string, payload?: unknown) => void;
   screenshotState: ScreenshotDiffState;
   captureScreenshot: (mode: "baseline" | "comparison", label?: string) => Promise<void>;
   resetScreenshots: () => void;
@@ -199,7 +205,7 @@ const useInspectorSession = ({
   const bugReportUrlRef = useRef<string | null>(null);
 
   const logAction = useCallback(
-    (type: InspectorActionType, summary: string, payload?: Record<string, unknown>) => {
+    (type: InspectorActionType, summary: string, payload?: unknown) => {
       const entry: InspectorAction = {
         id: createId(),
         timestampIso: toIso(),

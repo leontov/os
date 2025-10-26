@@ -33,6 +33,8 @@ interface PreBlockProps extends MarkdownElementProps<"pre"> {
   tone: MarkdownTone;
 }
 
+type CodeRendererProps = MarkdownElementProps<"code"> & { inline?: boolean };
+
 const PreBlock = ({ children, className, tone, node, ...props }: PreBlockProps) => {
   void node;
   const [copied, setCopied] = useState(false);
@@ -237,6 +239,22 @@ interface ChatMarkdownProps {
   tone: MarkdownTone;
 }
 
+const CodeRenderer = ({ inline = false, className, children, node, ...props }: CodeRendererProps) => {
+  void node;
+  if (inline) {
+    return (
+      <InlineCode className={className} {...props}>
+        {children}
+      </InlineCode>
+    );
+  }
+  return (
+    <code className={className} {...props}>
+      {children}
+    </code>
+  );
+};
+
 const ChatMarkdown = ({ content, tone }: ChatMarkdownProps) => {
   const components = useMemo<Components>(() => ({
     p: Paragraph,
@@ -252,21 +270,7 @@ const ChatMarkdown = ({ content, tone }: ChatMarkdownProps) => {
     th: TableHeadCell,
     td: TableCell,
     pre: (preProps) => <PreBlock {...preProps} tone={tone} />,
-    code: ({ inline, className, children, node, ...props }) => {
-      void node;
-      if (inline) {
-        return (
-          <InlineCode className={className} {...props}>
-            {children}
-          </InlineCode>
-        );
-      }
-      return (
-        <code className={className} {...props}>
-          {children}
-        </code>
-      );
-    },
+    code: CodeRenderer,
     h1: ({ node, ...props }) => {
       void node;
       return <Heading level={1} {...props} />;
