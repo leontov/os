@@ -954,10 +954,45 @@ const useKolibriChat = (): UseKolibriChatResult => {
 
   const knowledgeSearchAbortRef = useRef<AbortController | null>(null);
   const conversationsRef = useRef<ConversationRecord[]>(initialConversations);
+  const preferencesChangeRef = useRef(preferences);
 
   useEffect(() => {
     conversationsRef.current = conversations;
   }, [conversations]);
+
+  useEffect(() => {
+    const previous = preferencesChangeRef.current;
+    if (previous === preferences) {
+      return;
+    }
+
+    const changedKeys = (Object.keys(preferences) as Array<keyof ConversationPreferences>).filter(
+      (key) => previous?.[key] !== preferences[key],
+    );
+
+    if (!changedKeys.length) {
+      preferencesChangeRef.current = preferences;
+      return;
+    }
+
+    setConversations((records) => {
+      const index = records.findIndex((record) => record.id === conversationId);
+      if (index === -1) {
+        return records;
+      }
+
+      const record = records[index];
+      if (record.preferences === preferences) {
+        return records;
+      }
+
+      const next = [...records];
+      next[index] = { ...record, preferences };
+      return next;
+    });
+
+    preferencesChangeRef.current = preferences;
+  }, [conversationId, preferences]);
 
   useEffect(() => {
     if (typeof window === "undefined") {

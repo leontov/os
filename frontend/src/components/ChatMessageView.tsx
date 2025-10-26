@@ -4,6 +4,7 @@ import {
   Check,
   Copy,
   Link2,
+  Sparkles,
   ThumbsDown,
   ThumbsUp,
 } from "lucide-react";
@@ -17,6 +18,8 @@ import type { ChatMessage as ChatMessageModel } from "../types/chat";
 interface ChatMessageProps {
   message: ChatMessageModel;
   latestUserMessage?: ChatMessageModel;
+  memoryEnabled: boolean;
+  onToggleMemory: () => void;
 }
 
 const formatScore = (value: number): string => {
@@ -26,7 +29,7 @@ const formatScore = (value: number): string => {
   return value.toFixed(2);
 };
 
-const ChatMessageView = ({ message, latestUserMessage }: ChatMessageProps) => {
+const ChatMessageView = ({ message, latestUserMessage, memoryEnabled, onToggleMemory }: ChatMessageProps) => {
   const isUser = message.role === "user";
   const [isContextExpanded, setIsContextExpanded] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
@@ -221,6 +224,17 @@ const ChatMessageView = ({ message, latestUserMessage }: ChatMessageProps) => {
 
           {!isUser ? (
             <div className="ml-auto flex items-center gap-1 rounded-full border border-border/60 bg-surface px-2 py-1 text-text-muted">
+              <button
+                type="button"
+                onClick={onToggleMemory}
+                className={`flex items-center gap-1 rounded-full px-2 py-1 transition-colors ${
+                  memoryEnabled ? "text-primary" : "hover:text-primary"
+                }`}
+                aria-pressed={memoryEnabled}
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                Memory {memoryEnabled ? "on" : "off"}
+              </button>
               <button
                 type="button"
                 onClick={() => toggleReaction("up")}

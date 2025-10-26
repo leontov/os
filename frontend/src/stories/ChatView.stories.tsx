@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { fn } from "@storybook/test";
 import ChatView from "../components/ChatView";
-import type { ConversationMetrics, ConversationSummary } from "../core/useKolibriChat";
+import type { ConversationMetrics, ConversationPreferences, ConversationSummary } from "../core/useKolibriChat";
 import { MODE_OPTIONS } from "../core/modes";
 import type { ChatMessage } from "../types/chat";
 
@@ -58,6 +58,14 @@ const summaries: ConversationSummary[] = [
   },
 ];
 
+const preferences: ConversationPreferences = {
+  learningEnabled: true,
+  privateMode: false,
+  allowOnline: false,
+  profilePreset: "balanced",
+  safeTone: false,
+};
+
 const meta: Meta<typeof ChatView> = {
   title: "Conversation/ChatView",
   component: ChatView,
@@ -82,7 +90,6 @@ const meta: Meta<typeof ChatView> = {
     onOpenAnalytics: fn(),
     onOpenActions: fn(),
     onOpenSwarm: fn(),
-    onOpenPreferences: fn(),
     onOpenSettings: fn(),
     onRefreshKnowledge: fn(),
     isKnowledgeLoading: false,
@@ -90,6 +97,8 @@ const meta: Meta<typeof ChatView> = {
     isZenMode: false,
     onToggleZenMode: fn(),
     personaName: "Aurora",
+    preferences,
+    onPreferencesChange: fn(),
     composer: (
       <div className="rounded-xl border border-dashed border-border/60 px-4 py-3 text-sm text-text-muted">
         Composer placeholder

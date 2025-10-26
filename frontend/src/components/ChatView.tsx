@@ -9,7 +9,6 @@ import {
   PanelsTopLeft,
   Pencil,
   RefreshCcw,
-  Settings2,
   Sparkles,
 } from "lucide-react";
 import {
@@ -22,11 +21,16 @@ import {
   type ReactNode,
 } from "react";
 import useMediaQuery from "../core/useMediaQuery";
-import type { ConversationMetrics, ConversationSummary } from "../core/useKolibriChat";
+import type {
+  ConversationMetrics,
+  ConversationPreferences,
+  ConversationSummary,
+} from "../core/useKolibriChat";
 import type { ModeOption } from "../core/modes";
 import { usePersonaTheme } from "../core/usePersonaTheme";
 import type { ChatMessage } from "../types/chat";
 import ChatMessageView from "./ChatMessageView";
+import ConversationPreferencesBar from "./ConversationPreferencesBar";
 import { MessageSkeleton } from "./loading";
 import ChatSidebar from "./sidebar/ChatSidebar";
 
@@ -40,6 +44,7 @@ interface ChatViewProps {
   modeLabel: string;
   modeOptions: ModeOption[];
   metrics: ConversationMetrics;
+  preferences: ConversationPreferences;
   emptyState?: ReactNode;
   composer?: ReactNode;
   onConversationTitleChange: (title: string) => void;
@@ -51,7 +56,6 @@ interface ChatViewProps {
   onOpenKnowledge: () => void;
   onOpenAnalytics: () => void;
   onOpenSwarm: () => void;
-  onOpenPreferences: () => void;
   onOpenSettings: () => void;
   onOpenActions: () => void;
   onRefreshKnowledge: () => void;
@@ -60,6 +64,7 @@ interface ChatViewProps {
   isZenMode: boolean;
   onToggleZenMode: () => void;
   personaName: string;
+  onPreferencesChange: (update: Partial<ConversationPreferences>) => void;
   onViewportElementChange?: (element: HTMLElement | null) => void;
 }
 
@@ -77,6 +82,7 @@ const ChatView = ({
   modeLabel,
   modeOptions,
   metrics,
+  preferences,
   emptyState,
   composer,
   onConversationTitleChange,
@@ -88,7 +94,6 @@ const ChatView = ({
   onOpenKnowledge,
   onOpenAnalytics,
   onOpenSwarm,
-  onOpenPreferences,
   onOpenSettings,
   onOpenActions,
   onRefreshKnowledge,
@@ -97,6 +102,7 @@ const ChatView = ({
   isZenMode,
   onToggleZenMode,
   personaName,
+  onPreferencesChange,
   onViewportElementChange,
 }: ChatViewProps) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -265,6 +271,10 @@ const ChatView = ({
     }
   }, [isDesktop, onConversationCreate]);
 
+  const handleToggleMemory = useCallback(() => {
+    onPreferencesChange({ learningEnabled: !preferences.learningEnabled });
+  }, [onPreferencesChange, preferences.learningEnabled]);
+
   const commitTitle = useCallback(() => {
     const trimmed = titleDraft.trim();
     if (trimmed && trimmed !== conversationTitle) {
@@ -421,14 +431,6 @@ const ChatView = ({
               >
                 <Database className="h-4 w-4" />
               </button>
-              <button
-                type="button"
-                onClick={onOpenPreferences}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border/70 text-text-muted transition-colors hover:text-text"
-                aria-label="Настройки беседы"
-              >
-                <Settings2 className="h-4 w-4" />
-              </button>
             </div>
           </div>
 
@@ -464,6 +466,12 @@ const ChatView = ({
             </div>
           </div>
         </header>
+
+        <div className="border-b border-border/60 bg-surface/70">
+          <div className="mx-auto w-full max-w-4xl px-4 py-4 sm:px-6 lg:px-8">
+            <ConversationPreferencesBar preferences={preferences} onChange={onPreferencesChange} />
+          </div>
+        </div>
 
         <main className="relative flex-1 overflow-hidden">
           <div
@@ -513,7 +521,12 @@ const ChatView = ({
                       exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -12, scale: 0.98 }}
                       transition={shouldReduceMotion ? { duration: 0.18 } : { duration: 0.32, ease: easeCurve }}
                     >
-                      <ChatMessageView message={item.message} latestUserMessage={item.contextUserMessage} />
+                      <ChatMessageView
+                        message={item.message}
+                        latestUserMessage={item.contextUserMessage}
+                        memoryEnabled={preferences.learningEnabled}
+                        onToggleMemory={handleToggleMemory}
+                      />
                     </motion.div>
                   );
                 })}
