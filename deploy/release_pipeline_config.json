@@ -1,0 +1,50 @@
+{
+  "name": "kolibri-trust-release",
+  "version": "2024.06",
+  "default_rollback_steps": [
+    "Сообщить капитану релиза",
+    "Задействовать сценарий отката через orchestration",
+    "Обновить канал статуса для заинтересованных сторон"
+  ],
+  "stages": [
+    {
+      "name": "build-artifacts",
+      "environment": "ci",
+      "description": "Сборка контейнеров, пакетов и валидация SBOM",
+      "checks": {
+        "max_latency_ms": 800,
+        "max_error_rate": 0.005
+      }
+    },
+    {
+      "name": "staging-verify",
+      "environment": "staging",
+      "description": "Глубокое тестирование на стейджинге с наблюдаемостью",
+      "checks": {
+        "max_latency_ms": 1200,
+        "max_error_rate": 0.02,
+        "max_energy_kwh": 1.8,
+        "required_approvals": 2
+      },
+      "rollback_steps": [
+        "Заблокировать пользовательский трафик на стейджинге",
+        "Восстановить предыдущую версию сервисов"
+      ]
+    },
+    {
+      "name": "production-rollout",
+      "environment": "production",
+      "description": "Постепенное включение функциональности и мониторинг SLO",
+      "checks": {
+        "max_latency_ms": 1500,
+        "max_error_rate": 0.01,
+        "max_energy_kwh": 2.0,
+        "required_approvals": 3
+      },
+      "rollback_steps": [
+        "Активировать сохранённый snapshot конфигурации",
+        "Проинформировать команды поддержки и клиентов"
+      ]
+    }
+  ]
+}
