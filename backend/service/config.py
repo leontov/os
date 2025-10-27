@@ -71,6 +71,8 @@ class Settings:
     audit_log_path: str = "logs/audit/enterprise.log"
     genome_log_path: str = "logs/genome/events.log"
     prometheus_namespace: str = "kolibri"
+    log_level: str = "INFO"
+    log_json: bool = True
 
     @classmethod
     def load(cls) -> "Settings":
@@ -137,6 +139,8 @@ class Settings:
         audit_log_path = os.getenv("KOLIBRI_AUDIT_LOG_PATH", "logs/audit/enterprise.log")
         genome_log_path = os.getenv("KOLIBRI_GENOME_LOG_PATH", "logs/genome/events.log")
         prometheus_namespace = os.getenv("KOLIBRI_PROMETHEUS_NAMESPACE", "kolibri")
+        log_level = os.getenv("KOLIBRI_LOG_LEVEL", "INFO").strip() or "INFO"
+        log_json = _parse_bool(os.getenv("KOLIBRI_LOG_JSON"), default=True)
 
         return cls(
             response_mode=response_mode or "script",
@@ -161,6 +165,8 @@ class Settings:
             audit_log_path=audit_log_path,
             genome_log_path=genome_log_path,
             prometheus_namespace=prometheus_namespace,
+            log_level=log_level,
+            log_json=log_json,
         )
 
 
