@@ -10,11 +10,14 @@ from __future__ import annotations
 
 import argparse
 import json
-from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
-from training import MentorshipProgram, build_learning_journey, load_program_from_mapping
+from training import (
+    MentorshipProgram,
+    build_learning_journey,
+    load_program_from_mapping,
+)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -32,6 +35,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         type=Path,
         help="Путь для сохранения расписания (JSON). Если не указан, вывод в stdout.",
     )
+    parser.add_argument(
+        "--summary",
+        action="store_true",
+        help="Добавить агрегированные метрики программы в отчёт",
+    )
     return parser.parse_args(argv)
 
 
@@ -48,8 +56,27 @@ def main(argv: list[str] | None = None) -> int:
     program = load_program_from_mapping(config)
     program.sessions_per_week = int(config.get("sessions_per_week", program.sessions_per_week))
 
-    sessions = build_learning_journey(program, weeks=args.weeks, target_score=args.target_score)
-    payload = [asdict(session) for session in sessions]
+    result = build_learning_journey(
+        program,
+        weeks=args.weeks,
+        target_score=args.target_score,
+    )
+    payload: dict[str, Any]
+    payload = {
+        "sessions": [
+            {
+                "week": session.week,
+                "mentor": session.mentor,
+                "mentee": session.mentee,
+                "course_id": session.course_id,
+                "focus": session.focus,
+            }
+            for session in result.sessions
+        ]
+    }
+
+    if args.summary:
+        payload["summary"] = result.summary(program).to_dict()
 
     rendered = json.dumps(payload, ensure_ascii=False, indent=2)
     if args.output:
