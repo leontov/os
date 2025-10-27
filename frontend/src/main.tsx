@@ -1,10 +1,24 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import App from "./App";
-import "./styles/tailwind.css";
+import { AppProviders } from "./app/providers";
+import { AppRouter } from "./app/router";
 import { wasmUrl, wasmInfoUrl, wasmAvailable, wasmIsStub } from "virtual:kolibri-wasm";
 import { knowledgeUrl as knowledgeBundleUrl, knowledgeAvailable as knowledgeBundleAvailable } from "virtual:kolibri-knowledge";
 import { knowledgeStrategy } from "./core/knowledge";
+
+const rootElement = document.getElementById("root");
+
+if (!rootElement) {
+  throw new Error("Root element not found");
+}
+
+ReactDOM.createRoot(rootElement).render(
+  <React.StrictMode>
+    <AppProviders>
+      <AppRouter />
+    </AppProviders>
+  </React.StrictMode>,
+);
 
 const resolveBaseUrl = (): URL => {
   const base = import.meta.env.BASE_URL ?? "/";
@@ -20,12 +34,6 @@ const resolveBaseUrl = (): URL => {
     return new URL(window.location.href);
   }
 };
-
-ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
-);
 
 if (import.meta.env.PROD && typeof navigator !== "undefined" && "serviceWorker" in navigator) {
   const baseUrl = resolveBaseUrl();
