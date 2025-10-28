@@ -9,6 +9,7 @@ const messages: MessageBlock[] = [
     authorLabel: "Колибри",
     content: "Добро пожаловать! Я помогу организовать ваши заметки и планы.",
     createdAt: "09:00",
+    timestamp: Date.now() - 5 * 60 * 1000,
   },
   {
     id: "2",
@@ -16,6 +17,7 @@ const messages: MessageBlock[] = [
     authorLabel: "Вы",
     content: "Собери итоги по проекту Kolibri Чат и подготовь сводку для команды.",
     createdAt: "09:01",
+    timestamp: Date.now() - 4 * 60 * 1000,
   },
 ];
 

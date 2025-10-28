@@ -4,6 +4,8 @@ import { Textarea } from "../ui/Textarea";
 import { Button } from "../ui/Button";
 import { Badge } from "../ui/Badge";
 import { useOfflineQueue } from "../../shared/hooks/useOfflineQueue";
+import { useI18n } from "../../app/i18n";
+import { useToast } from "../feedback/Toast";
 
 interface ComposerProps {
   draft: string;
@@ -12,16 +14,15 @@ interface ComposerProps {
   disabled?: boolean;
 }
 
-const SLASH_COMMANDS = [
-  { key: "/summary", label: "Краткое резюме" },
-  { key: "/code", label: "Формат кода" },
-  { key: "/fix", label: "Исправить ошибки" },
-];
+const MAX_LENGTH = 4000;
 
 export function Composer({ draft, onChange, onSend, disabled }: ComposerProps) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [isCommandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [isDragging, setDragging] = useState(false);
   const { enqueue, flush, isOffline, queued } = useOfflineQueue();
+  const { t } = useI18n();
+  const { publish } = useToast();
 
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -61,37 +62,87 @@ export function Composer({ draft, onChange, onSend, disabled }: ComposerProps) {
     if (isOffline) {
       enqueue(trimmed);
       onChange("");
+      publish({ title: t("toast.sent.offline"), tone: "success" });
       return;
     }
     await onSend(trimmed);
     onChange("");
+    publish({ title: t("toast.sent"), tone: "success" });
   };
 
-  const suggestions = useMemo(() => SLASH_COMMANDS.filter((command) => command.key.includes(draft.trim())), [draft]);
+  const slashCommands = useMemo(
+    () => [
+      { key: "/summary", label: t("composer.slash.summary") },
+      { key: "/code", label: t("composer.slash.code") },
+      { key: "/fix", label: t("composer.slash.fix") },
+    ],
+    [t],
+  );
+
+  const suggestions = useMemo(
+    () => slashCommands.filter((command) => command.key.includes(draft.trim())),
+    [slashCommands, draft],
+  );
+
+  const characterCount = draft.length;
+  const containerClasses = `relative w-full rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elev-2)] p-4 shadow-[var(--shadow-1)] transition ${
+    isDragging ? "border-[var(--brand)] bg-[rgba(74,222,128,0.08)]" : ""
+  }`;
 
   return (
-    <div className="relative w-full rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elev-2)] p-4 shadow-[var(--shadow-1)]">
+    <div
+      className={containerClasses}
+      onDragOver={(event) => {
+        event.preventDefault();
+        setDragging(true);
+      }}
+      onDragLeave={() => setDragging(false)}
+      onDragEnd={() => setDragging(false)}
+      onDrop={(event) => {
+        event.preventDefault();
+        setDragging(false);
+        publish({ title: t("composer.attach.unsupported"), tone: "error" });
+      }}
+    >
       <div className="flex items-center justify-between pb-2">
         <div className="flex items-center gap-2 text-xs text-[var(--muted)]">
           <Badge tone={isOffline ? "warning" : "accent"}>
-            {isOffline ? "Оффлайн" : "Готов"}
+            {isOffline ? t("composer.status.offline") : t("composer.status.ready")}
           </Badge>
           {isOffline ? (
             <span className="inline-flex items-center gap-1">
               <WifiOff aria-hidden className="h-3.5 w-3.5" />
               <span>
-                Сообщения в очереди: {queued.length}
+                {t("composer.offline.queue")}: {queued.length}
               </span>
             </span>
           ) : (
             <span className="inline-flex items-center gap-1 text-[var(--muted)]">
               <Sparkles aria-hidden className="h-3.5 w-3.5" />
-              <span>Slash-команды ускоряют ответ</span>
+              <span>{t("composer.hint.slash")}</span>
             </span>
           )}
         </div>
         <div className="flex items-center gap-2 text-xs text-[var(--muted)]">
-          <span>Shift + Enter — новая строка</span>
+          <span>{t("composer.hint.shortcut")}</span>
+          {queued.length > 0 ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={isOffline || disabled}
+              onClick={async () => {
+                if (isOffline || disabled) {
+                  return;
+                }
+                await flush(async (message) => {
+                  await onSend(message);
+                });
+                publish({ title: t("composer.retry"), tone: "success" });
+              }}
+            >
+              {t("composer.retry")}
+            </Button>
+          ) : null}
         </div>
       </div>
       <Textarea
@@ -101,30 +152,43 @@ export function Composer({ draft, onChange, onSend, disabled }: ComposerProps) {
         value={draft}
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={handleKeyDown}
-        aria-label="Поле ввода сообщения"
+        aria-label={t("composer.input.label")}
         disabled={disabled}
         className="max-h-60 bg-transparent text-base leading-relaxed"
         aria-live="polite"
+        maxLength={MAX_LENGTH}
       />
       <div className="mt-4 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" aria-label="Прикрепить файл" disabled={disabled}>
+          <Button variant="ghost" size="icon" aria-label={t("composer.buttons.attach")}
+            disabled={disabled}
+          >
             <Paperclip aria-hidden />
           </Button>
-          <Button variant="ghost" size="icon" aria-label="Готовые шаблоны" disabled={disabled}>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={t("composer.buttons.templates")}
+            disabled={disabled}
+            data-open-command-palette="true"
+            onClick={() => setCommandPaletteOpen((value) => !value)}
+          >
             <Sparkles aria-hidden />
           </Button>
         </div>
-        <Button onClick={submit} disabled={disabled}>
-          <span className="hidden sm:inline">Отправить</span>
+        <Button onClick={submit} disabled={disabled || characterCount === 0}>
+          <span className="hidden sm:inline">{t("composer.buttons.send")}</span>
           <CornerDownLeft aria-hidden className="hidden sm:block" />
           <Send aria-hidden className="sm:hidden" />
         </Button>
       </div>
+      <div className="mt-3 text-xs text-[var(--muted)]">
+        {t("composer.counter")}: {characterCount}/{MAX_LENGTH}
+      </div>
       {isCommandPaletteOpen && suggestions.length > 0 ? (
         <div className="absolute left-4 right-4 top-[-6.5rem] rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elev)] p-3 shadow-[var(--shadow-2)]">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Slash-команды</p>
-          <ul className="space-y-1">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">{t("composer.slash.title")}</p>
+          <ul className="space-y-1" role="listbox">
             {suggestions.map((command) => (
               <li key={command.key}>
                 <button

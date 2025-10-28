@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 
 interface UseVirtualListOptions {
   itemCount: number;
@@ -17,11 +17,15 @@ interface UseVirtualListResult {
   virtualItems: VirtualItem[];
   totalHeight: number;
   scrollToIndex: (index: number) => void;
+  registerItem: (index: number, element: HTMLElement | null) => void;
 }
 
 export function useVirtualList({ itemCount, estimateSize, overscan = 4, containerRef }: UseVirtualListOptions): UseVirtualListResult {
   const [scrollOffset, setScrollOffset] = useState(0);
   const [containerHeight, setContainerHeight] = useState(0);
+  const [version, setVersion] = useState(0);
+  const sizeMapRef = useRef<Map<number, number>>(new Map());
+  const observerMapRef = useRef<Map<number, ResizeObserver>>(new Map());
 
   useEffect(() => {
     const container = containerRef.current;
@@ -43,11 +47,20 @@ export function useVirtualList({ itemCount, estimateSize, overscan = 4, containe
     };
   }, [containerRef]);
 
+  useEffect(() => {
+    return () => {
+      observerMapRef.current.forEach((observer) => observer.disconnect());
+      observerMapRef.current.clear();
+      sizeMapRef.current.clear();
+    };
+  }, []);
+
   const { virtualItems, totalHeight } = useMemo(() => {
     if (itemCount === 0) {
       return { virtualItems: [], totalHeight: 0 };
     }
-    const sizes = Array.from({ length: itemCount }, (_, index) => estimateSize(index));
+    const sizeMap = sizeMapRef.current;
+    const sizes = Array.from({ length: itemCount }, (_, index) => sizeMap.get(index) ?? estimateSize(index));
     const starts = sizes.reduce<number[]>((accumulator, size, index) => {
       if (index === 0) {
         accumulator.push(0);
@@ -78,7 +91,7 @@ export function useVirtualList({ itemCount, estimateSize, overscan = 4, containe
 
     const total = sizes.reduce((sum, size) => sum + size, 0);
     return { virtualItems: items, totalHeight: total };
-  }, [itemCount, estimateSize, containerHeight, overscan, scrollOffset]);
+  }, [itemCount, estimateSize, containerHeight, overscan, scrollOffset, version]);
 
   const scrollToIndex = useCallback(
     (index: number) => {
@@ -96,5 +109,39 @@ export function useVirtualList({ itemCount, estimateSize, overscan = 4, containe
     [containerRef, estimateSize, itemCount],
   );
 
-  return { virtualItems, totalHeight, scrollToIndex };
+  const registerItem = useCallback(
+    (index: number, element: HTMLElement | null) => {
+      const sizeMap = sizeMapRef.current;
+      const observerMap = observerMapRef.current;
+      if (!element) {
+        sizeMap.delete(index);
+        const observer = observerMap.get(index);
+        observer?.disconnect();
+        if (observer) {
+          observerMap.delete(index);
+        }
+        return;
+      }
+      const measure = () => {
+        const height = element.getBoundingClientRect().height;
+        if (height > 0 && sizeMap.get(index) !== height) {
+          sizeMap.set(index, height);
+          setVersion((value) => value + 1);
+        }
+      };
+      measure();
+      if (typeof ResizeObserver !== "undefined") {
+        const existing = observerMap.get(index);
+        existing?.disconnect();
+        const observer = new ResizeObserver(() => {
+          measure();
+        });
+        observer.observe(element);
+        observerMap.set(index, observer);
+      }
+    },
+    [],
+  );
+
+  return { virtualItems, totalHeight, scrollToIndex, registerItem };
 }

@@ -55,13 +55,21 @@ export function useOfflineQueue(): UseOfflineQueueReturn {
     setState((current) => ({ ...current, queued: [...current.queued, message] }));
   }, []);
 
-  const flush = useCallback(async (handler: (message: string) => Promise<void>) => {
-    const messagesToSend = [...state.queued];
-    for (const message of messagesToSend) {
-      await handler(message);
-    }
-    setState((current) => ({ ...current, queued: [] }));
-  }, [state.queued]);
+  const flush = useCallback(
+    async (handler: (message: string) => Promise<void>) => {
+      const messagesToSend = [...state.queued];
+      const remaining: string[] = [];
+      for (const message of messagesToSend) {
+        try {
+          await handler(message);
+        } catch (error) {
+          remaining.push(message);
+        }
+      }
+      setState((current) => ({ ...current, queued: remaining }));
+    },
+    [state.queued],
+  );
 
   return useMemo(
     () => ({

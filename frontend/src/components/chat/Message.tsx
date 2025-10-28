@@ -1,9 +1,16 @@
 import { useId, useMemo, useState } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import hljs from "highlight.js";
-import { Clipboard, Check, Clock, User, Bot } from "lucide-react";
+import hljs from "highlight.js/lib/core";
+import javascript from "highlight.js/lib/languages/javascript";
+import typescript from "highlight.js/lib/languages/typescript";
+import python from "highlight.js/lib/languages/python";
+import bash from "highlight.js/lib/languages/bash";
+import json from "highlight.js/lib/languages/json";
+import markdown from "highlight.js/lib/languages/markdown";
+import { Clipboard, Check, Clock, User, Bot, ExternalLink, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "../ui/Button";
+import { useI18n } from "../../app/i18n";
 
 export type AuthorRole = "user" | "assistant" | "system";
 
@@ -13,6 +20,7 @@ export interface MessageBlock {
   authorLabel: string;
   content: string;
   createdAt: string;
+  timestamp: number;
 }
 
 interface MessageProps {
@@ -22,7 +30,15 @@ interface MessageProps {
 
 const MAX_VISIBLE_CHARACTERS = 1200;
 
+hljs.registerLanguage("javascript", javascript);
+hljs.registerLanguage("typescript", typescript);
+hljs.registerLanguage("python", python);
+hljs.registerLanguage("bash", bash);
+hljs.registerLanguage("json", json);
+hljs.registerLanguage("markdown", markdown);
+
 export function Message({ message, compact }: MessageProps) {
+  const { t } = useI18n();
   const [copied, setCopied] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const contentId = useId();
@@ -62,10 +78,10 @@ export function Message({ message, compact }: MessageProps) {
                   window.setTimeout(() => setCopied(false), 1800);
                 });
               }}
-              aria-label="Скопировать код"
+              aria-label={t("message.copy")}
             >
               {copied ? <Check aria-hidden /> : <Clipboard aria-hidden />}
-              <span className="sr-only">Копировать</span>
+              <span className="sr-only">{t("message.copy")}</span>
             </Button>
           </div>
           <code
@@ -76,8 +92,40 @@ export function Message({ message, compact }: MessageProps) {
       );
     };
 
-    return { code } satisfies Components;
-  }, [copied]);
+    return {
+      code,
+      a: ({ href, children, ...props }) => (
+        <a
+          {...props}
+          href={href}
+          target="_blank"
+          rel="noreferrer noopener"
+          className="inline-flex items-center gap-1 text-[var(--brand)] underline decoration-dotted decoration-[var(--brand)] hover:text-[var(--brand-strong)]"
+        >
+          {children}
+          <ExternalLink aria-hidden className="h-3 w-3" />
+        </a>
+      ),
+      blockquote: ({ children }) => (
+        <blockquote className="border-l-2 border-[var(--border-subtle)] pl-4 text-[var(--muted)]">{children}</blockquote>
+      ),
+      ul: ({ children }) => <ul className="ml-5 list-disc space-y-1">{children}</ul>,
+      ol: ({ children }) => <ol className="ml-5 list-decimal space-y-1">{children}</ol>,
+      li: ({ children }) => <li className="text-[var(--text)]">{children}</li>,
+      p: ({ children }) => <p className="mb-3 last:mb-0">{children}</p>,
+      table: ({ children }) => (
+        <div className="mt-3 overflow-hidden rounded-xl border border-[var(--border-subtle)]">
+          <table className="w-full border-collapse text-sm">{children}</table>
+        </div>
+      ),
+      thead: ({ children }) => <thead className="bg-[rgba(255,255,255,0.04)]">{children}</thead>,
+      tbody: ({ children }) => <tbody>{children}</tbody>,
+      th: ({ children }) => (
+        <th className="px-3 py-2 text-left font-semibold text-[var(--text)]">{children}</th>
+      ),
+      td: ({ children }) => <td className="px-3 py-2 text-[var(--muted)]">{children}</td>,
+    } satisfies Components;
+  }, [copied, t]);
 
   const rendered = useMemo(
     () => (
@@ -95,25 +143,31 @@ export function Message({ message, compact }: MessageProps) {
       }`}
       aria-labelledby={contentId}
     >
-      <span
-        className={`mt-1 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border ${
-          message.role === "assistant"
-            ? "border-[rgba(74,222,128,0.45)] text-[var(--brand)]"
-            : "border-[var(--border-subtle)] text-[var(--muted)]"
-        }`}
-      >
-        {icon}
-      </span>
+      {!compact ? (
+        <span
+          className={`mt-1 flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl border ${
+            message.role === "assistant"
+              ? "border-[rgba(74,222,128,0.45)] text-[var(--brand)]"
+              : "border-[var(--border-subtle)] text-[var(--muted)]"
+          }`}
+        >
+          {icon}
+        </span>
+      ) : (
+        <span className="mt-1 h-12 w-12 flex-shrink-0" aria-hidden />
+      )}
       <div className="flex flex-1 flex-col gap-3">
-        <header className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[var(--muted)]">
-          <span className="font-semibold text-[var(--text)]" id={contentId}>
-            {message.authorLabel}
-          </span>
-          <span className="inline-flex items-center gap-1 text-xs text-[var(--muted)]">
-            <Clock aria-hidden className="h-3 w-3" />
-            {message.createdAt}
-          </span>
-        </header>
+        {!compact ? (
+          <header className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[var(--muted)]">
+            <span className="font-semibold text-[var(--text)]" id={contentId}>
+              {message.authorLabel}
+            </span>
+            <span className="inline-flex items-center gap-1 text-xs text-[var(--muted)]">
+              <Clock aria-hidden className="h-3 w-3" />
+              {message.createdAt}
+            </span>
+          </header>
+        ) : null}
         <div className="prose prose-invert max-w-none text-[var(--text)] prose-headings:text-[var(--text)] prose-code:text-[var(--text)]">
           {rendered}
         </div>
@@ -123,7 +177,10 @@ export function Message({ message, compact }: MessageProps) {
             className="w-max rounded-full border border-[var(--border-subtle)] px-4 py-1 text-xs font-medium text-[var(--muted)] transition hover:border-[var(--brand)] hover:text-[var(--brand)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2 focus-visible:ring-offset-[rgba(6,8,10,0.8)]"
             onClick={() => setExpanded((value) => !value)}
           >
-            {expanded ? "Свернуть" : "Показать полностью"}
+            <span className="inline-flex items-center gap-1">
+              {expanded ? t("message.collapse") : t("message.expand")}
+              {expanded ? <ChevronUp aria-hidden className="h-3 w-3" /> : <ChevronDown aria-hidden className="h-3 w-3" />}
+            </span>
           </button>
         ) : null}
       </div>

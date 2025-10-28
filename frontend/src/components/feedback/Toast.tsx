@@ -32,7 +32,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           <ToastPrimitive.Root
             key={message.id}
             className="mb-3 flex w-[320px] items-start gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elev)] p-4 shadow-[var(--shadow-2)]"
-            onOpenChange={(open) => {
+            onOpenChange={(open: boolean) => {
               if (!open) {
                 setMessages((current) => current.filter((entry) => entry.id !== message.id));
               }
