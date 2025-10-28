@@ -26,6 +26,20 @@ export function useVirtualList({ itemCount, estimateSize, overscan = 4, containe
   const [version, setVersion] = useState(0);
   const sizeMapRef = useRef<Map<number, number>>(new Map());
   const observerMapRef = useRef<Map<number, ResizeObserver>>(new Map());
+  const pendingUpdateRef = useRef(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const scheduleVersionUpdate = useCallback(() => {
+    if (pendingUpdateRef.current) {
+      return;
+    }
+    pendingUpdateRef.current = true;
+    timeoutRef.current = setTimeout(() => {
+      pendingUpdateRef.current = false;
+      timeoutRef.current = null;
+      setVersion((value) => value + 1);
+    }, 16);
+  }, []);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -52,6 +66,11 @@ export function useVirtualList({ itemCount, estimateSize, overscan = 4, containe
       observerMapRef.current.forEach((observer) => observer.disconnect());
       observerMapRef.current.clear();
       sizeMapRef.current.clear();
+      if (timeoutRef.current !== null) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+      pendingUpdateRef.current = false;
     };
   }, []);
 
@@ -126,7 +145,7 @@ export function useVirtualList({ itemCount, estimateSize, overscan = 4, containe
         const height = element.getBoundingClientRect().height;
         if (height > 0 && sizeMap.get(index) !== height) {
           sizeMap.set(index, height);
-          setVersion((value) => value + 1);
+          scheduleVersionUpdate();
         }
       };
       measure();
@@ -140,7 +159,7 @@ export function useVirtualList({ itemCount, estimateSize, overscan = 4, containe
         observerMap.set(index, observer);
       }
     },
-    [],
+    [scheduleVersionUpdate],
   );
 
   return { virtualItems, totalHeight, scrollToIndex, registerItem };
