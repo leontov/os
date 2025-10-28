@@ -42,4 +42,4 @@ done
 root_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 export PYTHONPATH="$root_dir:${PYTHONPATH:-}"
 
-exec uvicorn backend.service.main:app --host "$host" --port "$port"
+exec uvicorn backend.service.app:app --host "$host" --port "$port"

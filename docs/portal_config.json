@@ -1,0 +1,15 @@
+{
+  "default_version": "stable",
+  "versions": [
+    {
+      "name": "stable",
+      "label": "Kolibri Stable",
+      "path": "."
+    },
+    {
+      "name": "next",
+      "label": "Kolibri Next",
+      "path": "."
+    }
+  ]
+}
