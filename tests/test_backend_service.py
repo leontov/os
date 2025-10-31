@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
 from typing import Any, Dict
 
 import pytest
@@ -7,7 +8,7 @@ from fastapi.testclient import TestClient
 
 from backend.service.actions import reset_actions_registry
 from backend.service.config import get_settings
-from backend.service.main import app
+from backend.service.app import app, create_app
 from backend.service.security import AuthContext, issue_session_token
 
 
@@ -35,6 +36,8 @@ def clear_settings_cache(monkeypatch: pytest.MonkeyPatch) -> None:
         "KOLIBRI_AUDIT_LOG_PATH",
         "KOLIBRI_GENOME_LOG_PATH",
         "KOLIBRI_PROMETHEUS_NAMESPACE",
+        "KOLIBRI_LOG_LEVEL",
+        "KOLIBRI_LOG_JSON",
     ):
         monkeypatch.delenv(key, raising=False)
     get_settings.cache_clear()
@@ -42,8 +45,28 @@ def clear_settings_cache(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture()
-def client() -> TestClient:
-    return TestClient(app)
+def client() -> Iterator[TestClient]:
+    with TestClient(app) as test_client:
+        yield test_client
+
+
+def test_lifespan_configures_logging(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("KOLIBRI_LOG_LEVEL", "DEBUG")
+    monkeypatch.setenv("KOLIBRI_LOG_JSON", "false")
+    get_settings.cache_clear()
+
+    calls: list[tuple[str, bool]] = []
+
+    def fake_configure_logging(level: str, *, json_logs: bool) -> None:
+        calls.append((level, json_logs))
+
+    monkeypatch.setattr("backend.service.lifespan.configure_logging", fake_configure_logging)
+
+    with TestClient(create_app()) as local_client:
+        # Trigger lifespan startup by performing a lightweight request.
+        local_client.get("/api/health")
+
+    assert calls == [("DEBUG", False)]
 
 
 def test_health_reports_response_mode(monkeypatch: pytest.MonkeyPatch, client: TestClient) -> None:
@@ -117,7 +140,7 @@ def test_infer_success(monkeypatch: pytest.MonkeyPatch, client: TestClient) -> N
         dummy_client.kwargs = kwargs
         return dummy_client
 
-    monkeypatch.setattr("backend.service.main.httpx.AsyncClient", factory)
+    monkeypatch.setattr("backend.service.routes.inference.httpx.AsyncClient", factory)
 
     response = client.post("/api/v1/infer", json={"prompt": "ping", "mode": "test"})
 
@@ -148,7 +171,7 @@ def test_infer_applies_defaults(monkeypatch: pytest.MonkeyPatch, client: TestCli
         dummy_client.kwargs = kwargs
         return dummy_client
 
-    monkeypatch.setattr("backend.service.main.httpx.AsyncClient", factory)
+    monkeypatch.setattr("backend.service.routes.inference.httpx.AsyncClient", factory)
 
     response = client.post("/api/v1/infer", json={"prompt": "ping"})
 
@@ -195,7 +218,7 @@ def test_infer_accepts_valid_token(monkeypatch: pytest.MonkeyPatch, client: Test
         dummy_client.kwargs = kwargs
         return dummy_client
 
-    monkeypatch.setattr("backend.service.main.httpx.AsyncClient", factory)
+    monkeypatch.setattr("backend.service.routes.inference.httpx.AsyncClient", factory)
 
     settings = get_settings()
     context = AuthContext(subject="user@example.com", roles={"system:admin"}, attributes={}, session_expires_at=None, session_id="test")
@@ -277,3 +300,17 @@ def test_macro_crud(monkeypatch: pytest.MonkeyPatch, client: TestClient) -> None
     list_after_delete = client.get("/api/v1/actions/macros")
     assert list_after_delete.status_code == 200
     assert not any(item["id"] == macro_id for item in list_after_delete.json()["items"])
+
+
+def test_metrics_capture_http_observability(client: TestClient) -> None:
+    first = client.get("/api/health")
+    assert first.status_code == 200
+
+    metrics_response = client.get("/metrics")
+    assert metrics_response.status_code == 200
+    payload = metrics_response.text
+
+    assert "kolibri_http_requests_total" in payload
+    assert 'route="/api/health"' in payload
+    assert 'status="200"' in payload
+    assert "kolibri_http_request_latency_seconds_count" in payload
