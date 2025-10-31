@@ -13,6 +13,8 @@ import { useI18n } from "../app/i18n";
 import { useToast } from "../components/feedback/Toast";
 import { useTheme } from "../design/theme";
 import { useOfflineQueue } from "../shared/hooks/useOfflineQueue";
+import { ConversationHero, type ConversationMode } from "../components/chat/ConversationHero";
+import { Badge } from "../components/ui/Badge";
 const CommandMenu = lazy(async () => import("../components/layout/CommandMenu").then((module) => ({ default: module.CommandMenu })));
 
 interface BeforeInstallPromptEvent extends Event {
@@ -120,6 +122,7 @@ function ChatPage() {
   const [draft, setDraft] = useState("");
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [installDismissed, setInstallDismissed] = useState(false);
+  const [mode, setMode] = useState<ConversationMode>("balanced");
   const { conversations, activeConversation, messages, status, selectConversation, createConversation, appendMessage } =
     useChatData(t("chat.newConversationTitle"), t("chat.updatedJustNow"));
 
@@ -133,6 +136,38 @@ function ChatPage() {
   const headerSubtitle = activeConversationEntry
     ? `${activeConversationEntry.title} • ${activeConversationEntry.updatedAt}`
     : t("chat.emptyConversation");
+
+  const heroParticipants = useMemo(
+    () => [
+      {
+        name: activeConversationEntry?.title ?? t("chat.newConversationTitle"),
+        role: t("hero.participants.product"),
+      },
+      { name: "Kolibri Research", role: t("hero.participants.research") },
+      { name: "Колибри", role: t("hero.participants.assistant") },
+    ],
+    [activeConversationEntry?.title, t],
+  );
+
+  const heroMetrics = useMemo(
+    () => [
+      { label: t("hero.metrics.quality"), value: "9.2/10", delta: "+0.4" },
+      { label: t("hero.metrics.velocity"), value: "1.6s", delta: "-12%" },
+      { label: t("hero.metrics.trust"), value: "98%" },
+    ],
+    [t],
+  );
+
+  const modeLabel = useMemo(() => {
+    switch (mode) {
+      case "creative":
+        return t("hero.modes.creative");
+      case "precise":
+        return t("hero.modes.precise");
+      default:
+        return t("hero.modes.balanced");
+    }
+  }, [mode, t]);
 
   const handleSend = useCallback(
     async (content: string) => {
@@ -238,6 +273,14 @@ function ChatPage() {
       <Header
         title={t("app.title")}
         subtitle={headerSubtitle}
+        context={
+          <span className="flex flex-wrap items-center gap-2 text-[var(--muted)]">
+            <Badge tone="accent" className="bg-[rgba(74,222,128,0.16)] text-[var(--brand)]">
+              {modeLabel}
+            </Badge>
+            <span>{t("hero.active")}</span>
+          </span>
+        }
         onSearch={() => publish({ title: t("header.actions.search"), tone: "success" })}
         onShare={() => publish({ title: t("header.actions.share"), tone: "success" })}
         onExport={() => publish({ title: t("header.actions.export"), tone: "success" })}
@@ -300,6 +343,11 @@ function ChatPage() {
           role="main"
           aria-label="Область диалога"
         >
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 -z-10 opacity-90"
+            style={{ background: "var(--gradient-backdrop)" }}
+          />
           <div className="flex flex-1 flex-col gap-6 px-4 pb-[calc(6.5rem+var(--safe-area-bottom))] pt-6 sm:px-8 lg:px-12">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold">{t("header.dialogTitle")}</h2>
@@ -324,16 +372,37 @@ function ChatPage() {
                 </Button>
               </div>
             </div>
+            <ConversationHero
+              summary={t("hero.summary")}
+              mode={mode}
+              onModeChange={setMode}
+              participants={heroParticipants}
+              metrics={heroMetrics}
+              isOffline={isOffline}
+              offlineLabel={t("header.offline")}
+            />
             <section className="flex-1">
-              <MessageList
-                messages={activeMessages}
-                status={status}
-                onRetry={() => {
-                  if (activeConversation) {
-                    selectConversation(activeConversation);
-                  }
-                }}
-              />
+              <div className="flex h-full flex-col overflow-hidden rounded-3xl border border-[var(--surface-border)] bg-[var(--surface-card-strong)] shadow-[var(--shadow-1)]">
+                <div className="flex items-center justify-between border-b border-[var(--surface-divider)] px-4 py-3">
+                  <span className="text-xs font-semibold uppercase tracking-[0.32em] text-[var(--muted)]">
+                    {t("chat.timeline")}
+                  </span>
+                  <Badge tone="neutral" className="bg-[rgba(255,255,255,0.06)] text-[var(--muted)]">
+                    {t("chat.modeLabel")}: {modeLabel}
+                  </Badge>
+                </div>
+                <div className="flex-1 overflow-hidden p-2 sm:p-4">
+                  <MessageList
+                    messages={activeMessages}
+                    status={status}
+                    onRetry={() => {
+                      if (activeConversation) {
+                        selectConversation(activeConversation);
+                      }
+                    }}
+                  />
+                </div>
+              </div>
             </section>
           </div>
           <div className="sticky bottom-0 left-0 right-0 border-t border-[var(--border-subtle)] bg-[rgba(14,17,22,0.95)] px-4 pb-[calc(1.5rem+var(--safe-area-bottom))] pt-4 sm:px-8 lg:px-12">

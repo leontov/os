@@ -50,20 +50,27 @@ function SettingsPage() {
       </header>
       <section className="space-y-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">{t("settings.theme")}</h2>
-        <SegmentedControl options={themeOptions} value={theme} onValueChange={(value) => value && setTheme(value as typeof theme)} type="single" />
+        <SegmentedControl
+          options={themeOptions}
+          value={theme}
+          onValueChange={(value: string) => value && setTheme(value as typeof theme)}
+        />
       </section>
       <section className="space-y-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">{t("settings.motion")}</h2>
         <SegmentedControl
           options={motionOptions}
           value={reduceMotion ? "reduced" : "full"}
-          onValueChange={(value) => setReduceMotion(value === "reduced")}
-          type="single"
+          onValueChange={(value: string) => setReduceMotion(value === "reduced")}
         />
       </section>
       <section className="space-y-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">{t("settings.locale")}</h2>
-        <SegmentedControl options={localeOptions} value={locale} onValueChange={(value) => value && setLocale(value as typeof locale)} type="single" />
+        <SegmentedControl
+          options={localeOptions}
+          value={locale}
+          onValueChange={(value: string) => value && setLocale(value as typeof locale)}
+        />
       </section>
     </div>
   );
