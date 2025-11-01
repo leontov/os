@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Mapping as ABCMapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping
@@ -33,13 +34,20 @@ class CertificationReport:
     reasons: tuple[str, ...]
 
 
+def _coerce_float(value: object, *, default: float = 0.0) -> float:
+    try:
+        return float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return default
+
+
 def load_input(payload: Mapping[str, object]) -> CertificationInput:
     return CertificationInput(
         name=str(payload.get("name", "model")),
-        accuracy=float(payload.get("accuracy", 0.0)),
-        fairness=float(payload.get("fairness", 0.0)),
-        energy_j=float(payload.get("energy_j", 0.0)),
-        latency_ms=float(payload.get("latency_ms", 0.0)),
+        accuracy=_coerce_float(payload.get("accuracy")),
+        fairness=_coerce_float(payload.get("fairness")),
+        energy_j=_coerce_float(payload.get("energy_j")),
+        latency_ms=_coerce_float(payload.get("latency_ms")),
     )
 
 
@@ -75,8 +83,12 @@ def main(argv: list[str] | None = None) -> int:
     thresholds: Mapping[str, float] = {}
     if args.thresholds:
         thresholds_payload = json.loads(args.thresholds.read_text(encoding="utf-8"))
-        if isinstance(thresholds_payload, dict):
-            thresholds = thresholds_payload  # type: ignore[assignment]
+        if isinstance(thresholds_payload, ABCMapping):
+            parsed: dict[str, float] = {}
+            for key, value in thresholds_payload.items():
+                if isinstance(key, str):
+                    parsed[key] = _coerce_float(value)
+            thresholds = parsed
     input_data = load_input(payload)
     report = certify(input_data, thresholds=thresholds)
     rendered = json.dumps(

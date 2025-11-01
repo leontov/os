@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 from dataclasses import dataclass
+from collections.abc import Mapping, Sequence as ABCSequence
 from pathlib import Path
 from statistics import mean, pstdev
 from typing import Iterable, Sequence
@@ -103,11 +104,29 @@ def forecast_capacity(series: MetricSeries, *, upper: float, lower: float) -> Fo
     )
 
 
-def load_series(payload: Iterable[dict[str, object]]) -> list[MetricSeries]:
+def _ensure_sequence_of_strings(value: object) -> tuple[str, ...]:
+    if isinstance(value, ABCSequence) and not isinstance(value, (str, bytes, bytearray)):
+        return tuple(str(item) for item in value)
+    return ()
+
+
+def _ensure_sequence_of_numbers(value: object) -> tuple[Number, ...]:
+    if isinstance(value, ABCSequence) and not isinstance(value, (str, bytes, bytearray)):
+        result: list[Number] = []
+        for item in value:
+            try:
+                result.append(float(item))
+            except (TypeError, ValueError):
+                continue
+        return tuple(result)
+    return ()
+
+
+def load_series(payload: Iterable[Mapping[str, object]]) -> list[MetricSeries]:
     series: list[MetricSeries] = []
     for entry in payload:
-        timestamps = tuple(str(ts) for ts in entry.get("timestamps", ()))
-        values = tuple(float(value) for value in entry.get("values", ()))
+        timestamps = _ensure_sequence_of_strings(entry.get("timestamps"))
+        values = _ensure_sequence_of_numbers(entry.get("values"))
         series.append(
             MetricSeries(
                 service=str(entry.get("service", "unknown")),

@@ -5,9 +5,10 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Sequence
+from typing import Sequence, cast
 
 import uvicorn
+from uvicorn._types import ASGIApplication
 
 from docs_portal import PortalEngine, create_app
 
@@ -56,7 +57,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "serve":
         app = create_app(args.config)
-        uvicorn.run(app, host=args.host, port=args.port, log_level="info")
+        uvicorn.run(cast(ASGIApplication, app), host=args.host, port=args.port, log_level="info")
         return 0
 
     if args.command == "versions":
