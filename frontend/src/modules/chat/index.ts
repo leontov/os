@@ -3,8 +3,7 @@ import type { ConversationListItem } from "../../components/layout/Sidebar";
 import type { MessageBlock } from "../../components/chat/Message";
 import type { ConversationMode } from "../../components/chat/ConversationHero";
 import type { ConversationStatus } from "../history";
-
-type Translate = (key: string) => string;
+import type { Translate } from "../../app/i18n";
 
 type Locale = "en" | "ru";
 
