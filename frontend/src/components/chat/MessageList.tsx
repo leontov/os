@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown } from "lucide-react";
+import { ArrowDown, Loader2, AlertTriangle, Clock } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Message, type MessageBlock } from "./Message";
 import { Skeleton } from "../feedback/Skeleton";
 import { EmptyState } from "../feedback/Empty";
@@ -7,10 +8,11 @@ import { ErrorState } from "../feedback/Error";
 import { useVirtualList } from "../../shared/hooks/useVirtualList";
 import { Button } from "../ui/Button";
 import { useI18n } from "../../app/i18n";
+import type { ConversationStatus } from "../../modules/history";
 
 interface MessageListProps {
   messages: ReadonlyArray<MessageBlock>;
-  status: "idle" | "loading" | "error";
+  status: ConversationStatus;
   onRetry: () => void;
 }
 
@@ -18,6 +20,36 @@ export function MessageList({ messages, status, onRetry }: MessageListProps) {
   const { t, locale } = useI18n();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const dateFormatter = useMemo(() => new Intl.DateTimeFormat(locale, { dateStyle: "medium" }), [locale]);
+
+  const statusBanner = useMemo<
+    | { icon: LucideIcon; label: string; className: string; animate?: boolean; action?: string }
+    | null
+  >(() => {
+    switch (status) {
+      case "pending":
+        return {
+          icon: Clock,
+          label: t("message.status.pending"),
+          className: "border-[rgba(251,191,36,0.3)] bg-[rgba(251,191,36,0.12)] text-[var(--warn)]",
+        };
+      case "delivering":
+        return {
+          icon: Loader2,
+          label: t("message.status.delivering"),
+          className: "border-[rgba(74,222,128,0.3)] bg-[rgba(74,222,128,0.12)] text-[var(--brand)]",
+          animate: true,
+        };
+      case "failed":
+        return {
+          icon: AlertTriangle,
+          label: t("message.status.failed"),
+          className: "border-[rgba(255,107,107,0.35)] bg-[rgba(255,107,107,0.12)] text-[var(--danger)]",
+          action: t("message.retry"),
+        };
+      default:
+        return null;
+    }
+  }, [status, t]);
 
   type RenderableItem = { kind: "message"; message: MessageBlock } | { kind: "separator"; id: string; label: string };
 
@@ -144,6 +176,25 @@ export function MessageList({ messages, status, onRetry }: MessageListProps) {
 
   return (
     <div ref={containerRef} className="relative h-full overflow-y-auto" role="log" aria-live="polite">
+      {statusBanner ? (
+        <div
+          className={`sticky top-0 z-10 mb-3 flex items-center justify-between rounded-2xl border px-3 py-2 text-xs font-medium sm:text-sm ${statusBanner.className}`}
+          role="status"
+        >
+          <span className="flex items-center gap-2">
+            <statusBanner.icon
+              aria-hidden
+              className={`h-4 w-4 ${statusBanner.animate ? "animate-spin" : ""}`}
+            />
+            <span>{statusBanner.label}</span>
+          </span>
+          {statusBanner.action ? (
+            <Button variant="ghost" size="sm" onClick={onRetry}>
+              {statusBanner.action}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
       <div
         aria-hidden
         className="pointer-events-none absolute left-[3.75rem] top-0 hidden h-full w-px bg-[var(--surface-border)] sm:block"

@@ -137,6 +137,21 @@ async def _execute_inference(
     context: AuthContext,
 ) -> tuple[str, float, str]:
     try:
+        enforce_prompt_policy(request.prompt, settings)
+    except ModerationError as exc:
+        INFER_REQUESTS.labels(outcome="error").inc()
+        log_audit_event(
+            event_type="llm.infer.rejected",
+            actor=context.subject,
+            payload={"phase": "prompt", "code": exc.code, "topics": exc.topics},
+            settings=settings,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": exc.code, "message": exc.message, "topics": exc.topics},
+        ) from exc
+
+    try:
         text, latency_ms, provider = await _perform_upstream_call(request, settings)
     except HTTPException as exc:
         INFER_REQUESTS.labels(outcome="error").inc()
@@ -148,8 +163,33 @@ async def _execute_inference(
         )
         raise
 
+    try:
+        moderated_text, tone, paraphrased = await moderate_response(text, settings)
+    except ModerationError as exc:
+        INFER_REQUESTS.labels(outcome="error").inc()
+        log_audit_event(
+            event_type="llm.infer.rejected",
+            actor=context.subject,
+            payload={"phase": "response", "code": exc.code, "topics": exc.topics},
+            settings=settings,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": exc.code, "message": exc.message, "topics": exc.topics},
+        ) from exc
+
+    diagnostics = ModerationDiagnostics(
+        tone=tone.label,
+        tone_score=tone.score,
+        paraphrased=paraphrased,
+        negative_terms=tone.negative_terms,
+        positive_terms=tone.positive_terms,
+    )
+
     INFER_REQUESTS.labels(outcome="success").inc()
     INFER_LATENCY.labels(provider=provider or "unknown").observe((latency_ms or 0.0) / 1000.0)
+
+    moderation_payload = diagnostics.model_dump()
 
     log_audit_event(
         event_type="llm.infer",
@@ -158,13 +198,18 @@ async def _execute_inference(
             "mode": request.mode,
             "provider": provider,
             "latency_ms": latency_ms,
+            "moderation": moderation_payload,
         },
         settings=settings,
     )
     log_genome_event(
         stage="response",
         actor=context.subject,
-        payload={"provider": provider, "latency_ms": latency_ms},
+        payload={
+            "provider": provider,
+            "latency_ms": latency_ms,
+            "moderation": moderation_payload,
+        },
         settings=settings,
     )
     return text, latency_ms, provider
