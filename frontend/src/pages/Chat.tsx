@@ -1,6 +1,6 @@
 import { Fragment, Suspense, lazy, useCallback, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { Menu, BarChart3, Database, SlidersHorizontal, PanelsTopLeft } from "lucide-react";
+import { Menu, BarChart3, Database, SlidersHorizontal, PanelsTopLeft, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Header } from "../components/layout/Header";
 import { MessageList } from "../components/chat/MessageList";
@@ -92,6 +92,7 @@ function DrawerFallback({ isOpen, title }: { isOpen: boolean; title: string }) {
 
 function ChatPage() {
   const { t, locale } = useI18n();
+  const translate = useMemo<((key: string) => string)>(() => (key) => t(key as never), [t]);
   const { setTheme, theme, resolvedTheme } = useTheme();
   const { publish } = useToast();
   const { isOffline } = useOfflineQueue();
@@ -103,10 +104,10 @@ function ChatPage() {
   const [draft, setDraft] = useState("");
 
   const conversationState = useConversationState(t("chat.newConversationTitle"), t("chat.updatedJustNow"));
-  const { mode, setMode, modeLabel } = useConversationMode(t);
-  const memoryEntries = useMemo(() => getConversationMemoryEntries(t), [t]);
-  const parameterEntries = useMemo(() => getModelParameterEntries(t), [t]);
-  const { sections } = useDrawerSections(t, { memoryEntries, parameterEntries });
+  const { mode, setMode, modeLabel, isAdaptiveMode, setAdaptiveMode } = useConversationMode(translate);
+  const memoryEntries = useMemo(() => getConversationMemoryEntries(translate), [translate]);
+  const parameterEntries = useMemo(() => getModelParameterEntries(translate), [translate]);
+  const { sections } = useDrawerSections(translate, { memoryEntries, parameterEntries });
   const { promptEvent, clearPrompt, dismissPrompt, dismissed } = useInstallPromptBanner();
 
   useResponsivePanels({ setDrawerOpen, setSidebarOpen });
@@ -197,6 +198,7 @@ function ChatPage() {
     getMessages: readMessages,
     mode,
     locale,
+    adaptiveMode: isAdaptiveMode,
   });
 
   return (
@@ -325,9 +327,24 @@ function ChatPage() {
                   <span className="text-xs font-semibold uppercase tracking-[0.32em] text-[var(--muted)]">
                     {t("chat.timeline")}
                   </span>
-                  <Badge tone="neutral" className="bg-[rgba(255,255,255,0.06)] text-[var(--muted)]">
-                    {t("chat.modeLabel")}: {modeLabel}
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant={isAdaptiveMode ? "secondary" : "ghost"}
+                      size="sm"
+                      className="min-h-[2.5rem] px-3"
+                      onClick={() => setAdaptiveMode((value) => !value)}
+                      aria-pressed={isAdaptiveMode}
+                      aria-label={t("chat.strategyToggle.label")}
+                    >
+                      <Sparkles aria-hidden className="h-4 w-4" />
+                      <span className="text-xs font-semibold uppercase tracking-[0.18em]">
+                        {isAdaptiveMode ? t("chat.strategyToggle.on") : t("chat.strategyToggle.off")}
+                      </span>
+                    </Button>
+                    <Badge tone="neutral" className="bg-[rgba(255,255,255,0.06)] text-[var(--muted)]">
+                      {t("chat.modeLabel")}: {modeLabel}
+                    </Badge>
+                  </div>
                 </div>
                 <div className="flex-1 overflow-hidden p-2 sm:p-4">
                   <MessageList
