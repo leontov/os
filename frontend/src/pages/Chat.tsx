@@ -1,116 +1,38 @@
-import { Fragment, Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, Suspense, lazy, useCallback, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { Menu, BarChart3, Database, SlidersHorizontal, PanelsTopLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Header } from "../components/layout/Header";
-import { Sidebar, type ConversationListItem } from "../components/layout/Sidebar";
-import { RightDrawer, type DrawerSection } from "../components/layout/RightDrawer";
+import { Sidebar } from "../components/layout/Sidebar";
+import { RightDrawer } from "../components/layout/RightDrawer";
 import { MessageList } from "../components/chat/MessageList";
 import { Composer } from "../components/chat/Composer";
-import { MessageBlock } from "../components/chat/Message";
 import { Button } from "../components/ui/Button";
 import { useI18n } from "../app/i18n";
 import { useToast } from "../components/feedback/Toast";
 import { useTheme } from "../design/theme";
 import { useOfflineQueue } from "../shared/hooks/useOfflineQueue";
-import { ConversationHero, type ConversationMode } from "../components/chat/ConversationHero";
+import { ConversationHero } from "../components/chat/ConversationHero";
 import { Badge } from "../components/ui/Badge";
-const CommandMenu = lazy(async () => import("../components/layout/CommandMenu").then((module) => ({ default: module.CommandMenu })));
+import {
+  useConversationState,
+  getConversationMemoryEntries,
+} from "../modules/history";
+import { useMessageComposer, useHeroParticipants, useHeroMetrics } from "../modules/chat";
+import { useConversationMode, getModelParameterEntries } from "../modules/models";
+import { useDrawerSections } from "../modules/analytics";
+import {
+  useInstallPromptBanner,
+  useResponsivePanels,
+  useCommandMenuShortcut,
+} from "../modules/core";
 
-interface BeforeInstallPromptEvent extends Event {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
-}
-
-const initialConversations: ConversationListItem[] = [
-  { id: "1", title: "Гайд по запуску релиза", updatedAt: "сегодня", folder: "Проекты" },
-  { id: "2", title: "Daily standup", updatedAt: "вчера" },
-  { id: "3", title: "Подготовка к демо Kolibri", updatedAt: "2 дня назад", folder: "Проекты" },
-];
-
-const now = Date.now();
-
-const initialMessages: MessageBlock[] = [
-  {
-    id: "m1",
-    role: "assistant",
-    authorLabel: "Колибри",
-    content:
-      "Привет! Я помогу тебе собрать отчет о прогрессе. Расскажи, какие ключевые события произошли, и я подготовлю резюме.",
-    createdAt: new Date(now - 6 * 60 * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-    timestamp: now - 6 * 60 * 1000,
-  },
-  {
-    id: "m2",
-    role: "user",
-    authorLabel: "Вы",
-    content: "Нам удалось завершить подготовку дизайн-системы и внедрить новую панель метрик.",
-    createdAt: new Date(now - 5 * 60 * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-    timestamp: now - 5 * 60 * 1000,
-  },
-];
-
-function useChatData(defaultConversationTitle: string, justNowLabel: string) {
-  const [conversations, setConversations] = useState(initialConversations);
-  const [activeConversation, setActiveConversation] = useState<string | null>(conversations[0]?.id ?? null);
-  const [messages, setMessages] = useState<Record<string, MessageBlock[]>>({
-    [conversations[0]?.id ?? "temp"]: initialMessages,
-  });
-  const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
-
-  const selectConversation = useCallback((id: string) => {
-    setActiveConversation(id);
-    if (!messages[id]) {
-      setStatus("loading");
-      window.setTimeout(() => {
-        setMessages((current) => ({ ...current, [id]: [] }));
-        setStatus("idle");
-      }, 450);
-    }
-  }, [messages]);
-
-  const createConversation = useCallback(() => {
-    const id = crypto.randomUUID();
-    const title = defaultConversationTitle;
-    const entry: ConversationListItem = { id, title, updatedAt: justNowLabel };
-    setConversations((current) => [entry, ...current]);
-    setMessages((current) => ({ ...current, [id]: [] }));
-    setActiveConversation(id);
-  }, [defaultConversationTitle]);
-
-  const appendMessage = useCallback((id: string, message: MessageBlock) => {
-    setMessages((current) => {
-      const next = [...(current[id] ?? []), message];
-      return { ...current, [id]: next };
-    });
-    setConversations((current) =>
-      current.map((conversation) =>
-        conversation.id === id
-          ? { ...conversation, updatedAt: justNowLabel, title: conversation.title }
-          : conversation,
-      ),
-    );
-  }, [justNowLabel]);
-
-  const value = useMemo(
-    () => ({
-      conversations,
-      activeConversation,
-      messages,
-      status,
-      selectConversation,
-      createConversation,
-      appendMessage,
-      setStatus,
-    }),
-    [conversations, activeConversation, messages, status, selectConversation, createConversation, appendMessage],
-  );
-
-  return value;
-}
+const CommandMenu = lazy(async () =>
+  import("../components/layout/CommandMenu").then((module) => ({ default: module.CommandMenu })),
+);
 
 function ChatPage() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { setTheme, theme, resolvedTheme } = useTheme();
   const { publish } = useToast();
   const { isOffline } = useOfflineQueue();
@@ -120,197 +42,57 @@ function ChatPage() {
   const [isCommandOpen, setCommandOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("analytics");
   const [draft, setDraft] = useState("");
-  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [installDismissed, setInstallDismissed] = useState(false);
-  const [mode, setMode] = useState<ConversationMode>("balanced");
-  const { conversations, activeConversation, messages, status, selectConversation, createConversation, appendMessage } =
-    useChatData(t("chat.newConversationTitle"), t("chat.updatedJustNow"));
 
-  const activeMessages = activeConversation ? messages[activeConversation] ?? [] : [];
+  const conversationState = useConversationState(t("chat.newConversationTitle"), t("chat.updatedJustNow"));
+  const { mode, setMode, modeLabel } = useConversationMode(t);
+  const memoryEntries = useMemo(() => getConversationMemoryEntries(t), [t]);
+  const parameterEntries = useMemo(() => getModelParameterEntries(t), [t]);
+  const { sections } = useDrawerSections(t, { memoryEntries, parameterEntries });
+  const { promptEvent, clearPrompt, dismissPrompt, dismissed } = useInstallPromptBanner();
+
+  useResponsivePanels({ setDrawerOpen, setSidebarOpen });
+  useCommandMenuShortcut(() => setCommandOpen(true));
+
+  const activeMessages = conversationState.activeConversation
+    ? conversationState.messages[conversationState.activeConversation] ?? []
+    : [];
 
   const activeConversationEntry = useMemo(
-    () => conversations.find((conversation) => conversation.id === activeConversation) ?? null,
-    [conversations, activeConversation],
+    () =>
+      conversationState.conversations.find(
+        (conversation) => conversation.id === conversationState.activeConversation,
+      ) ?? null,
+    [conversationState.conversations, conversationState.activeConversation],
   );
 
   const headerSubtitle = activeConversationEntry
     ? `${activeConversationEntry.title} • ${activeConversationEntry.updatedAt}`
     : t("chat.emptyConversation");
 
-  const heroParticipants = useMemo(
-    () => [
-      {
-        name: activeConversationEntry?.title ?? t("chat.newConversationTitle"),
-        role: t("hero.participants.product"),
-      },
-      { name: "Kolibri Research", role: t("hero.participants.research") },
-      { name: "Колибри", role: t("hero.participants.assistant") },
-    ],
-    [activeConversationEntry?.title, t],
+  const heroParticipants = useHeroParticipants(activeConversationEntry, t);
+  const heroMetrics = useHeroMetrics(t);
+  const readMessages = useCallback(
+    (id: string) => conversationState.messages[id] ?? [],
+    [conversationState.messages],
   );
 
-  const heroMetrics = useMemo(
-    () => [
-      { label: t("hero.metrics.quality"), value: "9.2/10", delta: "+0.4" },
-      { label: t("hero.metrics.velocity"), value: "1.6s", delta: "-12%" },
-      { label: t("hero.metrics.trust"), value: "98%" },
-    ],
-    [t],
-  );
-
-  const modeLabel = useMemo(() => {
-    switch (mode) {
-      case "creative":
-        return t("hero.modes.creative");
-      case "precise":
-        return t("hero.modes.precise");
-      default:
-        return t("hero.modes.balanced");
-    }
-  }, [mode, t]);
-
-  const analyticsEntries = useMemo(
-    () => [
-      t("drawer.analytics.latency"),
-      t("drawer.analytics.throughput"),
-      t("drawer.analytics.nps"),
-      t("drawer.analytics.recommendation"),
-    ],
-    [t],
-  );
-
-  const memoryEntries = useMemo(
-    () => [t("drawer.memory.notes"), t("drawer.memory.goals"), t("drawer.memory.retention")],
-    [t],
-  );
-
-  const parameterEntries = useMemo(
-    () => [
-      t("drawer.parameters.temperature"),
-      t("drawer.parameters.tokens"),
-      t("drawer.parameters.memory"),
-      t("drawer.parameters.energy"),
-      t("drawer.parameters.cost"),
-      t("drawer.parameters.savings"),
-    ],
-    [t],
-  );
-
-  const handleSend = useCallback(
-    async (content: string) => {
-      if (!activeConversation) {
-        return;
-      }
-      const message: MessageBlock = {
-        id: crypto.randomUUID(),
-        role: "user",
-        authorLabel: "Вы",
-        content,
-        createdAt: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        timestamp: Date.now(),
-      };
-      appendMessage(activeConversation, message);
-    },
-    [activeConversation, appendMessage],
-  );
-
-  const sections = useMemo<DrawerSection[]>(
-    () => [
-      {
-        value: "analytics",
-        label: t("drawer.analytics"),
-        content: (
-          <div className="space-y-3">
-            {analyticsEntries.map((entry) => (
-              <div
-                key={entry}
-                className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface-glass)] p-4 text-sm text-[var(--text)]"
-              >
-                {entry}
-              </div>
-            ))}
-          </div>
-        ),
-      },
-      {
-        value: "memory",
-        label: t("drawer.memory"),
-        content: (
-          <div className="space-y-3">
-            {memoryEntries.map((entry) => (
-              <div
-                key={entry}
-                className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface-glass)] p-4 text-sm text-[var(--text)]"
-              >
-                {entry}
-              </div>
-            ))}
-          </div>
-        ),
-      },
-      {
-        value: "parameters",
-        label: t("drawer.parameters"),
-        content: (
-          <div className="space-y-3">
-            {parameterEntries.map((entry) => (
-              <div
-                key={entry}
-                className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface-glass)] p-4 text-sm text-[var(--text)]"
-              >
-                {entry}
-              </div>
-            ))}
-          </div>
-        ),
-      },
-    ],
-    [analyticsEntries, memoryEntries, parameterEntries, t],
-  );
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    const handlePrompt = (event: Event) => {
-      event.preventDefault();
-      setInstallPrompt(event as BeforeInstallPromptEvent);
-    };
-    const handleViewport = () => {
-      const matches = window.matchMedia("(min-width: 1280px)").matches;
-      setDrawerOpen(matches);
-      if (!matches) {
-        setSidebarOpen(false);
-      }
-    };
-    window.addEventListener("beforeinstallprompt", handlePrompt);
-    window.addEventListener("resize", handleViewport);
-    handleViewport();
-    return () => {
-      window.removeEventListener("beforeinstallprompt", handlePrompt);
-      window.removeEventListener("resize", handleViewport);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    const handler = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
-        event.preventDefault();
-        setCommandOpen(true);
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => {
-      window.removeEventListener("keydown", handler);
-    };
-  }, []);
+  const handleSend = useMessageComposer({
+    activeConversation: conversationState.activeConversation,
+    appendMessage: conversationState.appendMessage,
+    authorLabel: "Вы",
+    assistantLabel: "Колибри",
+    setStatus: conversationState.setStatus,
+    getMessages: readMessages,
+    mode,
+    locale,
+  });
 
   return (
     <div className="grid min-h-screen grid-rows-[auto,1fr] bg-[var(--bg)] text-[var(--text)]">
-      <a href="#chat-main" className="absolute left-4 top-4 z-50 rounded-full bg-[var(--brand)] px-4 py-2 text-sm font-semibold text-black focus:translate-y-12 focus:outline-none">
+      <a
+        href="#chat-main"
+        className="absolute left-4 top-4 z-50 rounded-full bg-[var(--brand)] px-4 py-2 text-sm font-semibold text-black focus:translate-y-12 focus:outline-none"
+      >
         {t("app.skip")}
       </a>
       <Header
@@ -340,19 +122,19 @@ function ChatPage() {
           {t("offline.banner")}
         </div>
       ) : null}
-      {!isOffline && installPrompt && !installDismissed ? (
+      {!isOffline && promptEvent && !dismissed ? (
         <div className="flex items-center justify-center gap-3 bg-[rgba(74,222,128,0.12)] px-4 py-2 text-sm text-[var(--brand)]">
           <span>{t("pwa.install")}</span>
           <Button
             variant="secondary"
             size="sm"
             onClick={async () => {
-              await installPrompt.prompt();
-              const choice = await installPrompt.userChoice;
+              await promptEvent.prompt();
+              const choice = await promptEvent.userChoice;
               if (choice.outcome === "accepted") {
                 publish({ title: t("pwa.accepted"), tone: "success" });
               }
-              setInstallPrompt(null);
+              clearPrompt();
             }}
           >
             {t("pwa.install")}
@@ -361,8 +143,7 @@ function ChatPage() {
             variant="ghost"
             size="sm"
             onClick={() => {
-              setInstallPrompt(null);
-              setInstallDismissed(true);
+              dismissPrompt();
             }}
           >
             {t("pwa.dismiss")}
@@ -372,10 +153,10 @@ function ChatPage() {
       <div className="grid h-full w-full grid-cols-1 xl:grid-cols-[20rem_minmax(0,1fr)_26rem]">
         <aside className="hidden border-r border-[var(--border-subtle)] xl:flex">
           <Sidebar
-            conversations={conversations}
-            activeConversationId={activeConversation}
-            onSelectConversation={selectConversation}
-            onNewConversation={createConversation}
+            conversations={conversationState.conversations}
+            activeConversationId={conversationState.activeConversation}
+            onSelectConversation={conversationState.selectConversation}
+            onNewConversation={conversationState.createConversation}
             onOpenSettings={() => navigate("/settings")}
             onCreateFolder={() => publish({ title: t("sidebar.folderCreated"), tone: "success" })}
           />
@@ -437,10 +218,10 @@ function ChatPage() {
                 <div className="flex-1 overflow-hidden p-2 sm:p-4">
                   <MessageList
                     messages={activeMessages}
-                    status={status}
+                    status={conversationState.status}
                     onRetry={() => {
-                      if (activeConversation) {
-                        selectConversation(activeConversation);
+                      if (conversationState.activeConversation) {
+                        conversationState.selectConversation(conversationState.activeConversation);
                       }
                     }}
                   />
@@ -449,7 +230,12 @@ function ChatPage() {
             </section>
           </div>
           <div className="sticky bottom-0 left-0 right-0 border-t border-[var(--border-subtle)] bg-[rgba(14,17,22,0.95)] px-4 pb-[calc(1.5rem+var(--safe-area-bottom))] pt-4 sm:px-8 lg:px-12">
-            <Composer draft={draft} onChange={setDraft} onSend={handleSend} />
+            <Composer
+              draft={draft}
+              onChange={setDraft}
+              onSend={handleSend}
+              disabled={conversationState.status === "loading"}
+            />
           </div>
         </main>
         <RightDrawer
@@ -465,9 +251,18 @@ function ChatPage() {
       </div>
       <div className="lg:hidden">
         <nav className="flex items-center justify-around border-t border-[var(--border-subtle)] bg-[var(--bg-elev)] px-4 py-2 text-xs text-[var(--muted)]">
-          <button type="button" className="flex flex-col items-center gap-1" onClick={() => setActiveTab("analytics")}> <BarChart3 aria-hidden className="h-5 w-5" />{t("drawer.analytics")}</button>
-          <button type="button" className="flex flex-col items-center gap-1" onClick={() => setActiveTab("memory")}> <Database aria-hidden className="h-5 w-5" />{t("drawer.memory")}</button>
-          <button type="button" className="flex flex-col items-center gap-1" onClick={() => setActiveTab("parameters")}> <SlidersHorizontal aria-hidden className="h-5 w-5" />{t("drawer.parameters")}</button>
+          <button type="button" className="flex flex-col items-center gap-1" onClick={() => setActiveTab("analytics")}>
+            <BarChart3 aria-hidden className="h-5 w-5" />
+            {t("drawer.analytics")}
+          </button>
+          <button type="button" className="flex flex-col items-center gap-1" onClick={() => setActiveTab("memory")}>
+            <Database aria-hidden className="h-5 w-5" />
+            {t("drawer.memory")}
+          </button>
+          <button type="button" className="flex flex-col items-center gap-1" onClick={() => setActiveTab("parameters")}>
+            <SlidersHorizontal aria-hidden className="h-5 w-5" />
+            {t("drawer.parameters")}
+          </button>
         </nav>
         {isDrawerOpen ? (
           <div className="border-t border-[var(--border-subtle)] bg-[var(--bg-elev)] p-4">
@@ -488,14 +283,14 @@ function ChatPage() {
               <div className="absolute inset-0" onClick={() => setSidebarOpen(false)} aria-hidden />
               <div className="relative mr-auto flex h-full w-full max-w-xs flex-col overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-overlay)]">
                 <Sidebar
-                  conversations={conversations}
-                  activeConversationId={activeConversation}
+                  conversations={conversationState.conversations}
+                  activeConversationId={conversationState.activeConversation}
                   onSelectConversation={(id) => {
-                    selectConversation(id);
+                    conversationState.selectConversation(id);
                     setSidebarOpen(false);
                   }}
                   onNewConversation={() => {
-                    createConversation();
+                    conversationState.createConversation();
                     setSidebarOpen(false);
                   }}
                   onOpenSettings={() => {
