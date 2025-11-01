@@ -79,12 +79,15 @@ DEFAULT_RBAC_MAPPING: Dict[str, Sequence[str]] = {
         "kolibri.audit.read",
         "kolibri.actions.run",
         "kolibri.actions.macros",
+        "kolibri.profile.read",
+        "kolibri.profile.write",
     ),
     "auditor": (
         "kolibri.audit.read",
         "kolibri.genome.read",
+        "kolibri.profile.read",
     ),
-    "observer": ("kolibri.analytics.view",),
+    "observer": ("kolibri.analytics.view", "kolibri.profile.read"),
 }
 
 
