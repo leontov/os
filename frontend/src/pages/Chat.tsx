@@ -94,6 +94,7 @@ function DrawerFallback({ isOpen, title }: { isOpen: boolean; title: string }) {
 function ChatPage() {
   const { t, locale } = useI18n();
   const translate = useMemo<Translator>(() => t, [t]);
+  const profileState = useProfileState();
   const { setTheme, theme, resolvedTheme } = useTheme();
   const { publish } = useToast();
   const { isOffline } = useOfflineQueue();
@@ -104,45 +105,71 @@ function ChatPage() {
   const [activeTab, setActiveTab] = useState("analytics");
   const [draft, setDraft] = useState("");
 
-  const conversationState = useConversationState(translate("chat.newConversationTitle"), translate("chat.updatedJustNow"));
-  const { mode, setMode, modeLabel, isAdaptiveMode, setAdaptiveMode } = useConversationMode(translate);
   const memoryEntries = useMemo(() => getConversationMemoryEntries(translate), [translate]);
   const parameterEntries = useMemo(() => getModelParameterEntries(translate), [translate]);
-  const { sections } = useDrawerSections(translate, { memoryEntries, parameterEntries });
-  const { promptEvent, clearPrompt, dismissPrompt, dismissed } = useInstallPromptBanner();
 
-  useResponsivePanels({ setDrawerOpen, setSidebarOpen });
-  useCommandMenuShortcut(() => setCommandOpen(true));
-
+  const conversationState = useConversationState(
+    translate("chat.newConversationTitle"),
+    translate("chat.updatedJustNow"),
+    profileState.activeProfileId,
+  );
   const {
     conversations,
+    conversationCounts,
     activeConversation,
     messages,
     status,
     selectConversation,
     createConversation,
     appendMessage,
+    updateMessage,
     setStatus,
   } = conversationState;
 
-  const activeMessages = useMemo(
-    () => (activeConversation ? messages[activeConversation] ?? [] : []),
-    [activeConversation, messages],
-  );
+  const { mode, setMode, modeLabel, isAdaptiveMode, setAdaptiveMode } = useConversationMode(translate);
 
   const activeConversationEntry = useMemo(
     () => conversations.find((conversation) => conversation.id === activeConversation) ?? null,
     [conversations, activeConversation],
   );
 
+  const activeMessages = useMemo(
+    () => (activeConversation ? messages[activeConversation] ?? [] : []),
+    [activeConversation, messages],
+  );
+
+  const activeProfile = profileState.activeProfile;
+  const profileName = activeProfile?.name ?? null;
+  const languages = activeProfile?.languages ?? [];
+  const profileMetrics = activeProfile?.metrics ?? null;
+  const conversationCount = conversationCounts[profileState.activeProfileId] ?? 0;
+
+  const analyticsDependencies = useMemo(
+    () => ({
+      memoryEntries,
+      parameterEntries,
+      profileName,
+      profileMetrics,
+      languages,
+      conversationCount,
+    }),
+    [memoryEntries, parameterEntries, profileName, profileMetrics, languages, conversationCount],
+  );
+
+  const { sections } = useDrawerSections(translate, analyticsDependencies);
+  const { promptEvent, clearPrompt, dismissPrompt, dismissed } = useInstallPromptBanner();
+
+  useResponsivePanels({ setDrawerOpen, setSidebarOpen });
+  useCommandMenuShortcut(() => setCommandOpen(true));
+
   const headerSubtitle = useMemo(() => {
-    const profileName = activeProfile?.name ?? "";
+    const name = profileName ?? "";
     if (activeConversationEntry) {
-      const parts = [profileName, activeConversationEntry.title, activeConversationEntry.updatedAt];
+      const parts = [name, activeConversationEntry.title, activeConversationEntry.updatedAt];
       return parts.filter(Boolean).join(" • ");
     }
-    return profileName || t("chat.emptyConversation");
-  }, [activeConversationEntry, activeProfile?.name, t]);
+    return name || t("chat.emptyConversation");
+  }, [activeConversationEntry, profileName, t]);
 
   const heroParticipants = useHeroParticipants(activeConversationEntry, t);
   const heroMetrics = useHeroMetrics(t);
@@ -152,35 +179,53 @@ function ChatPage() {
     publish({ title: t("sidebar.folderCreated"), tone: "success" });
   }, [publish, t]);
 
-  const heroParticipants = useHeroParticipants(activeConversationEntry, t);
-  const heroMetrics = useHeroMetrics(t);
-  const readMessages = useCallback(
-    (id: string) => conversationState.messages[id] ?? [],
-    [conversationState.messages],
-  );
+  const handleOpenSettings = useCallback(() => {
+    navigate("/settings");
+  }, [navigate]);
+
+  const handleToggleSidebar = useCallback(() => {
+    setSidebarOpen((value) => !value);
+  }, []);
+
+  const handleCloseDrawer = useCallback(() => {
+    setDrawerOpen(false);
+  }, []);
 
   const handleMobileNewConversation = useCallback(() => {
     createConversation();
     setSidebarOpen(false);
-  }, [createConversation, setSidebarOpen]);
+  }, [createConversation]);
 
   const handleMobileOpenSettings = useCallback(() => {
     setSidebarOpen(false);
     navigate("/settings");
-  }, [navigate, setSidebarOpen]);
+  }, [navigate]);
 
   const handleMobileCreateFolder = useCallback(() => {
     handleCreateFolder();
     setSidebarOpen(false);
-  }, [handleCreateFolder, setSidebarOpen]);
+  }, [handleCreateFolder]);
+
+  const handleMobileCloseSidebar = useCallback(() => {
+    setSidebarOpen(false);
+  }, []);
+
+  const handleMobileSelectConversation = useCallback(
+    (id: string) => {
+      selectConversation(id);
+      setSidebarOpen(false);
+    },
+    [selectConversation],
+  );
 
   const handleCloseCommandMenu = useCallback(() => {
     setCommandOpen(false);
-  }, [setCommandOpen]);
+  }, []);
 
   const handleSend = useMessageComposer({
     activeConversation,
     appendMessage,
+    updateMessage,
     authorLabel: "Вы",
     assistantLabel: "Колибри",
     setStatus,

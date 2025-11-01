@@ -1,64 +1,103 @@
 import { useMemo } from "react";
 import type { DrawerSection } from "../../components/layout/RightDrawer";
 import type { Translator } from "../../app/i18n";
+import type { ProfileMetrics } from "../profile";
 
 type AnalyticsDependencies = {
   memoryEntries: readonly string[];
   parameterEntries: readonly string[];
-  profileName: string;
-  profileMetrics: ProfileMetrics;
+  profileName: string | null;
+  profileMetrics: ProfileMetrics | null;
   languages: readonly string[];
   conversationCount: number;
 };
 
-export function getAnalyticsEntries(t: Translator): readonly string[] {
+type AnalyticsEntry = {
+  id: string;
+  label: string;
+  value: string;
+  trend?: string | null;
+  description?: string | null;
+};
+
+function formatConversationValue(count: number): string {
+  return new Intl.NumberFormat().format(Math.max(0, count));
+}
+
+function formatLanguages(t: Translator, languages: readonly string[]): string {
+  if (!languages.length) {
+    return t("drawer.analytics.languagesEmpty");
+  }
+  return languages.join(", ");
+}
+
+export function getAnalyticsEntries(
+  t: Translator,
+  { profileMetrics, profileName, languages, conversationCount }: AnalyticsDependencies,
+): readonly AnalyticsEntry[] {
+  const metrics = profileMetrics;
+  const hasMetrics = Boolean(metrics);
+  const latencyValue = hasMetrics
+    ? `${Math.round(metrics!.latencyMs)} ${t("drawer.analytics.ms")}`
+    : "—";
+  const throughputValue = hasMetrics
+    ? `${metrics!.throughputPerMinute} / ${t("drawer.analytics.minute")}`
+    : "—";
+  const npsValue = hasMetrics ? `${metrics!.nps}` : "—";
+  const latencyDescription = profileName
+    ? `${t("drawer.analytics.latencyDescription")} ${profileName}`
+    : t("drawer.analytics.latencyDescription");
+
   return [
     {
       id: "latency",
       label: t("drawer.analytics.latencyLabel"),
-      value: `${Math.round(profileMetrics.latencyMs)} ${t("drawer.analytics.ms")}`,
-      trend: profileMetrics.latencyTrend,
-      description: `${t("drawer.analytics.latencyDescription")} ${profileName}`,
+      value: latencyValue,
+      trend: metrics?.latencyTrend,
+      description: latencyDescription,
     },
     {
       id: "throughput",
       label: t("drawer.analytics.throughputLabel"),
-      value: `${profileMetrics.throughputPerMinute} / ${t("drawer.analytics.minute")}`,
-      trend: profileMetrics.throughputTrend,
+      value: throughputValue,
+      trend: metrics?.throughputTrend,
       description: t("drawer.analytics.throughputDescription"),
     },
     {
       id: "nps",
       label: t("drawer.analytics.npsLabel"),
-      value: `${profileMetrics.nps}`,
-      trend: profileMetrics.npsTrend,
+      value: npsValue,
+      trend: metrics?.npsTrend,
       description: t("drawer.analytics.npsDescription"),
     },
     {
       id: "conversations",
       label: t("drawer.analytics.conversationsLabel"),
-      value: conversationValue,
+      value: formatConversationValue(conversationCount),
       description: t("drawer.analytics.conversationsDescription"),
     },
     {
       id: "languages",
       label: t("drawer.analytics.languagesLabel"),
-      value: languagesValue,
+      value: formatLanguages(t, languages),
       description: t("drawer.analytics.languagesDescription"),
     },
     {
       id: "insight",
       label: t("drawer.analytics.recommendationLabel"),
-      value: profileMetrics.recommendation,
+      value: metrics?.recommendation ?? "—",
     },
   ];
 }
 
 export function useDrawerSections(
   t: Translator,
-  { memoryEntries, parameterEntries }: AnalyticsDependencies,
-): { sections: DrawerSection[]; analyticsEntries: readonly string[] } {
-  const analyticsEntries = useMemo(() => getAnalyticsEntries(t), [t]);
+  dependencies: AnalyticsDependencies,
+): { sections: DrawerSection[]; analyticsEntries: readonly AnalyticsEntry[] } {
+  const analyticsEntries = useMemo(
+    () => getAnalyticsEntries(t, dependencies),
+    [dependencies, t],
+  );
 
   const sections = useMemo<DrawerSection[]>(
     () => [
@@ -90,7 +129,7 @@ export function useDrawerSections(
         label: t("drawer.memory"),
         content: (
           <div className="space-y-3">
-            {memoryEntries.map((entry) => (
+            {dependencies.memoryEntries.map((entry) => (
               <div
                 key={entry}
                 className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface-glass)] p-4 text-sm text-[var(--text)]"
@@ -106,7 +145,7 @@ export function useDrawerSections(
         label: t("drawer.parameters"),
         content: (
           <div className="space-y-3">
-            {parameterEntries.map((entry) => (
+            {dependencies.parameterEntries.map((entry) => (
               <div
                 key={entry}
                 className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface-glass)] p-4 text-sm text-[var(--text)]"
@@ -118,7 +157,7 @@ export function useDrawerSections(
         ),
       },
     ],
-    [analyticsEntries, memoryEntries, parameterEntries, t],
+    [analyticsEntries, dependencies.memoryEntries, dependencies.parameterEntries, t],
   );
 
   return { sections, analyticsEntries };
