@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import type { ConversationListItem } from "../../components/layout/Sidebar";
 import type { MessageBlock } from "../../components/chat/Message";
+import type { Translate } from "../../app/i18n";
 
 export type ConversationStatus =
   | "idle"
@@ -127,8 +128,6 @@ export function useConversationState(
 
   return value;
 }
-
-type Translate = (key: string) => string;
 
 export function getConversationMemoryEntries(t: Translate): readonly string[] {
   return [t("drawer.memory.notes"), t("drawer.memory.goals"), t("drawer.memory.retention")];
