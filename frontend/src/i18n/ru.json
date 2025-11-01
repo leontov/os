@@ -32,6 +32,7 @@
   "composer.slash.summary": "Краткое резюме",
   "composer.slash.code": "Формат кода",
   "composer.slash.fix": "Исправить ошибки",
+  "composer.slash.context": "Контекст намерения",
   "composer.counter": "Символы",
   "composer.retry": "Отправить повторно",
   "composer.estimate.tokens": "Токены:",

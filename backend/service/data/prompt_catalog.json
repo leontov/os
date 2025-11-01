@@ -1,0 +1,381 @@
+{
+  "intents": [
+    {
+      "intent": "greeting",
+      "title": {
+        "ru": "Приветствие и онбординг",
+        "en": "Greeting and onboarding"
+      },
+      "variants": {
+        "a": {
+          "settings": {
+            "tone": "concise",
+            "temperature": 0.15
+          },
+          "prompts": [
+            {
+              "id": "greeting-a-1",
+              "title": {
+                "ru": "Быстрое знакомство",
+                "en": "Quick introduction"
+              },
+              "body": {
+                "ru": "Привет! Я Kolibri. Расскажи, над каким продуктом работаешь — помогу с идеями и проверками.",
+                "en": "Hi! I'm Kolibri. Share the product you are building and I'll help with ideas and validation."
+              },
+              "tags": ["greeting", "onboarding"]
+            },
+            {
+              "id": "greeting-a-2",
+              "title": {
+                "ru": "Как помочь команде",
+                "en": "Ways to assist"
+              },
+              "body": {
+                "ru": "Опиши текущую задачу и метрики успеха — подберу нужный режим и подсказки.",
+                "en": "Outline the task and success metrics so I can pick the right mode and prompts."
+              },
+              "tags": ["greeting", "metrics"]
+            }
+          ]
+        },
+        "b": {
+          "settings": {
+            "tone": "empathetic",
+            "temperature": 0.25
+          },
+          "prompts": [
+            {
+              "id": "greeting-b-1",
+              "title": {
+                "ru": "Добро пожаловать",
+                "en": "Warm welcome"
+              },
+              "body": {
+                "ru": "Рада встрече! Расскажи о команде и процессах — подскажу, как Kolibri может ускорить работу.",
+                "en": "Great to meet you! Tell me about the team and workflows so Kolibri can accelerate the work."
+              },
+              "tags": ["greeting", "workflow"]
+            },
+            {
+              "id": "greeting-b-2",
+              "title": {
+                "ru": "Первый шаг",
+                "en": "First step"
+              },
+              "body": {
+                "ru": "Что хочется улучшить в первую очередь? Сформулируем гипотезу и план запуска.",
+                "en": "What do you want to improve first? Let's outline a hypothesis and launch plan."
+              },
+              "tags": ["greeting", "planning"]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "intent": "bug_report",
+      "title": {
+        "ru": "Диагностика дефектов",
+        "en": "Bug triage"
+      },
+      "variants": {
+        "a": {
+          "settings": {
+            "tone": "analytical",
+            "temperature": 0.2
+          },
+          "prompts": [
+            {
+              "id": "bug-a-1",
+              "title": {
+                "ru": "Сбор симптомов",
+                "en": "Capture symptoms"
+              },
+              "body": {
+                "ru": "Опиши шаги воспроизведения, ожидаемый и фактический результат, приложи логи или скриншоты.",
+                "en": "List reproduction steps, expected vs actual result, and attach logs or screenshots."
+              },
+              "tags": ["bug", "triage"]
+            },
+            {
+              "id": "bug-a-2",
+              "title": {
+                "ru": "Проверка окружения",
+                "en": "Environment check"
+              },
+              "body": {
+                "ru": "Укажи версию приложения, конфигурацию и последние изменения перед багом.",
+                "en": "Provide the app version, configuration, and latest changes before the bug appeared."
+              },
+              "tags": ["bug", "environment"]
+            },
+            {
+              "id": "bug-a-3",
+              "title": {
+                "ru": "Приоритет",
+                "en": "Priority"
+              },
+              "body": {
+                "ru": "Оцени влияние на пользователей и бизнес, чтобы приоритизировать исправление.",
+                "en": "Estimate user and business impact to prioritise the fix."
+              },
+              "tags": ["bug", "prioritisation"]
+            }
+          ]
+        },
+        "b": {
+          "settings": {
+            "tone": "collaborative",
+            "temperature": 0.35
+          },
+          "prompts": [
+            {
+              "id": "bug-b-1",
+              "title": {
+                "ru": "Диагностическая сессия",
+                "en": "Diagnostic session"
+              },
+              "body": {
+                "ru": "Давай проверим, кто сталкивается с дефектом, в каких сегментах и с какой частотой.",
+                "en": "Let's track who hits the defect, in which segments and how often."
+              },
+              "tags": ["bug", "segments"]
+            },
+            {
+              "id": "bug-b-2",
+              "title": {
+                "ru": "Журналирование",
+                "en": "Logging"
+              },
+              "body": {
+                "ru": "Предложи дополнительные логи или метрики, которые помогут локализовать проблему.",
+                "en": "Suggest extra logs or metrics that could isolate the issue."
+              },
+              "tags": ["bug", "observability"]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "intent": "feature_request",
+      "title": {
+        "ru": "Запросы на возможности",
+        "en": "Feature requests"
+      },
+      "variants": {
+        "a": {
+          "settings": {
+            "tone": "product",
+            "temperature": 0.18
+          },
+          "prompts": [
+            {
+              "id": "feature-a-1",
+              "title": {
+                "ru": "Ценность",
+                "en": "Value"
+              },
+              "body": {
+                "ru": "Опиши проблему пользователя, предложенную функцию и метрики успеха.",
+                "en": "Describe the user problem, the proposed capability and success metrics."
+              },
+              "tags": ["feature", "product"]
+            },
+            {
+              "id": "feature-a-2",
+              "title": {
+                "ru": "Зависимости",
+                "en": "Dependencies"
+              },
+              "body": {
+                "ru": "Собери команды и системы, на которые повлияет изменение.",
+                "en": "List impacted teams and systems."
+              },
+              "tags": ["feature", "planning"]
+            }
+          ]
+        },
+        "b": {
+          "settings": {
+            "tone": "vision",
+            "temperature": 0.3
+          },
+          "prompts": [
+            {
+              "id": "feature-b-1",
+              "title": {
+                "ru": "Сценарий",
+                "en": "Scenario"
+              },
+              "body": {
+                "ru": "Опиши ключевой сценарий пользователя до и после внедрения.",
+                "en": "Outline the user journey before and after the launch."
+              },
+              "tags": ["feature", "journey"]
+            },
+            {
+              "id": "feature-b-2",
+              "title": {
+                "ru": "Риски",
+                "en": "Risks"
+              },
+              "body": {
+                "ru": "Зафиксируй допущения и риски, которые нужно проверить.",
+                "en": "Capture assumptions and risks to validate."
+              },
+              "tags": ["feature", "risk"]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "intent": "data_question",
+      "title": {
+        "ru": "Аналитические запросы",
+        "en": "Data questions"
+      },
+      "variants": {
+        "a": {
+          "settings": {
+            "tone": "quant",
+            "temperature": 0.12
+          },
+          "prompts": [
+            {
+              "id": "data-a-1",
+              "title": {
+                "ru": "Контекст данных",
+                "en": "Data context"
+              },
+              "body": {
+                "ru": "Укажи таблицы, период и фильтры, которые нужно проанализировать.",
+                "en": "Specify tables, time range and filters to analyse."
+              },
+              "tags": ["data", "context"]
+            },
+            {
+              "id": "data-a-2",
+              "title": {
+                "ru": "Метрики",
+                "en": "Metrics"
+              },
+              "body": {
+                "ru": "Перечисли метрики и пороговые значения, которые считаешь критичными.",
+                "en": "List metrics and thresholds that matter."
+              },
+              "tags": ["data", "metrics"]
+            }
+          ]
+        },
+        "b": {
+          "settings": {
+            "tone": "story",
+            "temperature": 0.28
+          },
+          "prompts": [
+            {
+              "id": "data-b-1",
+              "title": {
+                "ru": "Нарратив",
+                "en": "Narrative"
+              },
+              "body": {
+                "ru": "Какие инсайты ищем и для какой аудитории? Сформулируем сообщение.",
+                "en": "Which insights are we after and for which audience? Let's craft the message."
+              },
+              "tags": ["data", "story"]
+            },
+            {
+              "id": "data-b-2",
+              "title": {
+                "ru": "Визуализация",
+                "en": "Visualisation"
+              },
+              "body": {
+                "ru": "Какие графики помогут показать результат? Укажи предпочтительные форматы.",
+                "en": "Which charts will highlight the result? Share preferred formats."
+              },
+              "tags": ["data", "visuals"]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "intent": "research_plan",
+      "title": {
+        "ru": "Исследовательские планы",
+        "en": "Research plans"
+      },
+      "variants": {
+        "a": {
+          "settings": {
+            "tone": "structured",
+            "temperature": 0.16
+          },
+          "prompts": [
+            {
+              "id": "research-a-1",
+              "title": {
+                "ru": "Гипотезы",
+                "en": "Hypotheses"
+              },
+              "body": {
+                "ru": "Сформулируй гипотезы и сигналы, которые подтвердят или опровергнут их.",
+                "en": "List hypotheses and signals that confirm or reject them."
+              },
+              "tags": ["research", "hypothesis"]
+            },
+            {
+              "id": "research-a-2",
+              "title": {
+                "ru": "Респонденты",
+                "en": "Participants"
+              },
+              "body": {
+                "ru": "Определи ключевые сегменты и критерии отбора участников.",
+                "en": "Define target segments and participant criteria."
+              },
+              "tags": ["research", "participants"]
+            }
+          ]
+        },
+        "b": {
+          "settings": {
+            "tone": "exploratory",
+            "temperature": 0.32
+          },
+          "prompts": [
+            {
+              "id": "research-b-1",
+              "title": {
+                "ru": "План интервью",
+                "en": "Interview plan"
+              },
+              "body": {
+                "ru": "Какие вопросы зададим и какие артефакты покажем пользователям?",
+                "en": "Which questions will we ask and which artefacts will users review?"
+              },
+              "tags": ["research", "interview"]
+            },
+            {
+              "id": "research-b-2",
+              "title": {
+                "ru": "Анализ",
+                "en": "Synthesis"
+              },
+              "body": {
+                "ru": "Опиши, как будем фиксировать инсайты и конвертировать их в решения.",
+                "en": "Describe how we'll capture insights and turn them into actions."
+              },
+              "tags": ["research", "analysis"]
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

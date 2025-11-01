@@ -28,6 +28,28 @@ interface GenerationOptions {
 
 type Language = "ru" | "en";
 
+interface IntentCandidateView {
+  intent: string;
+  confidence: number;
+}
+
+interface PromptTemplateView {
+  id: string;
+  intent: string;
+  title: string;
+  body: string;
+  tags: string[];
+}
+
+interface IntentResolutionPayload {
+  intent: string;
+  confidence: number;
+  variant: "a" | "b" | string;
+  candidates: IntentCandidateView[];
+  prompts: PromptTemplateView[];
+  settings: Record<string, unknown>;
+}
+
 const STOP_WORDS = new Set([
   "and",
   "the",
@@ -116,6 +138,14 @@ const COMMAND_LABELS: Record<Language, { summary: string; history: string; next:
     fix: "Fix checklist",
     context: "Context",
   },
+};
+
+const INTENT_LABELS: Record<string, { ru: string; en: string }> = {
+  greeting: { ru: "Приветствие", en: "Greeting" },
+  bug_report: { ru: "Сообщение об ошибке", en: "Bug report" },
+  feature_request: { ru: "Запрос функциональности", en: "Feature request" },
+  data_question: { ru: "Аналитический запрос", en: "Data question" },
+  research_plan: { ru: "Исследовательский план", en: "Research plan" },
 };
 
 const CATEGORY_HINTS: Array<{ patterns: RegExp[]; ru: string; en: string }> = [
@@ -242,7 +272,7 @@ async function generateKolibriResponse({ prompt, history, locale, mode }: Genera
   await delay(jitter);
 
   if (trimmed.startsWith("/")) {
-    return handleSlashCommand(trimmed, { history, language, mode });
+    return await handleSlashCommand(trimmed, { history, language, mode });
   }
 
   const keywords = extractKeywords(trimmed);
@@ -417,10 +447,10 @@ function getModeTone(language: Language, mode: ConversationMode): string {
   }
 }
 
-function handleSlashCommand(
+async function handleSlashCommand(
   prompt: string,
   context: { history: ReadonlyArray<MessageBlock>; language: Language; mode: ConversationMode },
-): string {
+): Promise<string> {
   const [command, ...restParts] = prompt.split(/\s+/);
   const rest = restParts.join(" ").trim();
   switch (command) {
@@ -430,6 +460,8 @@ function handleSlashCommand(
       return renderCodeTemplate(rest, context);
     case "/fix":
       return renderFixChecklist(rest, context);
+    case "/context":
+      return await renderContextInspector(rest, context);
     default:
       return renderUnknownCommand(command, context.language);
   }
@@ -565,10 +597,143 @@ function renderFixChecklist(
   ].join("\n");
 }
 
+async function renderContextInspector(
+  focus: string,
+  { history, language, mode }: { history: ReadonlyArray<MessageBlock>; language: Language; mode: ConversationMode },
+): Promise<string> {
+  const labels = COMMAND_LABELS[language];
+  const recentUser = [...history]
+    .reverse()
+    .find((message) => message.role === "user" && message.content.trim().length > 0)?.content;
+  const baseText = focus || recentUser?.trim() || "";
+
+  if (!baseText) {
+    return language === "ru"
+      ? "Команде нужен запрос: добавьте описание после /context."
+      : "Please add a description after /context so Kolibri can analyse it.";
+  }
+
+  const contextMessages = history
+    .slice(-6)
+    .map((message) => message.content)
+    .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+    .map((value) => value.trim())
+    .filter((value, index, array) => array.indexOf(value) === index);
+
+  try {
+    const response = await fetch("/api/v1/intents/resolve", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text: baseText,
+        context: contextMessages,
+        top_k: 3,
+        language,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Unexpected status ${response.status}`);
+    }
+
+    const payload = (await response.json()) as IntentResolutionPayload;
+    const primaryLabel = formatIntentLabel(payload.intent, language);
+    const primaryConfidence = formatConfidence(payload.confidence, language);
+    const variantLabel = (payload.variant || "a").toUpperCase();
+    const tone = getModeTone(language, mode);
+
+    const lines: string[] = [
+      `**${labels.context}**`,
+      language === "ru"
+        ? `Гипотеза намерения: **${primaryLabel}** (${primaryConfidence}).`
+        : `Hypothesised intent: **${primaryLabel}** (${primaryConfidence}).`,
+    ];
+
+    const alternatives = payload.candidates
+      .filter((candidate) => candidate.intent !== payload.intent)
+      .slice(0, 3);
+    if (alternatives.length > 0) {
+      lines.push(
+        "",
+        language === "ru" ? "Альтернативы:" : "Alternatives:",
+        ...alternatives.map(
+          (candidate) =>
+            `- ${formatIntentLabel(candidate.intent, language)} (${formatConfidence(candidate.confidence, language)})`,
+        ),
+      );
+    }
+
+    lines.push(
+      "",
+      language === "ru" ? `Эксперимент: вариант ${variantLabel}.` : `Experiment variant: ${variantLabel}.`,
+    );
+
+    const settingsLines = formatSettingsList(payload.settings);
+    if (settingsLines.length > 0) {
+      lines.push(
+        language === "ru" ? "Настройки варианта:" : "Variant settings:",
+        ...settingsLines,
+      );
+    }
+
+    if (payload.prompts.length > 0) {
+      lines.push(
+        "",
+        language === "ru" ? "Рекомендованные подсказки:" : "Recommended prompts:",
+        ...payload.prompts.map((prompt) => `- **${prompt.title}** — ${prompt.body}`),
+      );
+    }
+
+    lines.push("", tone, "", labels.closing);
+
+    return lines
+      .filter((line, index, array) => line !== "" || (index > 0 && array[index - 1] !== ""))
+      .join("\n");
+  } catch (error) {
+    console.error("Intent resolution failed", error);
+    return language === "ru"
+      ? "Не удалось получить контекст команды. Проверьте подключение и повторите попытку."
+      : "Kolibri couldn't fetch intent context. Please check the connection and try again.";
+  }
+}
+
 function renderUnknownCommand(command: string, language: Language): string {
   return language === "ru"
-    ? `Команда «${command}» пока не поддерживается. Доступные: /summary, /code, /fix.`
-    : `The command “${command}” is not supported yet. Available commands: /summary, /code, /fix.`;
+    ? `Команда «${command}» пока не поддерживается. Доступные: /summary, /code, /fix, /context.`
+    : `The command “${command}” is not supported yet. Available commands: /summary, /code, /fix, /context.`;
+}
+
+function formatIntentLabel(intent: string, language: Language): string {
+  const mapping = INTENT_LABELS[intent];
+  if (mapping) {
+    return mapping[language] ?? mapping.en;
+  }
+  const cleaned = intent.replace(/[_-]+/g, " ");
+  return capitalize(cleaned);
+}
+
+function formatConfidence(value: number, language: Language): string {
+  const normalised = Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
+  const percent = (normalised * 100).toFixed(1).replace(/\.0$/, "");
+  return language === "ru" ? `${percent}%` : `${percent}%`;
+}
+
+function formatSettingsList(settings: Record<string, unknown>): string[] {
+  const entries = Object.entries(settings ?? {});
+  if (entries.length === 0) {
+    return [];
+  }
+  return entries.map(([key, rawValue]) => {
+    const readableKey = capitalize(key.replace(/[_-]+/g, " "));
+    if (typeof rawValue === "number" && Number.isFinite(rawValue)) {
+      const formatted = rawValue % 1 === 0 ? rawValue.toString() : rawValue.toFixed(2);
+      return `- ${readableKey}: ${formatted}`;
+    }
+    if (typeof rawValue === "string") {
+      return `- ${readableKey}: ${rawValue}`;
+    }
+    return `- ${readableKey}: ${String(rawValue)}`;
+  });
 }
 
 function detectCodeLanguage(input: string, language: Language): "typescript" | "javascript" | "python" {

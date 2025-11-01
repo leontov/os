@@ -1,0 +1,64 @@
+{
+  "samples": [
+    {
+      "text": "Привет Kolibri, расскажи что ты умеешь",
+      "intent": "greeting"
+    },
+    {
+      "text": "Hey Kolibri team, great to meet you!",
+      "intent": "greeting"
+    },
+    {
+      "text": "Доброе утро, есть ли у Kolibri новый режим?",
+      "intent": "greeting"
+    },
+    {
+      "text": "Hi assistant, could you outline the roadmap for analytics?",
+      "intent": "research_plan"
+    },
+    {
+      "text": "Нужно спланировать исследование пользовательских сценариев",
+      "intent": "research_plan"
+    },
+    {
+      "text": "Сформируй гипотезы и план custdev-интервью",
+      "intent": "research_plan"
+    },
+    {
+      "text": "У Kolibri после обновления ломается фильтр отчёта",
+      "intent": "bug_report"
+    },
+    {
+      "text": "We are seeing a regression in the upload flow",
+      "intent": "bug_report"
+    },
+    {
+      "text": "Опиши, как воспроизвести ошибку в форме логина",
+      "intent": "bug_report"
+    },
+    {
+      "text": "Предложи улучшение интерфейса панели мониторинга",
+      "intent": "feature_request"
+    },
+    {
+      "text": "Can we add an export button to the analytics view?",
+      "intent": "feature_request"
+    },
+    {
+      "text": "Нужна новая автоматизация отчётов каждую неделю",
+      "intent": "feature_request"
+    },
+    {
+      "text": "Помоги разобрать данные эксперимента за август",
+      "intent": "data_question"
+    },
+    {
+      "text": "How should I interpret the retention metrics for cohort B?",
+      "intent": "data_question"
+    },
+    {
+      "text": "Сравни показатели MAU и конверсии по сегментам",
+      "intent": "data_question"
+    }
+  ]
+}

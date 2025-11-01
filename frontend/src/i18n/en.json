@@ -32,6 +32,7 @@
   "composer.slash.summary": "Quick summary",
   "composer.slash.code": "Format code",
   "composer.slash.fix": "Fix issues",
+  "composer.slash.context": "Intent insights",
   "composer.counter": "Characters",
   "composer.retry": "Resend queued",
   "composer.estimate.tokens": "Tokens:",
