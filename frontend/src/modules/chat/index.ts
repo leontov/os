@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from "react";
-import type { Locale, MessageKey } from "../../app/i18n";
+import type { Locale, Translate } from "../../app/i18n";
 import type { ConversationListItem } from "../../components/layout/Sidebar";
 import type { MessageBlock } from "../../components/chat/Message";
 import type { ConversationMode } from "../../components/chat/ConversationHero";
@@ -11,8 +11,6 @@ import {
   resolveFaqAnswer,
   type Language,
 } from "./faqEngine";
-
-type Translate = (key: MessageKey) => string;
 
 type ComposerOptions = {
   activeConversation: string | null;

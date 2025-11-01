@@ -93,7 +93,6 @@ function DrawerFallback({ isOpen, title }: { isOpen: boolean; title: string }) {
 
 function ChatPage() {
   const { t, locale } = useI18n();
-  const translate = useMemo<((key: string) => string)>(() => (key) => t(key as never), [t]);
   const { setTheme, theme, resolvedTheme } = useTheme();
   const { publish } = useToast();
   const { isOffline } = useOfflineQueue();
@@ -104,36 +103,11 @@ function ChatPage() {
   const [activeTab, setActiveTab] = useState("analytics");
   const [draft, setDraft] = useState("");
 
-  const profileState = useProfileState();
-  const conversationState = useConversationState(
-    t("chat.newConversationTitle"),
-    t("chat.updatedJustNow"),
-    profileState.activeProfileId,
-  );
-  const { mode, setMode, modeLabel } = useConversationMode(t);
+  const conversationState = useConversationState(t("chat.newConversationTitle"), t("chat.updatedJustNow"));
+  const { mode, setMode, modeLabel, isAdaptiveMode, setAdaptiveMode } = useConversationMode(t);
   const memoryEntries = useMemo(() => getConversationMemoryEntries(t), [t]);
   const parameterEntries = useMemo(() => getModelParameterEntries(t), [t]);
-  const fallbackProfile = profileState.profiles[0] ?? null;
-  const activeProfile = profileState.activeProfile ?? fallbackProfile;
-  const activeConversationCount =
-    conversationState.conversationCounts[profileState.activeProfileId] ?? conversationState.conversations.length;
-  const fallbackMetrics = fallbackProfile?.metrics ?? {
-    latencyMs: 0,
-    latencyTrend: "0%",
-    throughputPerMinute: 0,
-    throughputTrend: "0%",
-    nps: 0,
-    npsTrend: "0",
-    recommendation: "",
-  };
-  const { sections } = useDrawerSections(t, {
-    memoryEntries,
-    parameterEntries,
-    profileName: activeProfile?.name ?? t("drawer.analytics"),
-    profileMetrics: activeProfile?.metrics ?? fallbackMetrics,
-    languages: activeProfile?.languages ?? [],
-    conversationCount: activeConversationCount,
-  });
+  const { sections } = useDrawerSections(t, { memoryEntries, parameterEntries });
   const { promptEvent, clearPrompt, dismissPrompt, dismissed } = useInstallPromptBanner();
 
   useResponsivePanels({ setDrawerOpen, setSidebarOpen });
@@ -193,12 +167,11 @@ function ChatPage() {
     setSidebarOpen(false);
   }, [setSidebarOpen]);
 
-  const handleMobileSelectConversation = useCallback(
-    (id: string) => {
-      selectConversation(id);
-      setSidebarOpen(false);
-    },
-    [selectConversation, setSidebarOpen],
+  const heroParticipants = useHeroParticipants(activeConversationEntry, t);
+  const heroMetrics = useHeroMetrics(t);
+  const readMessages = useCallback(
+    (id: string) => conversationState.messages[id] ?? [],
+    [conversationState.messages],
   );
 
   const handleMobileNewConversation = useCallback(() => {
