@@ -19,5 +19,6 @@
     "types": ["vite/client", "vitest/globals"]
   },
   "include": ["src"],
+  "exclude": ["src/**/*.stories.tsx"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }
