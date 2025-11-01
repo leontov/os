@@ -1,28 +1,28 @@
 :root {
   color-scheme: dark;
-  --bg: #0e1116;
-  --bg-elev: #131821;
-  --bg-elev-2: #171d28;
-  --bg-muted: #0b0e13;
-  --bg-overlay: rgba(11, 14, 19, 0.9);
-  --bg-soft: rgba(19, 24, 33, 0.6);
-  --surface-card: rgba(18, 23, 32, 0.88);
-  --surface-card-strong: rgba(24, 31, 42, 0.94);
-  --surface-glass: rgba(15, 18, 25, 0.65);
-  --surface-border: rgba(255, 255, 255, 0.08);
-  --surface-divider: rgba(255, 255, 255, 0.05);
-  --surface-highlight: linear-gradient(135deg, rgba(74, 222, 128, 0.14), rgba(74, 222, 128, 0));
-  --text: #e6e8ec;
-  --text-subtle: rgba(230, 232, 236, 0.72);
-  --muted: #9aa3b2;
-  --muted-strong: #6b7380;
+  --bg: #05070d;
+  --bg-elev: rgba(12, 18, 30, 0.88);
+  --bg-elev-2: rgba(15, 22, 36, 0.95);
+  --bg-muted: #080b13;
+  --bg-overlay: rgba(7, 10, 16, 0.92);
+  --bg-soft: rgba(26, 36, 54, 0.65);
+  --surface-card: rgba(14, 20, 33, 0.92);
+  --surface-card-strong: rgba(18, 26, 42, 0.96);
+  --surface-glass: rgba(11, 16, 28, 0.72);
+  --surface-border: rgba(148, 163, 255, 0.16);
+  --surface-divider: rgba(148, 163, 255, 0.08);
+  --surface-highlight: linear-gradient(135deg, rgba(74, 222, 128, 0.16), rgba(56, 189, 248, 0.06));
+  --text: #eef2ff;
+  --text-subtle: rgba(226, 232, 255, 0.7);
+  --muted: #94a3b8;
+  --muted-strong: #64748b;
   --brand: #4ade80;
   --brand-strong: #16a34a;
-  --brand-ghost: rgba(74, 222, 128, 0.12);
-  --brand-glow: 0 0 40px rgba(74, 222, 128, 0.25);
-  --brand-overlay: linear-gradient(140deg, rgba(74, 222, 128, 0.22), rgba(74, 222, 128, 0));
+  --brand-ghost: rgba(74, 222, 128, 0.16);
+  --brand-glow: 0 0 48px rgba(74, 222, 128, 0.3);
+  --brand-overlay: linear-gradient(140deg, rgba(74, 222, 128, 0.28), rgba(59, 130, 246, 0.18));
   --danger: #ff6b6b;
-  --warn: #fbbf24;
+  --warn: #facc15;
   --ok: #22c55e;
   --radius-sm: 0.5rem;
   --radius-lg: 1rem;
@@ -79,31 +79,31 @@
   --surface-glass: rgba(255, 255, 255, 0.72);
   --surface-border: rgba(15, 23, 42, 0.08);
   --surface-divider: rgba(15, 23, 42, 0.06);
-  --surface-highlight: linear-gradient(135deg, rgba(34, 197, 94, 0.16), rgba(34, 197, 94, 0));
+  --surface-highlight: linear-gradient(135deg, rgba(34, 197, 94, 0.16), rgba(59, 130, 246, 0.12));
   --text: #1f2933;
   --text-subtle: rgba(31, 41, 51, 0.7);
-  --muted: #5b6472;
-  --muted-strong: #333b47;
+  --muted: #526074;
+  --muted-strong: #334155;
   --brand: #22c55e;
-  --brand-strong: #16a34a;
-  --brand-ghost: rgba(34, 197, 94, 0.16);
-  --brand-glow: 0 0 36px rgba(34, 197, 94, 0.3);
-  --brand-overlay: linear-gradient(140deg, rgba(34, 197, 94, 0.2), rgba(34, 197, 94, 0));
+  --brand-strong: #15803d;
+  --brand-ghost: rgba(34, 197, 94, 0.18);
+  --brand-glow: 0 0 42px rgba(34, 197, 94, 0.28);
+  --brand-overlay: linear-gradient(140deg, rgba(34, 197, 94, 0.24), rgba(59, 130, 246, 0.14));
   --danger: #dc2626;
   --warn: #d97706;
   --ok: #15803d;
   --border-subtle: rgba(15, 23, 42, 0.08);
   --border-strong: rgba(15, 23, 42, 0.16);
-  --border-ghost: rgba(34, 197, 94, 0.24);
-  --shadow-1: 0 1px 4px rgba(15, 23, 42, 0.08);
-  --shadow-2: 0 18px 40px rgba(15, 23, 42, 0.12);
+  --border-ghost: rgba(34, 197, 94, 0.26);
+  --shadow-1: 0 1px 6px rgba(15, 23, 42, 0.08);
+  --shadow-2: 0 20px 42px rgba(15, 23, 42, 0.15);
   --shadow-ring: 0 0 0 1px rgba(15, 23, 42, 0.08);
-  --focus: 0 0 0 3px rgba(34, 197, 94, 0.35);
-  --focus-strong: 0 0 0 4px rgba(34, 197, 94, 0.4);
+  --focus: 0 0 0 3px rgba(34, 197, 94, 0.38);
+  --focus-strong: 0 0 0 4px rgba(34, 197, 94, 0.42);
   --ring-offset: rgba(248, 250, 252, 0.92);
-  --gradient-backdrop: radial-gradient(circle at 20% 20%, rgba(34, 197, 94, 0.2), transparent 60%),
+  --gradient-backdrop: radial-gradient(circle at 20% 20%, rgba(34, 197, 94, 0.24), transparent 60%),
     radial-gradient(circle at 80% 0%, rgba(56, 189, 248, 0.16), transparent 55%),
-    radial-gradient(circle at 50% 100%, rgba(34, 197, 94, 0.1), transparent 65%);
+    radial-gradient(circle at 50% 100%, rgba(34, 197, 94, 0.14), transparent 65%);
 }
 
 :root[data-reduced-motion="true"] *,
@@ -128,6 +128,8 @@ body::after {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  background: radial-gradient(circle at top right, rgba(74, 222, 128, 0.08), transparent 45%);
+  background: radial-gradient(circle at 15% 10%, rgba(56, 189, 248, 0.18), transparent 45%),
+    radial-gradient(circle at 75% 0%, rgba(74, 222, 128, 0.16), transparent 55%),
+    radial-gradient(circle at 50% 100%, rgba(129, 140, 248, 0.12), transparent 65%);
   z-index: -1;
 }

@@ -1,6 +1,15 @@
 import { Fragment, Suspense, lazy, useCallback, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { Menu, BarChart3, Database, SlidersHorizontal, PanelsTopLeft, Sparkles } from "lucide-react";
+import {
+  BarChart3,
+  Database,
+  SlidersHorizontal,
+  Sparkles,
+  Calculator,
+  FileText,
+  Languages,
+  Code2,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Header } from "../components/layout/Header";
 import { MessageList } from "../components/chat/MessageList";
@@ -12,6 +21,7 @@ import { useTheme } from "../design/theme";
 import { useOfflineQueue } from "../shared/hooks/useOfflineQueue";
 import { ConversationHero } from "../components/chat/ConversationHero";
 import { Badge } from "../components/ui/Badge";
+import { QuickActions, type QuickAction } from "../components/chat/QuickActions";
 import {
   useConversationState,
   getConversationMemoryEntries,
@@ -40,18 +50,18 @@ const RightDrawer = lazy(async () =>
 
 function SidebarFallback() {
   return (
-    <div className="flex h-full flex-col gap-4 px-3 py-4 animate-pulse">
+    <div className="flex h-full flex-col gap-4 border-r border-[var(--surface-border)]/70 bg-[var(--bg-overlay)]/60 px-4 py-6 backdrop-blur-2xl">
       <div className="flex items-center gap-2">
-        <div className="h-11 flex-1 rounded-xl bg-[rgba(255,255,255,0.06)]" data-loading />
-        <div className="h-11 w-11 rounded-xl bg-[rgba(255,255,255,0.06)]" data-loading />
+        <div className="h-12 flex-1 rounded-2xl bg-[rgba(255,255,255,0.06)]" data-loading />
+        <div className="h-12 w-12 rounded-2xl bg-[rgba(255,255,255,0.06)]" data-loading />
       </div>
-      <div className="h-10 rounded-lg bg-[rgba(255,255,255,0.04)]" data-loading />
-      <div className="space-y-2 overflow-hidden">
+      <div className="h-10 rounded-2xl bg-[rgba(255,255,255,0.04)]" data-loading />
+      <div className="space-y-3 overflow-hidden">
         {Array.from({ length: 6 }).map((_, index) => (
-          <div key={index} className="h-14 rounded-xl bg-[rgba(255,255,255,0.04)]" data-loading />
+          <div key={index} className="h-16 rounded-2xl bg-[rgba(255,255,255,0.04)]" data-loading />
         ))}
       </div>
-      <div className="mt-auto h-9 rounded-lg bg-[rgba(255,255,255,0.04)]" data-loading />
+      <div className="mt-auto h-12 rounded-2xl bg-[rgba(255,255,255,0.04)]" data-loading />
     </div>
   );
 }
@@ -60,28 +70,26 @@ function DrawerFallback({ isOpen, title }: { isOpen: boolean; title: string }) {
   return (
     <>
       <aside
-        className={`hidden h-full w-[26rem] flex-shrink-0 flex-col border-l border-[var(--border-subtle)] bg-[var(--bg-elev)] xl:flex ${
+        className={`hidden h-full w-[26rem] flex-shrink-0 flex-col border-l border-[var(--surface-border)]/70 bg-[var(--bg-overlay)]/70 backdrop-blur-2xl xl:flex ${
           isOpen ? "" : "xl:hidden"
         }`.trim()}
         aria-label={title}
       >
-        <div className="flex h-full flex-col animate-pulse">
-          <div className="border-b border-[var(--border-subtle)] px-4 py-3">
-            <div className="h-4 w-32 rounded bg-[rgba(255,255,255,0.06)]" data-loading />
-          </div>
-          <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
+        <div className="flex h-full flex-col gap-4 p-6 animate-pulse">
+          <div className="h-5 w-32 rounded-full bg-[rgba(255,255,255,0.08)]" data-loading />
+          <div className="space-y-3 overflow-y-auto">
             {Array.from({ length: 4 }).map((_, index) => (
-              <div key={index} className="h-20 rounded-2xl border border-[var(--surface-border)] bg-[var(--surface-glass)]" data-loading />
+              <div key={index} className="h-24 rounded-3xl border border-[var(--surface-border)] bg-[var(--surface-glass)]" data-loading />
             ))}
           </div>
         </div>
       </aside>
       {isOpen ? (
         <div className="xl:hidden">
-          <div className="border-t border-[var(--border-subtle)] bg-[var(--bg-elev)] p-4 animate-pulse">
+          <div className="border-t border-[var(--surface-border)]/70 bg-[var(--bg-overlay)]/80 p-4 animate-pulse">
             <div className="space-y-3">
               {Array.from({ length: 3 }).map((_, index) => (
-                <div key={index} className="h-16 rounded-2xl border border-[var(--surface-border)] bg-[var(--surface-glass)]" data-loading />
+                <div key={index} className="h-20 rounded-3xl border border-[var(--surface-border)] bg-[var(--surface-glass)]" data-loading />
               ))}
             </div>
           </div>
@@ -140,8 +148,8 @@ function ChatPage() {
 
   const activeProfile = profileState.activeProfile;
   const profileName = activeProfile?.name ?? null;
-  const languages = activeProfile?.languages ?? [];
   const profileMetrics = activeProfile?.metrics ?? null;
+  const languages = useMemo(() => activeProfile?.languages ?? [], [activeProfile?.languages]);
   const conversationCount = conversationCounts[profileState.activeProfileId] ?? 0;
 
   const analyticsDependencies = useMemo(
@@ -235,11 +243,70 @@ function ChatPage() {
     adaptiveMode: isAdaptiveMode,
   });
 
+  const quickActions = useMemo<QuickAction[]>(
+    () => [
+      {
+        id: "math",
+        title: t("chat.quickActions.actions.math.title"),
+        description: t("chat.quickActions.actions.math.description"),
+        prompt: t("chat.quickActions.actions.math.prompt"),
+        icon: Calculator,
+        accent: "#38bdf8",
+      },
+      {
+        id: "summary",
+        title: t("chat.quickActions.actions.summary.title"),
+        description: t("chat.quickActions.actions.summary.description"),
+        prompt: t("chat.quickActions.actions.summary.prompt"),
+        icon: FileText,
+        accent: "#a855f7",
+      },
+      {
+        id: "translate",
+        title: t("chat.quickActions.actions.translate.title"),
+        description: t("chat.quickActions.actions.translate.description"),
+        prompt: t("chat.quickActions.actions.translate.prompt"),
+        icon: Languages,
+        accent: "#f97316",
+      },
+      {
+        id: "code",
+        title: t("chat.quickActions.actions.code.title"),
+        description: t("chat.quickActions.actions.code.description"),
+        prompt: t("chat.quickActions.actions.code.prompt"),
+        icon: Code2,
+        accent: "#4ade80",
+      },
+    ],
+    [t],
+  );
+
+  const handleSelectQuickAction = useCallback(
+    (prompt: string) => {
+      setDraft(prompt);
+      if (typeof window !== "undefined") {
+        window.requestAnimationFrame(() => {
+          const textarea = document.querySelector<HTMLTextAreaElement>("[data-composer-input=\"true\"]");
+          if (textarea) {
+            textarea.focus();
+            textarea.setSelectionRange(prompt.length, prompt.length);
+          }
+        });
+      }
+    },
+    [setDraft],
+  );
+
   return (
-    <div className="grid min-h-screen grid-rows-[auto,1fr] bg-[var(--bg)] text-[var(--text)]">
+    <div className="relative flex min-h-screen flex-col overflow-hidden bg-[var(--bg)] text-[var(--text)]">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 -z-10 opacity-95"
+        style={{ background: "var(--gradient-backdrop)" }}
+      />
       <a
         href="#chat-main"
-        className="absolute left-4 top-4 z-50 rounded-full bg-[var(--brand)] px-4 py-2 text-sm font-semibold text-black focus:translate-y-12 focus:outline-none"
+        className="absolute left-4 top-4 z-50 rounded-full bg-[var(--brand)] px-4 py-2 text-sm font-semibold text-black shadow-[var(--brand-glow)] transition hover:-translate-y-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]"
       >
         {t("app.skip")}
       </a>
@@ -284,12 +351,12 @@ function ChatPage() {
         offlineLabel={t("header.offline")}
       />
       {isOffline ? (
-        <div className="bg-[rgba(251,191,36,0.12)] px-4 py-2 text-center text-sm text-[var(--warn)]">
+        <div className="bg-[rgba(251,191,36,0.18)] px-4 py-2 text-center text-sm text-[var(--warn)] backdrop-blur-xl">
           {t("offline.banner")}
         </div>
       ) : null}
       {!isOffline && promptEvent && !dismissed ? (
-        <div className="flex items-center justify-center gap-3 bg-[rgba(74,222,128,0.12)] px-4 py-2 text-sm text-[var(--brand)]">
+        <div className="flex items-center justify-center gap-3 bg-[rgba(74,222,128,0.16)] px-4 py-2 text-sm text-[var(--brand)] backdrop-blur-xl">
           <span>{t("pwa.install")}</span>
           <Button
             variant="secondary"
@@ -316,8 +383,8 @@ function ChatPage() {
           </Button>
         </div>
       ) : null}
-      <div className="grid h-full w-full grid-cols-1 xl:grid-cols-[20rem_minmax(0,1fr)_26rem]">
-        <aside className="hidden border-r border-[var(--border-subtle)] xl:flex">
+      <div className="flex flex-1 flex-col xl:flex-row">
+        <aside className="hidden w-[21rem] flex-shrink-0 border-r border-[var(--surface-border)]/70 bg-[var(--bg-overlay)]/60 backdrop-blur-2xl xl:flex">
           <Suspense fallback={<SidebarFallback />}>
             <Sidebar
               conversations={conversations}
@@ -331,59 +398,54 @@ function ChatPage() {
         </aside>
         <main
           id="chat-main"
-          className="relative flex min-h-[calc(100vh-5rem)] flex-1 flex-col bg-[var(--bg)]"
+          className="relative flex min-h-[calc(100vh-5rem)] flex-1 flex-col"
           role="main"
           aria-label="Область диалога"
         >
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0 -z-10 opacity-90"
-            style={{ background: "var(--gradient-backdrop)" }}
-          />
-          <div className="flex flex-1 flex-col gap-6 px-4 pb-[calc(6.5rem+var(--safe-area-bottom))] pt-6 sm:px-8 lg:px-12">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold">{t("header.dialogTitle")}</h2>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="xl:hidden"
-                  onClick={handleToggleSidebar}
-                  aria-label="Открыть список бесед"
-                >
-                  <PanelsTopLeft aria-hidden />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="xl:hidden"
-                  onClick={() => setDrawerOpen((value) => !value)}
-                  aria-label="Переключить панель контекста"
-                >
-                  <Menu aria-hidden />
-                </Button>
-              </div>
+          <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-10 px-4 pb-[calc(9rem+var(--safe-area-bottom))] pt-10 sm:px-8 lg:px-12">
+            <div className="space-y-10">
+              <ConversationHero
+                summary={t("hero.summary")}
+                mode={mode}
+                onModeChange={setMode}
+                participants={heroParticipants}
+                metrics={heroMetrics}
+                isOffline={isOffline}
+                offlineLabel={t("header.offline")}
+              />
+              <section aria-labelledby="quick-actions-title" className="space-y-4">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <p id="quick-actions-title" className="text-xs font-semibold uppercase tracking-[0.32em] text-[var(--muted)]">
+                      {t("chat.quickActions.title")}
+                    </p>
+                    <h2 className="text-2xl font-semibold text-[var(--text)] sm:text-3xl">
+                      {t("chat.quickActions.subtitle")}
+                    </h2>
+                  </div>
+                  <p className="max-w-md text-sm text-[var(--text-subtle)]">
+                    {t("chat.quickActions.description")}
+                  </p>
+                </div>
+                <QuickActions actions={quickActions} onSelect={handleSelectQuickAction} />
+              </section>
             </div>
-            <ConversationHero
-              summary={t("hero.summary")}
-              mode={mode}
-              onModeChange={setMode}
-              participants={heroParticipants}
-              metrics={heroMetrics}
-              isOffline={isOffline}
-              offlineLabel={t("header.offline")}
-            />
             <section className="flex-1">
-              <div className="flex h-full flex-col overflow-hidden rounded-3xl border border-[var(--surface-border)] bg-[var(--surface-card-strong)] shadow-[var(--shadow-1)]">
-                <div className="flex items-center justify-between border-b border-[var(--surface-divider)] px-4 py-3">
-                  <span className="text-xs font-semibold uppercase tracking-[0.32em] text-[var(--muted)]">
-                    {t("chat.timeline")}
-                  </span>
-                  <div className="flex items-center gap-2">
+              <div className="relative flex h-full flex-col overflow-hidden rounded-[2.25rem] border border-[var(--surface-border)] bg-[var(--surface-card-strong)]/85 shadow-[0_40px_90px_rgba(10,12,18,0.55)] backdrop-blur-2xl">
+                <div className="flex flex-col gap-3 border-b border-[var(--surface-divider)] px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.32em] text-[var(--muted)]">
+                      {t("chat.timeline")}
+                    </p>
+                    <p className="text-sm text-[var(--text-subtle)]">
+                      {t("chat.timelineSubtitle")}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
                     <Button
                       variant={isAdaptiveMode ? "secondary" : "ghost"}
                       size="sm"
-                      className="min-h-[2.5rem] px-3"
+                      className="min-h-[2.5rem] rounded-full px-4"
                       onClick={() => setAdaptiveMode((value) => !value)}
                       aria-pressed={isAdaptiveMode}
                       aria-label={t("chat.strategyToggle.label")}
@@ -393,12 +455,12 @@ function ChatPage() {
                         {isAdaptiveMode ? t("chat.strategyToggle.on") : t("chat.strategyToggle.off")}
                       </span>
                     </Button>
-                    <Badge tone="neutral" className="bg-[rgba(255,255,255,0.06)] text-[var(--muted)]">
+                    <Badge tone="accent" className="rounded-full border border-[var(--border-ghost)] bg-[var(--brand-ghost)] px-3 py-1 text-xs uppercase tracking-[0.2em] text-[var(--brand)]">
                       {t("chat.modeLabel")}: {modeLabel}
                     </Badge>
                   </div>
                 </div>
-                <div className="flex-1 overflow-hidden p-2 sm:p-4">
+                <div className="flex-1 overflow-hidden p-3 sm:p-6">
                   <MessageList
                     messages={activeMessages}
                     status={status}
@@ -412,8 +474,10 @@ function ChatPage() {
               </div>
             </section>
           </div>
-          <div className="sticky bottom-0 left-0 right-0 border-t border-[var(--border-subtle)] bg-[rgba(14,17,22,0.95)] px-4 pb-[calc(1.5rem+var(--safe-area-bottom))] pt-4 sm:px-8 lg:px-12">
-            <Composer draft={draft} onChange={setDraft} onSend={handleSend} disabled={status === "loading"} />
+          <div className="sticky bottom-0 left-0 right-0 border-t border-[var(--surface-border)]/70 bg-[rgba(8,10,14,0.92)]/90 px-4 pb-[calc(2.5rem+var(--safe-area-bottom))] pt-6 shadow-[0_-20px_60px_rgba(4,6,8,0.65)] backdrop-blur-2xl sm:px-8 lg:px-12">
+            <div className="mx-auto w-full max-w-5xl">
+              <Composer draft={draft} onChange={setDraft} onSend={handleSend} disabled={status === "loading"} />
+            </div>
           </div>
         </main>
         <Suspense fallback={<DrawerFallback isOpen={isDrawerOpen} title={t("rightDrawer.title")} />}>
@@ -430,7 +494,7 @@ function ChatPage() {
         </Suspense>
       </div>
       <div className="lg:hidden">
-        <nav className="flex items-center justify-around border-t border-[var(--border-subtle)] bg-[var(--bg-elev)] px-4 py-2 text-xs text-[var(--muted)]">
+        <nav className="flex items-center justify-around border-t border-[var(--surface-border)]/70 bg-[var(--bg-overlay)]/80 px-4 py-2 text-xs text-[var(--muted)] backdrop-blur-xl">
           <button type="button" className="flex flex-col items-center gap-1" onClick={() => setActiveTab("analytics")}>
             <BarChart3 aria-hidden className="h-5 w-5" />
             {t("drawer.analytics")}
@@ -445,7 +509,7 @@ function ChatPage() {
           </button>
         </nav>
         {isDrawerOpen ? (
-          <div className="border-t border-[var(--border-subtle)] bg-[var(--bg-elev)] p-4">
+          <div className="border-t border-[var(--surface-border)]/70 bg-[var(--bg-overlay)]/80 p-4 backdrop-blur-xl">
             {sections
               .filter((section) => section.value === activeTab)
               .map((section) => (
@@ -459,9 +523,9 @@ function ChatPage() {
       </Suspense>
       {isSidebarOpen && typeof document !== "undefined"
         ? createPortal(
-            <div className="fixed inset-0 z-50 flex items-stretch justify-start bg-[rgba(6,8,10,0.7)] px-4 py-8 xl:hidden">
+            <div className="fixed inset-0 z-50 flex items-stretch justify-start bg-[rgba(6,8,10,0.72)] px-4 py-8 backdrop-blur-xl xl:hidden">
               <div className="absolute inset-0" onClick={handleMobileCloseSidebar} aria-hidden />
-              <div className="relative mr-auto flex h-full w-full max-w-xs flex-col overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-overlay)]">
+              <div className="relative mr-auto flex h-full w-full max-w-sm flex-col overflow-hidden rounded-3xl border border-[var(--surface-border)]/70 bg-[var(--bg-overlay)]/90 backdrop-blur-2xl">
                 <Suspense fallback={<SidebarFallback />}>
                   <Sidebar
                     conversations={conversations}
