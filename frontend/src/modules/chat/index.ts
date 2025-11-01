@@ -3,7 +3,8 @@ import type { ConversationListItem } from "../../components/layout/Sidebar";
 import type { MessageBlock } from "../../components/chat/Message";
 import type { ConversationMode } from "../../components/chat/ConversationHero";
 import type { ConversationStatus } from "../history";
-import { DeliveryQueue } from "./deliveryQueue";
+import type { ModeStrategy } from "../models";
+import { resolveModeStrategy, getModeStrategy } from "../models";
 
 type Translate = (key: string) => string;
 
@@ -18,6 +19,7 @@ type ComposerOptions = {
   getMessages: (id: string) => ReadonlyArray<MessageBlock>;
   mode: ConversationMode;
   locale: Locale;
+  adaptiveMode: boolean;
 };
 
 interface GenerationOptions {
@@ -25,6 +27,7 @@ interface GenerationOptions {
   history: ReadonlyArray<MessageBlock>;
   locale: Locale;
   mode: ConversationMode;
+  adaptiveMode: boolean;
 }
 
 type Language = "ru" | "en";
@@ -82,25 +85,6 @@ const STOP_WORDS = new Set([
   "эта",
   "the",
 ]);
-
-const MODE_LABELS: Record<ConversationMode, { ru: string; en: string }> = {
-  balanced: { ru: "сбалансированном", en: "balanced" },
-  creative: { ru: "креативном", en: "creative" },
-  precise: { ru: "точном", en: "precise" },
-};
-
-const DEFAULT_STEPS: Record<Language, string[]> = {
-  ru: [
-    "Уточните конкретный результат, который хотите получить.",
-    "Определите метрики успеха и данные, которые нужны Kolibri.",
-    "Запланируйте проверку гипотезы с командой или пользователями.",
-  ],
-  en: [
-    "Clarify the specific outcome you expect to achieve.",
-    "List the success metrics and inputs Kolibri should track.",
-    "Schedule a checkpoint with the team or stakeholders to validate the result.",
-  ],
-};
 
 const COMMAND_LABELS: Record<Language, { summary: string; history: string; next: string; closing: string; code: string; fix: string; context: string }> = {
   ru: {
@@ -160,6 +144,7 @@ export function useMessageComposer({
   getMessages,
   mode,
   locale,
+  adaptiveMode,
 }: ComposerOptions) {
   const deliveryQueue = useMemo(
     () =>
@@ -199,45 +184,47 @@ export function useMessageComposer({
       const history = [...previousMessages, userMessage];
 
       appendMessage(activeConversation, userMessage);
-      void deliveryQueue.enqueue({
-        execute: () =>
-          generateKolibriResponse({
-            prompt: trimmed,
-            history,
-            locale,
-            mode,
-          }),
-        onSuccess: (responseContent) => {
-          const assistantTimestamp = Date.now();
-          const assistantMessage: MessageBlock = {
-            id: crypto.randomUUID(),
-            role: "assistant",
-            authorLabel: assistantLabel,
-            content: responseContent,
-            createdAt: new Date(assistantTimestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-            timestamp: assistantTimestamp,
-          };
+      setStatus("loading");
 
-          appendMessage(activeConversation, assistantMessage);
-        },
-        onFailure: (error) => {
-          console.error("Kolibri generation failed", error);
-          const assistantTimestamp = Date.now();
-          const fallbackLanguage = detectLanguage(trimmed, locale, history);
-          const fallbackContent =
-            fallbackLanguage === "ru"
-              ? "Не получилось построить ответ. Попробуйте переформулировать запрос или добавить деталей."
-              : "I couldn't finish the response. Please rephrase your request or share a little more context.";
-          appendMessage(activeConversation, {
-            id: crypto.randomUUID(),
-            role: "assistant",
-            authorLabel: assistantLabel,
-            content: fallbackContent,
-            createdAt: new Date(assistantTimestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-            timestamp: assistantTimestamp,
-          });
-        },
-      });
+      try {
+        const responseContent = await generateKolibriResponse({
+          prompt: trimmed,
+          history,
+          locale,
+          mode,
+          adaptiveMode,
+        });
+
+        const assistantTimestamp = Date.now();
+        const assistantMessage: MessageBlock = {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          authorLabel: assistantLabel,
+          content: responseContent,
+          createdAt: new Date(assistantTimestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          timestamp: assistantTimestamp,
+        };
+
+        appendMessage(activeConversation, assistantMessage);
+      } catch (error) {
+        console.error("Kolibri generation failed", error);
+        const assistantTimestamp = Date.now();
+        const fallbackLanguage = detectLanguage(trimmed, locale, history);
+        const fallbackContent =
+          fallbackLanguage === "ru"
+            ? "Не получилось построить ответ. Попробуйте переформулировать запрос или добавить деталей."
+            : "I couldn't finish the response. Please rephrase your request or share a little more context.";
+        appendMessage(activeConversation, {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          authorLabel: assistantLabel,
+          content: fallbackContent,
+          createdAt: new Date(assistantTimestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          timestamp: assistantTimestamp,
+        });
+      } finally {
+        setStatus("idle");
+      }
     },
     [
       activeConversation,
@@ -247,27 +234,34 @@ export function useMessageComposer({
       getMessages,
       locale,
       mode,
-      deliveryQueue,
+      adaptiveMode,
       setStatus,
     ],
   );
 }
 
-async function generateKolibriResponse({ prompt, history, locale, mode }: GenerationOptions): Promise<string> {
+async function generateKolibriResponse({ prompt, history, locale, mode, adaptiveMode }: GenerationOptions): Promise<string> {
   const language = detectLanguage(prompt, locale, history);
   const trimmed = prompt.trim();
   const jitter = 240 + Math.floor(Math.random() * 240);
   await delay(jitter);
 
   if (trimmed.startsWith("/")) {
-    return handleSlashCommand(trimmed, { history, language, mode });
+    const strategy = getModeStrategy(mode);
+    return handleSlashCommand(trimmed, { history, language, strategy });
   }
 
   const keywords = extractKeywords(trimmed);
-  const greeting = buildGreeting(trimmed, language, mode);
+  const strategy = resolveModeStrategy({
+    prompt: trimmed,
+    keywords,
+    preferredMode: mode,
+    adaptive: adaptiveMode,
+  });
+  const greeting = buildGreeting(trimmed, language, strategy);
   const insights = buildInsights(trimmed, keywords, language);
   const contextual = buildContextualMemory(history, language);
-  const steps = buildNextSteps(keywords, language, mode);
+  const steps = buildNextSteps(keywords, language, strategy);
   const closing = language === "ru"
     ? "Если нужно — уточни критерии успеха, и Kolibri обновит ответ."
     : "Let me know which success criteria matter most and Kolibri will refine the plan.";
@@ -325,8 +319,8 @@ function extractKeywords(text: string): string[] {
   return result;
 }
 
-function buildGreeting(prompt: string, language: Language, mode: ConversationMode): string {
-  const modeLabel = MODE_LABELS[mode][language];
+function buildGreeting(prompt: string, language: Language, strategy: ModeStrategy): string {
+  const modeLabel = strategy.getLabel(language);
   if (language === "ru") {
     return `Kolibri в ${modeLabel} режиме подключён. Разбираю запрос: «${prompt}».`;
   }
@@ -382,9 +376,9 @@ function buildContextualMemory(history: ReadonlyArray<MessageBlock>, language: L
   return [`**${title}**`, ...bulletPoints].join("\n");
 }
 
-function buildNextSteps(keywords: string[], language: Language, mode: ConversationMode): string {
+function buildNextSteps(keywords: string[], language: Language, strategy: ModeStrategy): string {
   const steps: string[] = [];
-  const modeTone = getModeTone(language, mode);
+  const modeTone = strategy.getTone(language);
   const targets = keywords.slice(0, 3);
 
   if (targets.length > 0) {
@@ -411,33 +405,16 @@ function buildNextSteps(keywords: string[], language: Language, mode: Conversati
   }
 
   if (steps.length === 0) {
-    steps.push(...DEFAULT_STEPS[language].map((step) => `- ${step}`));
+    steps.push(...strategy.getDefaultSteps(language).map((step) => `- ${step}`));
   }
 
   const title = language === "ru" ? "🚀 Следующие шаги" : "🚀 Next steps";
   return [`**${title}**`, ...steps].join("\n");
 }
 
-function getModeTone(language: Language, mode: ConversationMode): string {
-  switch (mode) {
-    case "creative":
-      return language === "ru"
-        ? "Добавьте пространство для экспериментов и тестируйте смелые гипотезы."
-        : "Leave room for experiments and test bold hypotheses.";
-    case "precise":
-      return language === "ru"
-        ? "Сверяйте результат с метриками и ожидаемым эффектом."
-        : "Validate outcomes against metrics and measurable impact.";
-    default:
-      return language === "ru"
-        ? "Балансируйте скорость с качеством и вовлекайте ключевых стейкхолдеров."
-        : "Balance speed and quality while engaging the key stakeholders.";
-  }
-}
-
 function handleSlashCommand(
   prompt: string,
-  context: { history: ReadonlyArray<MessageBlock>; language: Language; mode: ConversationMode },
+  context: { history: ReadonlyArray<MessageBlock>; language: Language; strategy: ModeStrategy },
 ): string {
   const [command, ...restParts] = prompt.split(/\s+/);
   const rest = restParts.join(" ").trim();
@@ -498,7 +475,7 @@ function renderSummary(
 
 function renderCodeTemplate(
   focus: string,
-  { language }: { history: ReadonlyArray<MessageBlock>; language: Language; mode: ConversationMode },
+  { language }: { history: ReadonlyArray<MessageBlock>; language: Language },
 ): string {
   const keywords = extractKeywords(focus);
   const requestedLanguage = detectCodeLanguage(focus, language);
@@ -546,11 +523,11 @@ function renderCodeTemplate(
 
 function renderFixChecklist(
   focus: string,
-  { language, mode }: { history: ReadonlyArray<MessageBlock>; language: Language; mode: ConversationMode },
+  { language, strategy }: { history: ReadonlyArray<MessageBlock>; language: Language; strategy: ModeStrategy },
 ): string {
   const keywords = extractKeywords(focus);
   const labels = COMMAND_LABELS[language];
-  const tone = getModeTone(language, mode);
+  const tone = strategy.getTone(language);
 
   const checkpoints: string[] = keywords.slice(0, 4).map((keyword) =>
     language === "ru"
