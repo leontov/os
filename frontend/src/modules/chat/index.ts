@@ -3,6 +3,7 @@ import type { ConversationListItem } from "../../components/layout/Sidebar";
 import type { MessageBlock } from "../../components/chat/Message";
 import type { ConversationMode } from "../../components/chat/ConversationHero";
 import type { ConversationStatus } from "../history";
+import { DeliveryQueue } from "./deliveryQueue";
 
 type Translate = (key: string) => string;
 
@@ -27,6 +28,10 @@ interface GenerationOptions {
 }
 
 type Language = "ru" | "en";
+
+const DELIVERY_TIMEOUT_MS = 12000;
+const MAX_DELIVERY_ATTEMPTS = 3;
+const BASE_RETRY_DELAY_MS = 900;
 
 const STOP_WORDS = new Set([
   "and",
@@ -156,6 +161,19 @@ export function useMessageComposer({
   mode,
   locale,
 }: ComposerOptions) {
+  const deliveryQueue = useMemo(
+    () =>
+      new DeliveryQueue({
+        timeoutMs: DELIVERY_TIMEOUT_MS,
+        maxAttempts: MAX_DELIVERY_ATTEMPTS,
+        baseRetryDelayMs: BASE_RETRY_DELAY_MS,
+        onStatusChange: (status) => {
+          setStatus(status);
+        },
+      }),
+    [setStatus],
+  );
+
   return useCallback(
     async (content: string) => {
       if (!activeConversation) {
@@ -181,46 +199,45 @@ export function useMessageComposer({
       const history = [...previousMessages, userMessage];
 
       appendMessage(activeConversation, userMessage);
-      setStatus("loading");
+      void deliveryQueue.enqueue({
+        execute: () =>
+          generateKolibriResponse({
+            prompt: trimmed,
+            history,
+            locale,
+            mode,
+          }),
+        onSuccess: (responseContent) => {
+          const assistantTimestamp = Date.now();
+          const assistantMessage: MessageBlock = {
+            id: crypto.randomUUID(),
+            role: "assistant",
+            authorLabel: assistantLabel,
+            content: responseContent,
+            createdAt: new Date(assistantTimestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            timestamp: assistantTimestamp,
+          };
 
-      try {
-        const responseContent = await generateKolibriResponse({
-          prompt: trimmed,
-          history,
-          locale,
-          mode,
-        });
-
-        const assistantTimestamp = Date.now();
-        const assistantMessage: MessageBlock = {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          authorLabel: assistantLabel,
-          content: responseContent,
-          createdAt: new Date(assistantTimestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-          timestamp: assistantTimestamp,
-        };
-
-        appendMessage(activeConversation, assistantMessage);
-      } catch (error) {
-        console.error("Kolibri generation failed", error);
-        const assistantTimestamp = Date.now();
-        const fallbackLanguage = detectLanguage(trimmed, locale, history);
-        const fallbackContent =
-          fallbackLanguage === "ru"
-            ? "Не получилось построить ответ. Попробуйте переформулировать запрос или добавить деталей."
-            : "I couldn't finish the response. Please rephrase your request or share a little more context.";
-        appendMessage(activeConversation, {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          authorLabel: assistantLabel,
-          content: fallbackContent,
-          createdAt: new Date(assistantTimestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-          timestamp: assistantTimestamp,
-        });
-      } finally {
-        setStatus("idle");
-      }
+          appendMessage(activeConversation, assistantMessage);
+        },
+        onFailure: (error) => {
+          console.error("Kolibri generation failed", error);
+          const assistantTimestamp = Date.now();
+          const fallbackLanguage = detectLanguage(trimmed, locale, history);
+          const fallbackContent =
+            fallbackLanguage === "ru"
+              ? "Не получилось построить ответ. Попробуйте переформулировать запрос или добавить деталей."
+              : "I couldn't finish the response. Please rephrase your request or share a little more context.";
+          appendMessage(activeConversation, {
+            id: crypto.randomUUID(),
+            role: "assistant",
+            authorLabel: assistantLabel,
+            content: fallbackContent,
+            createdAt: new Date(assistantTimestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            timestamp: assistantTimestamp,
+          });
+        },
+      });
     },
     [
       activeConversation,
@@ -230,6 +247,7 @@ export function useMessageComposer({
       getMessages,
       locale,
       mode,
+      deliveryQueue,
       setStatus,
     ],
   );
