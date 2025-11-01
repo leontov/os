@@ -103,8 +103,8 @@ export function Composer({ draft, onChange, onSend, disabled }: ComposerProps) {
     : estimatedCarbonGrams < 1
       ? `${estimatedCarbonGrams.toFixed(2)} g`
       : `${(estimatedCarbonGrams / 1000).toFixed(2)} kg`;
-  const containerClasses = `relative w-full rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elev-2)] p-4 shadow-[var(--shadow-1)] transition ${
-    isDragging ? "border-[var(--brand)] bg-[rgba(74,222,128,0.08)]" : ""
+  const containerClasses = `relative w-full overflow-hidden rounded-[2rem] border border-[var(--surface-border)] bg-[var(--surface-card-strong)]/90 p-5 shadow-[0_28px_70px_rgba(4,6,10,0.6)] backdrop-blur-2xl transition ${
+    isDragging ? "border-[var(--border-ghost)] bg-[rgba(74,222,128,0.08)]" : ""
   }`;
 
   return (
@@ -122,9 +122,9 @@ export function Composer({ draft, onChange, onSend, disabled }: ComposerProps) {
         publish({ title: t("composer.attach.unsupported"), tone: "error" });
       }}
     >
-      <div className="flex items-center justify-between pb-2">
-        <div className="flex items-center gap-2 text-xs text-[var(--muted)]">
-          <Badge tone={isOffline ? "warning" : "accent"}>
+      <div className="flex flex-col gap-3 pb-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center gap-3 text-xs text-[var(--muted)]">
+          <Badge tone={isOffline ? "warning" : "accent"} className="rounded-full px-3 py-1 text-xs uppercase tracking-[0.3em]">
             {isOffline ? t("composer.status.offline") : t("composer.status.ready")}
           </Badge>
           {isOffline ? (
@@ -141,12 +141,13 @@ export function Composer({ draft, onChange, onSend, disabled }: ComposerProps) {
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2 text-xs text-[var(--muted)]">
-          <span>{t("composer.hint.shortcut")}</span>
+        <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]">
+          <span className="rounded-full bg-[rgba(255,255,255,0.04)] px-3 py-1">{t("composer.hint.shortcut")}</span>
           {queued.length > 0 ? (
             <Button
               variant="ghost"
               size="sm"
+              className="rounded-full"
               disabled={isOffline || disabled}
               onClick={async () => {
                 if (isOffline || disabled) {
@@ -175,11 +176,16 @@ export function Composer({ draft, onChange, onSend, disabled }: ComposerProps) {
         className="max-h-60 bg-transparent text-base leading-relaxed"
         aria-live="polite"
         maxLength={MAX_LENGTH}
+        data-composer-input="true"
       />
-      <div className="mt-4 flex items-center justify-between gap-3">
+      <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" aria-label={t("composer.buttons.attach")}
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={t("composer.buttons.attach")}
             disabled={disabled}
+            className="rounded-full"
           >
             <Paperclip aria-hidden />
           </Button>
@@ -189,31 +195,34 @@ export function Composer({ draft, onChange, onSend, disabled }: ComposerProps) {
             aria-label={t("composer.buttons.templates")}
             disabled={disabled}
             data-open-command-palette="true"
+            className="rounded-full"
             onClick={() => setCommandPaletteOpen((value) => !value)}
           >
             <Sparkles aria-hidden />
           </Button>
         </div>
-        <Button onClick={submit} disabled={disabled || characterCount === 0}>
+        <Button onClick={submit} disabled={disabled || characterCount === 0} className="rounded-full px-6">
           <span className="hidden sm:inline">{t("composer.buttons.send")}</span>
           <CornerDownLeft aria-hidden className="hidden sm:block" />
           <Send aria-hidden className="sm:hidden" />
         </Button>
       </div>
-      <div className="mt-3 space-y-1 text-xs text-[var(--muted)]">
-        <div>
-          {t("composer.counter")}: {characterCount}/{MAX_LENGTH}
+      <div className="mt-4 grid gap-3 rounded-[1.5rem] bg-[rgba(255,255,255,0.04)] p-4 text-xs text-[var(--muted)] sm:grid-cols-3">
+        <div className="flex flex-col gap-1">
+          <span className="uppercase tracking-[0.32em] text-[var(--muted)]">{t("composer.counter")}</span>
+          <span className="text-sm text-[var(--text)]">{characterCount}/{MAX_LENGTH}</span>
         </div>
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <span>
-            {t("composer.estimate.tokens")} {tokenEstimate}
-          </span>
-          <span>• {t("composer.estimate.energy")} {formattedEnergy}</span>
-          <span>• {t("composer.estimate.co2")} {formattedCarbon}</span>
+        <div className="flex flex-col gap-1">
+          <span className="uppercase tracking-[0.32em] text-[var(--muted)]">{t("composer.estimate.tokens")}</span>
+          <span className="text-sm text-[var(--text)]">{tokenEstimate}</span>
+        </div>
+        <div className="flex flex-col gap-1">
+          <span className="uppercase tracking-[0.32em] text-[var(--muted)]">{t("composer.estimate.energy")}</span>
+          <span className="text-sm text-[var(--text)]">{formattedEnergy} • {t("composer.estimate.co2")} {formattedCarbon}</span>
         </div>
       </div>
       {isCommandPaletteOpen && suggestions.length > 0 ? (
-        <div className="absolute left-4 right-4 top-[-6.5rem] rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elev)] p-3 shadow-[var(--shadow-2)]">
+        <div className="absolute left-4 right-4 top-[-7rem] rounded-2xl border border-[var(--surface-border)] bg-[var(--surface-card)]/90 p-4 shadow-[0_24px_70px_rgba(6,8,12,0.55)] backdrop-blur-2xl">
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">{t("composer.slash.title")}</p>
           <ul className="space-y-1" role="listbox">
             {suggestions.map((command) => (
