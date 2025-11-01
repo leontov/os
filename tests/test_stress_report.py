@@ -122,7 +122,7 @@ def test_cli_writes_report_with_custom_scenarios(tmp_path: Path, monkeypatch: py
             json: Any | None = None,
             headers: Any | None = None,
         ) -> httpx.Response:
-            request = httpx.Request(method, f"{self._base_url}{path}")
+            request = httpx.Request(method=method, url=f"{self._base_url}{path}")
             return httpx.Response(200, json={"received": json}, request=request)
 
     monkeypatch.setattr(stress_report.httpx, "AsyncClient", DummyClient)

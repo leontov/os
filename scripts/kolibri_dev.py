@@ -223,7 +223,7 @@ def _render_frontend_template(destination: Path, *, name: str, force: bool = Fal
 
 
 def _diagnose_environment() -> dict[str, object]:
-    tools = {"python": sys.version.split()[0]}
+    tools: dict[str, object] = {"python": sys.version.split()[0]}
     for tool in ("node", "npm", "uvicorn", "pytest"):
         tools[tool] = shutil.which(tool) is not None
     return {
@@ -366,9 +366,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             print(json.dumps(result, ensure_ascii=False, indent=2))
         else:
             print("Kolibri developer environment diagnostics:")
-            for key, value in result["tools"].items():
-                state = "✅" if value else "⚠️"
-                print(f" - {key}: {value} {state}")
+            tools = result.get("tools")
+            if isinstance(tools, Mapping):
+                for key, value in tools.items():
+                    state = "✅" if bool(value) else "⚠️"
+                    print(f" - {key}: {value} {state}")
         return 0
 
     parser.error("Unknown command")

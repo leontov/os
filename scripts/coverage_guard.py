@@ -24,7 +24,7 @@ class CoverageVerdict:
     line_coverage: Optional[float]
     branch_coverage: Optional[float]
     violations: list[str]
-    packages: Dict[str, Mapping[str, Any]]
+    packages: Dict[str, Dict[str, Any]]
 
 
 def load_report(report_path: Path) -> Mapping[str, Any]:
@@ -104,7 +104,7 @@ def evaluate_coverage(
                 f"Покрытие веток {global_branch}% ниже целевого значения {thresholds.branch}%."
             )
 
-    package_results: Dict[str, MutableMapping[str, Any]] = {}
+    package_results: Dict[str, Dict[str, Any]] = {}
     for prefix, pkg_threshold in (package_thresholds or {}).items():
         pkg_line, pkg_branch = _aggregate_for_prefix(files, prefix)
         passed = True

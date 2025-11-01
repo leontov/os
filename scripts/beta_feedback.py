@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Mapping as ABCMapping, Sequence as ABCSequence
 from dataclasses import dataclass
 from pathlib import Path
 from statistics import mean
@@ -31,16 +32,31 @@ class BetaSummary:
     top_pains: tuple[str, ...]
 
 
+def _coerce_float(value: object, *, default: float = 0.0) -> float:
+    try:
+        return float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return default
+
+
+def _coerce_pain_points(value: object) -> tuple[str, ...]:
+    if isinstance(value, ABCSequence) and not isinstance(value, (str, bytes, bytearray)):
+        return tuple(str(item) for item in value)
+    return ()
+
+
 def load_feedback(payload: Iterable[Mapping[str, object]]) -> list[FeedbackEntry]:
     entries: list[FeedbackEntry] = []
     for item in payload:
+        if not isinstance(item, ABCMapping):
+            continue
         entries.append(
             FeedbackEntry(
                 app=str(item.get("app", "unknown")),
-                satisfaction=float(item.get("satisfaction", 0.0)),
-                retention_intent=float(item.get("retention_intent", 0.0)),
-                nps=float(item.get("nps", 0.0)),
-                pain_points=tuple(str(value) for value in item.get("pain_points", ())),
+                satisfaction=_coerce_float(item.get("satisfaction")),
+                retention_intent=_coerce_float(item.get("retention_intent")),
+                nps=_coerce_float(item.get("nps")),
+                pain_points=_coerce_pain_points(item.get("pain_points")),
             )
         )
     return entries
@@ -65,7 +81,7 @@ def summarize_feedback(entries: Iterable[FeedbackEntry]) -> list[BetaSummary]:
         for entry in app_entries:
             for pain in entry.pain_points:
                 pains[pain] = pains.get(pain, 0) + 1
-        top_pains = tuple(sorted(pains, key=pains.get, reverse=True)[:3])
+        top_pains = tuple(name for name, _ in sorted(pains.items(), key=lambda item: item[1], reverse=True)[:3])
         summaries.append(BetaSummary(review=review, top_pains=top_pains))
     return summaries
 
