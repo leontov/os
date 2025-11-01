@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { Settings, PlusCircle, Folder, History, MessageSquare, Pin } from "lucide-react";
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
@@ -22,7 +22,7 @@ interface SidebarProps {
   onCreateFolder: () => void;
 }
 
-export function Sidebar({
+function SidebarComponent({
   conversations,
   activeConversationId,
   onSelectConversation,
@@ -137,3 +137,5 @@ export function Sidebar({
     </aside>
   );
 }
+
+export const Sidebar = memo(SidebarComponent);
