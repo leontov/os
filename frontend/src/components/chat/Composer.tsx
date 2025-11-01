@@ -78,6 +78,7 @@ export function Composer({ draft, onChange, onSend, disabled }: ComposerProps) {
       { key: "/summary", label: t("composer.slash.summary") },
       { key: "/code", label: t("composer.slash.code") },
       { key: "/fix", label: t("composer.slash.fix") },
+      { key: "/context", label: t("composer.slash.context") },
     ],
     [t],
   );

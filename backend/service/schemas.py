@@ -1,7 +1,7 @@
 """Pydantic schemas shared between Kolibri service routes."""
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -10,6 +10,10 @@ __all__ = [
     "InferenceRequest",
     "ModerationDiagnostics",
     "InferenceResponse",
+    "IntentCandidate",
+    "IntentClassificationRequest",
+    "IntentClassificationResponse",
+    "PromptTemplateView",
     "SAMLLoginResponse",
 ]
 
@@ -43,6 +47,44 @@ class InferenceResponse(BaseModel):
         default=None,
         description="Diagnostics provided by the moderation pipeline",
     )
+
+
+class IntentCandidate(BaseModel):
+    intent: str = Field(description="Predicted intent identifier")
+    confidence: float = Field(ge=0.0, le=1.0)
+
+
+class PromptTemplateView(BaseModel):
+    id: str = Field(description="Unique prompt identifier")
+    intent: str = Field(description="Intent the prompt is designed for")
+    title: str = Field(description="Prompt title ready for display")
+    body: str = Field(description="Prompt text that can be inserted into the composer")
+    tags: List[str] = Field(default_factory=list, description="Semantic tags for the prompt")
+
+
+class IntentClassificationRequest(BaseModel):
+    text: str = Field(min_length=1, description="User utterance that needs intent classification")
+    context: List[str] = Field(default_factory=list, description="Additional context messages")
+    top_k: int = Field(default=3, ge=1, le=5, description="Number of intent candidates to return")
+    variant: Optional[str] = Field(
+        default=None,
+        pattern=r"^[abAB]$",
+        description="Experiment variant override",
+    )
+    language: Optional[str] = Field(
+        default=None,
+        pattern=r"^[a-zA-Z-]{2,5}$",
+        description="Preferred language for prompts",
+    )
+
+
+class IntentClassificationResponse(BaseModel):
+    intent: str = Field(description="Primary intent identifier")
+    confidence: float = Field(ge=0.0, le=1.0)
+    variant: str = Field(description="Experiment variant that supplied prompts")
+    candidates: List[IntentCandidate] = Field(default_factory=list)
+    prompts: List[PromptTemplateView] = Field(default_factory=list)
+    settings: Dict[str, Any] = Field(default_factory=dict)
 
 
 class SAMLLoginResponse(BaseModel):
