@@ -30,6 +30,15 @@ class SupportProgram:
     def tier_map(self) -> dict[str, SupportTier]:
         return {tier.name: tier for tier in self.tiers}
 
+    def find_scenario(self, title: str) -> SupportScenario | None:
+        """Return the first support scenario matching ``title`` (case-insensitive)."""
+
+        normalized = title.strip().casefold()
+        for scenario in self.scenarios:
+            if scenario.title.casefold() == normalized:
+                return scenario
+        return None
+
 
 @dataclass(frozen=True)
 class ResponseLogEntry:
@@ -83,6 +92,15 @@ def load_program(path: Path | None) -> SupportProgram:
                     criticality="medium",
                     recommended_tier="standard",
                     playbook="Schedule solution architect session within 24h and share API kits.",
+                ),
+                SupportScenario(
+                    title="Beta feedback triage",
+                    criticality="medium",
+                    recommended_tier="standard",
+                    playbook=(
+                        "Acknowledge tester report within 2h, capture details in docs/beta_feedback.md, "
+                        "and escalate blocking items to the on-call engineer."
+                    ),
                 ),
                 SupportScenario(
                     title="Community best practices",
