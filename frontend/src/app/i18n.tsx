@@ -8,9 +8,11 @@ type Messages = typeof en;
 
 export type MessageKey = keyof Messages;
 
+export type Translate = (key: MessageKey) => string;
+
 interface I18nContextValue {
   locale: Locale;
-  t: (key: MessageKey) => string;
+  t: Translate;
   setLocale: (locale: Locale) => void;
 }
 
