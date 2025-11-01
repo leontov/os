@@ -1,11 +1,8 @@
 import { useMemo, useState } from "react";
-import type { MessageKey } from "../../app/i18n";
 import type { ConversationMode } from "../../components/chat/ConversationHero";
-import type { MessageKey } from "../../app/i18n";
+import type { Translator } from "../../app/i18n";
 
-type Translate = (key: MessageKey) => string;
-
-export function useConversationMode(t: Translate) {
+export function useConversationMode(t: Translator) {
   const [mode, setMode] = useState<ConversationMode>("balanced");
   const [isAdaptiveMode, setAdaptiveMode] = useState(true);
 
@@ -23,7 +20,7 @@ export function useConversationMode(t: Translate) {
   return { mode, setMode, modeLabel, isAdaptiveMode, setAdaptiveMode } as const;
 }
 
-export function getModelParameterEntries(t: Translate): readonly string[] {
+export function getModelParameterEntries(t: Translator): readonly string[] {
   return [
     t("drawer.parameters.temperature"),
     t("drawer.parameters.tokens"),

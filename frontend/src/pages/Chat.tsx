@@ -33,7 +33,6 @@ const CommandMenu = lazy(async () =>
 
 function ChatPage() {
   const { t, locale } = useI18n();
-  const translate = useMemo<((key: string) => string)>(() => (key) => t(key as never), [t]);
   const { setTheme, theme, resolvedTheme } = useTheme();
   const { publish } = useToast();
   const { isOffline } = useOfflineQueue();
@@ -45,10 +44,10 @@ function ChatPage() {
   const [draft, setDraft] = useState("");
 
   const conversationState = useConversationState(t("chat.newConversationTitle"), t("chat.updatedJustNow"));
-  const { mode, setMode, modeLabel, isAdaptiveMode, setAdaptiveMode } = useConversationMode(translate);
-  const memoryEntries = useMemo(() => getConversationMemoryEntries(translate), [translate]);
-  const parameterEntries = useMemo(() => getModelParameterEntries(translate), [translate]);
-  const { sections } = useDrawerSections(translate, { memoryEntries, parameterEntries });
+  const { mode, setMode, modeLabel, isAdaptiveMode, setAdaptiveMode } = useConversationMode(t);
+  const memoryEntries = useMemo(() => getConversationMemoryEntries(t), [t]);
+  const parameterEntries = useMemo(() => getModelParameterEntries(t), [t]);
+  const { sections } = useDrawerSections(t, { memoryEntries, parameterEntries });
   const { promptEvent, clearPrompt, dismissPrompt, dismissed } = useInstallPromptBanner();
 
   useResponsivePanels({ setDrawerOpen, setSidebarOpen });
@@ -70,8 +69,8 @@ function ChatPage() {
     ? `${activeConversationEntry.title} • ${activeConversationEntry.updatedAt}`
     : t("chat.emptyConversation");
 
-  const heroParticipants = useHeroParticipants(activeConversationEntry, translate);
-  const heroMetrics = useHeroMetrics(translate);
+  const heroParticipants = useHeroParticipants(activeConversationEntry, t);
+  const heroMetrics = useHeroMetrics(t);
   const readMessages = useCallback(
     (id: string) => conversationState.messages[id] ?? [],
     [conversationState.messages],
