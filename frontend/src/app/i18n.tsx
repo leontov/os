@@ -6,7 +6,7 @@ type Locale = "en" | "ru";
 
 type Messages = typeof en;
 
-type MessageKey = keyof Messages;
+export type MessageKey = keyof Messages;
 
 interface I18nContextValue {
   locale: Locale;

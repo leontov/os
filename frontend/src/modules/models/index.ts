@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
+import type { MessageKey } from "../../app/i18n";
 import type { ConversationMode } from "../../components/chat/ConversationHero";
 
-type Translate = (key: string) => string;
+type Translate = (key: MessageKey) => string;
 
 export function useConversationMode(t: Translate) {
   const [mode, setMode] = useState<ConversationMode>("balanced");

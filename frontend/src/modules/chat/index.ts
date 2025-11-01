@@ -1,10 +1,12 @@
 import { useCallback, useMemo } from "react";
+import type { MessageKey } from "../../app/i18n";
 import type { ConversationListItem } from "../../components/layout/Sidebar";
 import type { MessageBlock } from "../../components/chat/Message";
 import type { ConversationMode } from "../../components/chat/ConversationHero";
 import type { ConversationStatus } from "../history";
+import { formatFaqAnswer, hasFaqKnowledge, resolveFaqAnswer } from "./faqEngine";
 
-type Translate = (key: string) => string;
+type Translate = (key: MessageKey) => string;
 
 type Locale = "en" | "ru";
 
@@ -206,10 +208,12 @@ export function useMessageComposer({
         console.error("Kolibri generation failed", error);
         const assistantTimestamp = Date.now();
         const fallbackLanguage = detectLanguage(trimmed, locale, history);
-        const fallbackContent =
-          fallbackLanguage === "ru"
-            ? "Не получилось построить ответ. Попробуйте переформулировать запрос или добавить деталей."
-            : "I couldn't finish the response. Please rephrase your request or share a little more context.";
+        const faqFallback = hasFaqKnowledge ? resolveFaqAnswer(trimmed, fallbackLanguage) : null;
+        const fallbackContent = faqFallback
+          ? formatFaqAnswer(faqFallback, fallbackLanguage)
+          : fallbackLanguage === "ru"
+              ? "Не получилось построить ответ. Попробуйте переформулировать запрос или добавить деталей."
+              : "I couldn't finish the response. Please rephrase your request or share a little more context.";
         appendMessage(activeConversation, {
           id: crypto.randomUUID(),
           role: "assistant",
@@ -240,6 +244,11 @@ async function generateKolibriResponse({ prompt, history, locale, mode }: Genera
   const trimmed = prompt.trim();
   const jitter = 240 + Math.floor(Math.random() * 240);
   await delay(jitter);
+
+  const faqMatch = hasFaqKnowledge ? resolveFaqAnswer(trimmed, language) : null;
+  if (faqMatch) {
+    return formatFaqAnswer(faqMatch, language);
+  }
 
   if (trimmed.startsWith("/")) {
     return handleSlashCommand(trimmed, { history, language, mode });
