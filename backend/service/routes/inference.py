@@ -11,7 +11,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from ..audit import log_audit_event, log_genome_event
 from ..config import Settings, get_settings
 from ..instrumentation import INFER_LATENCY, INFER_REQUESTS
-from ..schemas import InferenceRequest, InferenceResponse
+from ..moderation import ModerationError, enforce_prompt_policy, moderate_response
+from ..schemas import InferenceRequest, InferenceResponse, ModerationDiagnostics
 from ..security import AuthContext, require_permission
 
 __all__ = ["router"]
@@ -126,6 +127,21 @@ async def infer(
         )
 
     try:
+        enforce_prompt_policy(request.prompt, settings)
+    except ModerationError as exc:
+        INFER_REQUESTS.labels(outcome="error").inc()
+        log_audit_event(
+            event_type="llm.infer.rejected",
+            actor=context.subject,
+            payload={"phase": "prompt", "code": exc.code, "topics": exc.topics},
+            settings=settings,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": exc.code, "message": exc.message, "topics": exc.topics},
+        ) from exc
+
+    try:
         text, latency_ms, provider = await _perform_upstream_call(request, settings)
     except HTTPException:
         INFER_REQUESTS.labels(outcome="error").inc()
@@ -137,8 +153,33 @@ async def infer(
         )
         raise
 
+    try:
+        moderated_text, tone, paraphrased = await moderate_response(text, settings)
+    except ModerationError as exc:
+        INFER_REQUESTS.labels(outcome="error").inc()
+        log_audit_event(
+            event_type="llm.infer.rejected",
+            actor=context.subject,
+            payload={"phase": "response", "code": exc.code, "topics": exc.topics},
+            settings=settings,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": exc.code, "message": exc.message, "topics": exc.topics},
+        ) from exc
+
+    diagnostics = ModerationDiagnostics(
+        tone=tone.label,
+        tone_score=tone.score,
+        paraphrased=paraphrased,
+        negative_terms=tone.negative_terms,
+        positive_terms=tone.positive_terms,
+    )
+
     INFER_REQUESTS.labels(outcome="success").inc()
     INFER_LATENCY.labels(provider=provider or "unknown").observe((latency_ms or 0.0) / 1000.0)
+
+    moderation_payload = diagnostics.model_dump()
 
     log_audit_event(
         event_type="llm.infer",
@@ -147,13 +188,23 @@ async def infer(
             "mode": request.mode,
             "provider": provider,
             "latency_ms": latency_ms,
+            "moderation": moderation_payload,
         },
         settings=settings,
     )
     log_genome_event(
         stage="response",
         actor=context.subject,
-        payload={"provider": provider, "latency_ms": latency_ms},
+        payload={
+            "provider": provider,
+            "latency_ms": latency_ms,
+            "moderation": moderation_payload,
+        },
         settings=settings,
     )
-    return InferenceResponse(response=text, provider=provider, latency_ms=latency_ms)
+    return InferenceResponse(
+        response=moderated_text,
+        provider=provider,
+        latency_ms=latency_ms,
+        moderation=diagnostics,
+    )

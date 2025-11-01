@@ -3,6 +3,8 @@ import type { ConversationListItem } from "../../components/layout/Sidebar";
 import type { MessageBlock } from "../../components/chat/Message";
 import type { ConversationMode } from "../../components/chat/ConversationHero";
 import type { ConversationStatus } from "../history";
+import type { ModeStrategy } from "../models";
+import { resolveModeStrategy, getModeStrategy } from "../models";
 
 type Translate = (key: string) => string;
 
@@ -17,6 +19,7 @@ type ComposerOptions = {
   getMessages: (id: string) => ReadonlyArray<MessageBlock>;
   mode: ConversationMode;
   locale: Locale;
+  adaptiveMode: boolean;
 };
 
 interface GenerationOptions {
@@ -24,6 +27,7 @@ interface GenerationOptions {
   history: ReadonlyArray<MessageBlock>;
   locale: Locale;
   mode: ConversationMode;
+  adaptiveMode: boolean;
 }
 
 type Language = "ru" | "en";
@@ -100,25 +104,6 @@ const STOP_WORDS = new Set([
   "the",
 ]);
 
-const MODE_LABELS: Record<ConversationMode, { ru: string; en: string }> = {
-  balanced: { ru: "сбалансированном", en: "balanced" },
-  creative: { ru: "креативном", en: "creative" },
-  precise: { ru: "точном", en: "precise" },
-};
-
-const DEFAULT_STEPS: Record<Language, string[]> = {
-  ru: [
-    "Уточните конкретный результат, который хотите получить.",
-    "Определите метрики успеха и данные, которые нужны Kolibri.",
-    "Запланируйте проверку гипотезы с командой или пользователями.",
-  ],
-  en: [
-    "Clarify the specific outcome you expect to achieve.",
-    "List the success metrics and inputs Kolibri should track.",
-    "Schedule a checkpoint with the team or stakeholders to validate the result.",
-  ],
-};
-
 const COMMAND_LABELS: Record<Language, { summary: string; history: string; next: string; closing: string; code: string; fix: string; context: string }> = {
   ru: {
     summary: "Сводка диалога",
@@ -185,7 +170,21 @@ export function useMessageComposer({
   getMessages,
   mode,
   locale,
+  adaptiveMode,
 }: ComposerOptions) {
+  const deliveryQueue = useMemo(
+    () =>
+      new DeliveryQueue({
+        timeoutMs: DELIVERY_TIMEOUT_MS,
+        maxAttempts: MAX_DELIVERY_ATTEMPTS,
+        baseRetryDelayMs: BASE_RETRY_DELAY_MS,
+        onStatusChange: (status) => {
+          setStatus(status);
+        },
+      }),
+    [setStatus],
+  );
+
   return useCallback(
     async (content: string) => {
       if (!activeConversation) {
@@ -219,6 +218,7 @@ export function useMessageComposer({
           history,
           locale,
           mode,
+          adaptiveMode,
         });
 
         const assistantTimestamp = Date.now();
@@ -260,12 +260,13 @@ export function useMessageComposer({
       getMessages,
       locale,
       mode,
+      adaptiveMode,
       setStatus,
     ],
   );
 }
 
-async function generateKolibriResponse({ prompt, history, locale, mode }: GenerationOptions): Promise<string> {
+async function generateKolibriResponse({ prompt, history, locale, mode, adaptiveMode }: GenerationOptions): Promise<string> {
   const language = detectLanguage(prompt, locale, history);
   const trimmed = prompt.trim();
   const jitter = 240 + Math.floor(Math.random() * 240);
@@ -276,10 +277,16 @@ async function generateKolibriResponse({ prompt, history, locale, mode }: Genera
   }
 
   const keywords = extractKeywords(trimmed);
-  const greeting = buildGreeting(trimmed, language, mode);
+  const strategy = resolveModeStrategy({
+    prompt: trimmed,
+    keywords,
+    preferredMode: mode,
+    adaptive: adaptiveMode,
+  });
+  const greeting = buildGreeting(trimmed, language, strategy);
   const insights = buildInsights(trimmed, keywords, language);
   const contextual = buildContextualMemory(history, language);
-  const steps = buildNextSteps(keywords, language, mode);
+  const steps = buildNextSteps(keywords, language, strategy);
   const closing = language === "ru"
     ? "Если нужно — уточни критерии успеха, и Kolibri обновит ответ."
     : "Let me know which success criteria matter most and Kolibri will refine the plan.";
@@ -337,8 +344,8 @@ function extractKeywords(text: string): string[] {
   return result;
 }
 
-function buildGreeting(prompt: string, language: Language, mode: ConversationMode): string {
-  const modeLabel = MODE_LABELS[mode][language];
+function buildGreeting(prompt: string, language: Language, strategy: ModeStrategy): string {
+  const modeLabel = strategy.getLabel(language);
   if (language === "ru") {
     return `Kolibri в ${modeLabel} режиме подключён. Разбираю запрос: «${prompt}».`;
   }
@@ -394,9 +401,9 @@ function buildContextualMemory(history: ReadonlyArray<MessageBlock>, language: L
   return [`**${title}**`, ...bulletPoints].join("\n");
 }
 
-function buildNextSteps(keywords: string[], language: Language, mode: ConversationMode): string {
+function buildNextSteps(keywords: string[], language: Language, strategy: ModeStrategy): string {
   const steps: string[] = [];
-  const modeTone = getModeTone(language, mode);
+  const modeTone = strategy.getTone(language);
   const targets = keywords.slice(0, 3);
 
   if (targets.length > 0) {
@@ -423,7 +430,7 @@ function buildNextSteps(keywords: string[], language: Language, mode: Conversati
   }
 
   if (steps.length === 0) {
-    steps.push(...DEFAULT_STEPS[language].map((step) => `- ${step}`));
+    steps.push(...strategy.getDefaultSteps(language).map((step) => `- ${step}`));
   }
 
   const title = language === "ru" ? "🚀 Следующие шаги" : "🚀 Next steps";
@@ -512,7 +519,7 @@ function renderSummary(
 
 function renderCodeTemplate(
   focus: string,
-  { language }: { history: ReadonlyArray<MessageBlock>; language: Language; mode: ConversationMode },
+  { language }: { history: ReadonlyArray<MessageBlock>; language: Language },
 ): string {
   const keywords = extractKeywords(focus);
   const requestedLanguage = detectCodeLanguage(focus, language);
@@ -560,11 +567,11 @@ function renderCodeTemplate(
 
 function renderFixChecklist(
   focus: string,
-  { language, mode }: { history: ReadonlyArray<MessageBlock>; language: Language; mode: ConversationMode },
+  { language, strategy }: { history: ReadonlyArray<MessageBlock>; language: Language; strategy: ModeStrategy },
 ): string {
   const keywords = extractKeywords(focus);
   const labels = COMMAND_LABELS[language];
-  const tone = getModeTone(language, mode);
+  const tone = strategy.getTone(language);
 
   const checkpoints: string[] = keywords.slice(0, 4).map((keyword) =>
     language === "ru"
