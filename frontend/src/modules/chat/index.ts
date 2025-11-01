@@ -4,9 +4,7 @@ import type { ConversationListItem } from "../../components/layout/Sidebar";
 import type { MessageBlock } from "../../components/chat/Message";
 import type { ConversationMode } from "../../components/chat/ConversationHero";
 import type { ConversationStatus } from "../history";
-import type { Locale, MessageKey } from "../../app/i18n";
-
-type Translate = (key: MessageKey) => string;
+import type { Locale, Translate } from "../../app/i18n";
 
 type ComposerOptions = {
   activeConversation: string | null;
