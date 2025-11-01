@@ -3,7 +3,13 @@ import type { ConversationListItem } from "../../components/layout/Sidebar";
 import type { MessageBlock } from "../../components/chat/Message";
 import type { Translate } from "../../app/i18n";
 
-export type ConversationStatus = "idle" | "loading" | "error";
+export type ConversationStatus =
+  | "idle"
+  | "loading"
+  | "error"
+  | "pending"
+  | "delivering"
+  | "failed";
 
 const bootstrapConversations: ConversationListItem[] = [
   { id: "1", title: "Гайд по запуску релиза", updatedAt: "сегодня", folder: "Проекты" },
