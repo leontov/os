@@ -1,12 +1,16 @@
 import { useCallback, useMemo } from "react";
-import type { MessageKey } from "../../app/i18n";
+import type { Locale, Translate } from "../../app/i18n";
 import type { ConversationListItem } from "../../components/layout/Sidebar";
 import type { MessageBlock } from "../../components/chat/Message";
 import type { ConversationMode } from "../../components/chat/ConversationHero";
 import type { ConversationStatus } from "../history";
-import type { Locale, MessageKey } from "../../app/i18n";
-
-type Translate = (key: MessageKey) => string;
+import { DeliveryQueue, type DeliveryStatus } from "./deliveryQueue";
+import {
+  formatFaqAnswer,
+  hasFaqKnowledge,
+  resolveFaqAnswer,
+  type Language,
+} from "./faqEngine";
 
 type ComposerOptions = {
   activeConversation: string | null;
@@ -28,8 +32,6 @@ interface GenerationOptions {
   mode: ConversationMode;
   adaptiveMode: boolean;
 }
-
-type Language = "ru" | "en";
 
 interface IntentCandidateView {
   intent: string;
@@ -162,6 +164,11 @@ const CATEGORY_HINTS: Array<{ patterns: RegExp[]; ru: string; en: string }> = [
 
 const STREAM_ENDPOINT = "/api/v1/infer/stream";
 
+const DELIVERY_TIMEOUT_MS = 8_000;
+const MAX_DELIVERY_ATTEMPTS = 3;
+const BASE_RETRY_DELAY_MS = 320;
+const FAILURE_RESET_MS = 3_200;
+
 type SSEEvent = {
   event: string;
   data: unknown;
@@ -190,7 +197,8 @@ export function useMessageComposer({
         timeoutMs: DELIVERY_TIMEOUT_MS,
         maxAttempts: MAX_DELIVERY_ATTEMPTS,
         baseRetryDelayMs: BASE_RETRY_DELAY_MS,
-        onStatusChange: (status) => {
+        failureResetMs: FAILURE_RESET_MS,
+        onStatusChange: (status: DeliveryStatus) => {
           setStatus(status);
         },
       }),
@@ -273,6 +281,7 @@ export function useMessageComposer({
               history,
               locale,
               mode,
+              adaptiveMode,
             });
           }
         } catch (fallbackError) {
@@ -417,7 +426,7 @@ async function streamKolibriCompletion(
   }
 }
 
-async function generateFallbackResponse({ prompt, history, locale, mode }: GenerationOptions): Promise<string> {
+async function generateFallbackResponse({ prompt, history, locale, mode, adaptiveMode }: GenerationOptions): Promise<string> {
   const language = detectLanguage(prompt, locale, history);
   const trimmed = prompt.trim();
   const jitter = 240 + Math.floor(Math.random() * 240);
@@ -429,7 +438,7 @@ async function generateFallbackResponse({ prompt, history, locale, mode }: Gener
   }
 
   if (trimmed.startsWith("/")) {
-    return await handleSlashCommand(trimmed, { history, language, mode });
+    return await handleSlashCommand(trimmed, { history, language, mode, adaptiveMode });
   }
 
   const keywords = extractKeywords(trimmed);
@@ -612,19 +621,25 @@ function getModeTone(language: Language, mode: ConversationMode): string {
 
 async function handleSlashCommand(
   prompt: string,
-  context: { history: ReadonlyArray<MessageBlock>; language: Language; mode: ConversationMode },
+  context: {
+    history: ReadonlyArray<MessageBlock>;
+    language: Language;
+    mode: ConversationMode;
+    adaptiveMode: boolean;
+  },
 ): Promise<string> {
   const [command, ...restParts] = prompt.split(/\s+/);
   const rest = restParts.join(" ").trim();
+  const baseContext = { history: context.history, language: context.language, mode: context.mode };
   switch (command) {
     case "/summary":
-      return renderSummary(rest, context);
+      return renderSummary(rest, baseContext);
     case "/code":
-      return renderCodeTemplate(rest, context);
+      return renderCodeTemplate(rest, baseContext);
     case "/fix":
-      return renderFixChecklist(rest, context);
+      return renderFixChecklist(rest, { ...baseContext, adaptiveMode: context.adaptiveMode });
     case "/context":
-      return await renderContextInspector(rest, context);
+      return await renderContextInspector(rest, baseContext);
     default:
       return renderUnknownCommand(command, context.language);
   }
@@ -723,9 +738,28 @@ function renderCodeTemplate(
 
 function renderFixChecklist(
   focus: string,
-  { language, strategy }: { history: ReadonlyArray<MessageBlock>; language: Language; strategy: ModeStrategy },
+  {
+    history,
+    language,
+    mode,
+    adaptiveMode,
+  }: {
+    history: ReadonlyArray<MessageBlock>;
+    language: Language;
+    mode: ConversationMode;
+    adaptiveMode: boolean;
+  },
 ): string {
-  const keywords = extractKeywords(focus);
+  const explicitKeywords = extractKeywords(focus);
+  const lastMessage = history.length > 0 ? history[history.length - 1] : undefined;
+  const fallbackSource = focus || lastMessage?.content || "";
+  const keywords = explicitKeywords.length > 0 ? explicitKeywords : extractKeywords(fallbackSource);
+  const strategy = resolveModeStrategy({
+    prompt: fallbackSource || focus,
+    keywords,
+    preferredMode: mode,
+    adaptive: adaptiveMode,
+  });
   const labels = COMMAND_LABELS[language];
   const tone = strategy.getTone(language);
 
@@ -945,6 +979,130 @@ function delay(ms: number) {
   return new Promise<void>((resolve) => {
     setTimeout(resolve, ms);
   });
+}
+
+interface ModeStrategy {
+  getLabel(language: Language): string;
+  getTone(language: Language): string;
+  getDefaultSteps(language: Language): readonly string[];
+}
+
+type ModeResolutionInput = {
+  prompt: string;
+  keywords: readonly string[];
+  preferredMode: ConversationMode;
+  adaptive: boolean;
+};
+
+type StrategyConfig = {
+  label: { ru: string; en: string };
+  tone: { ru: string; en: string };
+  defaultSteps: { ru: readonly string[]; en: readonly string[] };
+};
+
+const createStrategy = ({ label, tone, defaultSteps }: StrategyConfig): ModeStrategy => ({
+  getLabel: (language) => label[language],
+  getTone: (language) => tone[language],
+  getDefaultSteps: (language) => defaultSteps[language],
+});
+
+const MODE_STRATEGIES: Record<ConversationMode, ModeStrategy> = {
+  balanced: createStrategy({
+    label: { ru: "сбалансированном", en: "balanced" },
+    tone: {
+      ru: "Синхронизируйте продукт, исследование и разработку перед решением.",
+      en: "Synchronise product, research, and engineering before executing.",
+    },
+    defaultSteps: {
+      ru: [
+        "Перечислите ключевые риски и как вы их смягчите.",
+        "Согласуйте контрольные точки и ответственных.",
+        "Подготовьте критерии готовности для команды.",
+      ],
+      en: [
+        "List the key risks and mitigation owners.",
+        "Align on checkpoints and accountable leads.",
+        "Define the acceptance criteria for the team.",
+      ],
+    },
+  }),
+  creative: createStrategy({
+    label: { ru: "креативном", en: "creative" },
+    tone: {
+      ru: "Поддержите эксперименты, но фиксируйте метрики успеха.",
+      en: "Encourage experiments while capturing success metrics.",
+    },
+    defaultSteps: {
+      ru: [
+        "Соберите референсы и вдохновляющие примеры.",
+        "Сформулируйте гипотезы для быстрых спринтов.",
+        "Запланируйте проверку с пользователями.",
+      ],
+      en: [
+        "Collect references and inspiring examples.",
+        "Draft hypotheses for rapid sprints.",
+        "Schedule user validation sessions.",
+      ],
+    },
+  }),
+  precise: createStrategy({
+    label: { ru: "точном", en: "precise" },
+    tone: {
+      ru: "Подтвердите цифры и юридические требования перед запуском.",
+      en: "Confirm the numbers and compliance constraints before launch.",
+    },
+    defaultSteps: {
+      ru: [
+        "Проверьте источники данных и качество выборок.",
+        "Согласуйте SLA и процессы эскалации.",
+        "Обновите документацию и контрольные чек-листы.",
+      ],
+      en: [
+        "Audit data sources and sample quality.",
+        "Align on SLAs and escalation paths.",
+        "Refresh the documentation and control checklists.",
+      ],
+    },
+  }),
+};
+
+const CREATIVE_HINTS = [
+  /design/i,
+  /дизайн/i,
+  /prototype/i,
+  /прототип/i,
+  /concept/i,
+  /концеп/i,
+  /vision/i,
+  /идея/i,
+];
+
+const PRECISE_HINTS = [
+  /metric/i,
+  /метрик/i,
+  /kpi/i,
+  /аналит/i,
+  /analysis/i,
+  /risk/i,
+  /compliance/i,
+  /регуля/i,
+  /spec/i,
+  /специф/i,
+];
+
+function resolveModeStrategy({ prompt, keywords, preferredMode, adaptive }: ModeResolutionInput): ModeStrategy {
+  if (!adaptive) {
+    return MODE_STRATEGIES[preferredMode] ?? MODE_STRATEGIES.balanced;
+  }
+
+  const haystack = `${prompt} ${keywords.join(" ")}`;
+  if (CREATIVE_HINTS.some((pattern) => pattern.test(haystack))) {
+    return MODE_STRATEGIES.creative;
+  }
+  if (PRECISE_HINTS.some((pattern) => pattern.test(haystack))) {
+    return MODE_STRATEGIES.precise;
+  }
+  return MODE_STRATEGIES[preferredMode] ?? MODE_STRATEGIES.balanced;
 }
 
 export function useHeroParticipants(
