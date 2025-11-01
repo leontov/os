@@ -1,2 +1,7 @@
-export type { ConversationState, ConversationStatus } from "./state";
-export { useConversationState, getConversationMemoryEntries } from "./state";
+export type { ConversationState, ConversationStatus, ConversationRegistry } from "./state";
+export {
+  useConversationState,
+  getConversationMemoryEntries,
+  getConversationsForProfile,
+  getConversationCountByProfile,
+} from "./state";
