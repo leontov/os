@@ -151,22 +151,6 @@ function ChatPage() {
     publish({ title: t("sidebar.folderCreated"), tone: "success" });
   }, [publish, t]);
 
-  const handleOpenSettings = useCallback(() => {
-    navigate("/settings");
-  }, [navigate]);
-
-  const handleCloseDrawer = useCallback(() => {
-    setDrawerOpen(false);
-  }, [setDrawerOpen]);
-
-  const handleToggleSidebar = useCallback(() => {
-    setSidebarOpen(true);
-  }, [setSidebarOpen]);
-
-  const handleMobileCloseSidebar = useCallback(() => {
-    setSidebarOpen(false);
-  }, [setSidebarOpen]);
-
   const heroParticipants = useHeroParticipants(activeConversationEntry, t);
   const heroMetrics = useHeroMetrics(t);
   const readMessages = useCallback(

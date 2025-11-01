@@ -8,15 +8,13 @@ type Messages = typeof en;
 
 export type MessageKey = keyof Messages;
 
-export type Translate = (key: MessageKey) => string;
+export type Translator = (key: MessageKey) => string;
 
 interface I18nContextValue {
   locale: Locale;
-  t: Translate;
+  t: Translator;
   setLocale: (locale: Locale) => void;
 }
-
-export type Translate = I18nContextValue["t"];
 
 const catalogs: Record<Locale, Messages> = {
   en,

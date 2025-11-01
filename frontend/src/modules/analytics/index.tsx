@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import type { DrawerSection } from "../../components/layout/RightDrawer";
-import type { Translate } from "../../app/i18n";
+import type { Translator } from "../../app/i18n";
 
 type AnalyticsDependencies = {
   memoryEntries: readonly string[];
@@ -11,32 +11,7 @@ type AnalyticsDependencies = {
   conversationCount: number;
 };
 
-export interface AnalyticsCard {
-  id: string;
-  label: string;
-  value: string;
-  trend?: string;
-  description?: string;
-}
-
-function formatLanguages(languages: readonly string[]): string {
-  return languages.length ? languages.join(", ") : "—";
-}
-
-function formatInteger(value: number): string {
-  if (!Number.isFinite(value)) {
-    return "0";
-  }
-  return Math.round(value).toLocaleString();
-}
-
-export function getAnalyticsCards(
-  t: Translate,
-  { profileName, profileMetrics, languages, conversationCount }: AnalyticsDependencies,
-): readonly AnalyticsCard[] {
-  const languageList = formatLanguages(languages);
-  const conversationValue = formatInteger(conversationCount);
-  const languagesValue = languages.length ? languageList : t("drawer.analytics.languagesEmpty");
+export function getAnalyticsEntries(t: Translator): readonly string[] {
   return [
     {
       id: "latency",
@@ -80,22 +55,10 @@ export function getAnalyticsCards(
 }
 
 export function useDrawerSections(
-  t: Translate,
-  dependencies: AnalyticsDependencies,
-): { sections: DrawerSection[]; analyticsEntries: readonly AnalyticsCard[] } {
-  const { memoryEntries, parameterEntries, profileName, profileMetrics, languages, conversationCount } = dependencies;
-  const analyticsEntries = useMemo(
-    () =>
-      getAnalyticsCards(t, {
-        memoryEntries,
-        parameterEntries,
-        profileName,
-        profileMetrics,
-        languages,
-        conversationCount,
-      }),
-    [t, profileMetrics, profileName, languages, conversationCount, memoryEntries, parameterEntries],
-  );
+  t: Translator,
+  { memoryEntries, parameterEntries }: AnalyticsDependencies,
+): { sections: DrawerSection[]; analyticsEntries: readonly string[] } {
+  const analyticsEntries = useMemo(() => getAnalyticsEntries(t), [t]);
 
   const sections = useMemo<DrawerSection[]>(
     () => [

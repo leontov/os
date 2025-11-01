@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from "react";
-import type { Locale, Translate } from "../../app/i18n";
+import type { Locale, Translator } from "../../app/i18n";
 import type { ConversationListItem } from "../../components/layout/Sidebar";
 import type { MessageBlock } from "../../components/chat/Message";
 import type { ConversationMode } from "../../components/chat/ConversationHero";
@@ -1107,7 +1107,7 @@ function resolveModeStrategy({ prompt, keywords, preferredMode, adaptive }: Mode
 
 export function useHeroParticipants(
   activeConversation: ConversationListItem | null,
-  t: Translate,
+  t: Translator,
 ): ReadonlyArray<{ name: string; role: string }> {
   return useMemo(
     () => [
@@ -1122,7 +1122,7 @@ export function useHeroParticipants(
   );
 }
 
-export function useHeroMetrics(t: Translate):
+export function useHeroMetrics(t: Translator):
   ReadonlyArray<{ label: string; value: string; delta?: string }> {
   return useMemo(
     () => [
