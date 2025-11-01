@@ -169,6 +169,33 @@ function ChatPage() {
     }
   }, [mode, t]);
 
+  const analyticsEntries = useMemo(
+    () => [
+      t("drawer.analytics.latency"),
+      t("drawer.analytics.throughput"),
+      t("drawer.analytics.nps"),
+      t("drawer.analytics.recommendation"),
+    ],
+    [t],
+  );
+
+  const memoryEntries = useMemo(
+    () => [t("drawer.memory.notes"), t("drawer.memory.goals"), t("drawer.memory.retention")],
+    [t],
+  );
+
+  const parameterEntries = useMemo(
+    () => [
+      t("drawer.parameters.temperature"),
+      t("drawer.parameters.tokens"),
+      t("drawer.parameters.memory"),
+      t("drawer.parameters.energy"),
+      t("drawer.parameters.cost"),
+      t("drawer.parameters.savings"),
+    ],
+    [t],
+  );
+
   const handleSend = useCallback(
     async (content: string) => {
       if (!activeConversation) {
@@ -193,10 +220,15 @@ function ChatPage() {
         value: "analytics",
         label: t("drawer.analytics"),
         content: (
-          <div className="space-y-2">
-            <p className="text-sm text-[var(--muted)]">{t("drawer.analytics.latency")}</p>
-            <p className="text-sm text-[var(--muted)]">{t("drawer.analytics.nps")}</p>
-            <p className="text-sm text-[var(--muted)]">{t("drawer.analytics.recommendation")}</p>
+          <div className="space-y-3">
+            {analyticsEntries.map((entry) => (
+              <div
+                key={entry}
+                className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface-glass)] p-4 text-sm text-[var(--text)]"
+              >
+                {entry}
+              </div>
+            ))}
           </div>
         ),
       },
@@ -204,9 +236,15 @@ function ChatPage() {
         value: "memory",
         label: t("drawer.memory"),
         content: (
-          <div className="space-y-2">
-            <p className="text-sm text-[var(--muted)]">{t("drawer.memory.notes")}</p>
-            <p className="text-sm text-[var(--muted)]">{t("drawer.memory.goals")}</p>
+          <div className="space-y-3">
+            {memoryEntries.map((entry) => (
+              <div
+                key={entry}
+                className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface-glass)] p-4 text-sm text-[var(--text)]"
+              >
+                {entry}
+              </div>
+            ))}
           </div>
         ),
       },
@@ -214,15 +252,20 @@ function ChatPage() {
         value: "parameters",
         label: t("drawer.parameters"),
         content: (
-          <div className="space-y-2">
-            <p className="text-sm text-[var(--muted)]">{t("drawer.parameters.temperature")}</p>
-            <p className="text-sm text-[var(--muted)]">{t("drawer.parameters.tokens")}</p>
-            <p className="text-sm text-[var(--muted)]">{t("drawer.parameters.memory")}</p>
+          <div className="space-y-3">
+            {parameterEntries.map((entry) => (
+              <div
+                key={entry}
+                className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface-glass)] p-4 text-sm text-[var(--text)]"
+              >
+                {entry}
+              </div>
+            ))}
           </div>
         ),
       },
     ],
-    [t],
+    [analyticsEntries, memoryEntries, parameterEntries, t],
   );
 
   useEffect(() => {

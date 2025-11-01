@@ -134,6 +134,10 @@ export function MessageList({ messages, status, onRetry }: MessageListProps) {
 
   return (
     <div ref={containerRef} className="relative h-full overflow-y-auto" role="log" aria-live="polite">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute left-[3.75rem] top-0 hidden h-full w-px bg-[var(--surface-border)] sm:block"
+      />
       <div style={{ height: totalHeight, position: "relative" }}>
         {virtualItems.map((item) => {
           const renderable = items[item.index];

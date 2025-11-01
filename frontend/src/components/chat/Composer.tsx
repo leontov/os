@@ -15,6 +15,9 @@ interface ComposerProps {
 }
 
 const MAX_LENGTH = 4000;
+const TOKENS_PER_CHARACTER = 0.25;
+const ENERGY_PER_TOKEN_WH = 0.00045;
+const CARBON_GRAMS_PER_WH = 0.4;
 
 export function Composer({ draft, onChange, onSend, disabled }: ComposerProps) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -85,6 +88,20 @@ export function Composer({ draft, onChange, onSend, disabled }: ComposerProps) {
   );
 
   const characterCount = draft.length;
+  const tokenEstimate = Math.max(0, Math.ceil(characterCount * TOKENS_PER_CHARACTER));
+  const estimatedEnergyWh = tokenEstimate * ENERGY_PER_TOKEN_WH;
+  const estimatedCarbonGrams = estimatedEnergyWh * CARBON_GRAMS_PER_WH;
+
+  const formattedEnergy = estimatedEnergyWh === 0
+    ? "0 Wh"
+    : estimatedEnergyWh < 0.1
+      ? `${(estimatedEnergyWh * 1000).toFixed(1)} mWh`
+      : `${estimatedEnergyWh.toFixed(2)} Wh`;
+  const formattedCarbon = estimatedCarbonGrams === 0
+    ? "0 g"
+    : estimatedCarbonGrams < 1
+      ? `${estimatedCarbonGrams.toFixed(2)} g`
+      : `${(estimatedCarbonGrams / 1000).toFixed(2)} kg`;
   const containerClasses = `relative w-full rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elev-2)] p-4 shadow-[var(--shadow-1)] transition ${
     isDragging ? "border-[var(--brand)] bg-[rgba(74,222,128,0.08)]" : ""
   }`;
@@ -182,8 +199,17 @@ export function Composer({ draft, onChange, onSend, disabled }: ComposerProps) {
           <Send aria-hidden className="sm:hidden" />
         </Button>
       </div>
-      <div className="mt-3 text-xs text-[var(--muted)]">
-        {t("composer.counter")}: {characterCount}/{MAX_LENGTH}
+      <div className="mt-3 space-y-1 text-xs text-[var(--muted)]">
+        <div>
+          {t("composer.counter")}: {characterCount}/{MAX_LENGTH}
+        </div>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span>
+            {t("composer.estimate.tokens")} {tokenEstimate}
+          </span>
+          <span>• {t("composer.estimate.energy")} {formattedEnergy}</span>
+          <span>• {t("composer.estimate.co2")} {formattedCarbon}</span>
+        </div>
       </div>
       {isCommandPaletteOpen && suggestions.length > 0 ? (
         <div className="absolute left-4 right-4 top-[-6.5rem] rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elev)] p-3 shadow-[var(--shadow-2)]">

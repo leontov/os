@@ -10,3 +10,5 @@ frontend/public/kolibri.wasm
 root.key
 compile_commands.json
 .DS_Store
+
+.lighthouse/
