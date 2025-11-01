@@ -236,6 +236,45 @@ def test_infer_accepts_valid_token(monkeypatch: pytest.MonkeyPatch, client: Test
     assert dummy_client.post_calls
 
 
+def test_intent_resolution_returns_prompts(monkeypatch: pytest.MonkeyPatch, client: TestClient) -> None:
+    monkeypatch.setenv("KOLIBRI_SSO_ENABLED", "false")
+    get_settings.cache_clear()
+
+    response = client.post(
+        "/api/v1/intents/resolve",
+        json={
+            "text": "После релиза фильтр отчёта ломается",
+            "context": ["Пустые таблицы после обновления", "Ошибки в логе 500"],
+            "language": "ru",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["intent"] in {"bug_report", "feature_request", "data_question", "research_plan", "greeting"}
+    assert payload["candidates"]
+    assert payload["prompts"]
+    assert payload["variant"] in {"a", "b"}
+    assert isinstance(payload["settings"], dict)
+
+
+def test_intent_resolution_respects_variant_override(monkeypatch: pytest.MonkeyPatch, client: TestClient) -> None:
+    monkeypatch.setenv("KOLIBRI_SSO_ENABLED", "false")
+    get_settings.cache_clear()
+
+    response = client.post(
+        "/api/v1/intents/resolve",
+        json={
+            "text": "Plan customer discovery interviews",
+            "variant": "b",
+            "language": "en",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["variant"] == "b"
+    assert payload["prompts"]
 def test_actions_catalog_available_offline(monkeypatch: pytest.MonkeyPatch, client: TestClient) -> None:
     monkeypatch.setenv("KOLIBRI_SSO_ENABLED", "false")
     get_settings.cache_clear()

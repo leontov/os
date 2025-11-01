@@ -51,6 +51,79 @@ const resolvePublicPath = (base: string, target: string): string => {
 
 const configuredBase = normaliseBase(process.env.KOLIBRI_PUBLIC_BASE_URL ?? "/");
 
+const slugify = (value: string): string =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9а-яё]+/gi, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-+/g, "-");
+
+const extractFaqEntries = (content: string): FaqEntry[] => {
+  const lines = content.split(/\r?\n/);
+  const entries: FaqEntry[] = [];
+  let section = "";
+  let question: string | null = null;
+  let answerLines: string[] = [];
+
+  const flush = () => {
+    if (!question) {
+      answerLines = [];
+      return;
+    }
+    const answer = answerLines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+    if (!answer) {
+      question = null;
+      answerLines = [];
+      return;
+    }
+    const slug = slugify(question);
+    if (!slug) {
+      question = null;
+      answerLines = [];
+      return;
+    }
+    entries.push({
+      slug,
+      section: section || "FAQ",
+      question: question.trim(),
+      answer,
+      language: "ru",
+    });
+    question = null;
+    answerLines = [];
+  };
+
+  for (const rawLine of lines) {
+    const line = rawLine.trimEnd();
+    if (!line) {
+      if (answerLines.length > 0) {
+        answerLines.push("");
+      }
+      continue;
+    }
+    if (line.startsWith("## ")) {
+      flush();
+      section = line.replace(/^##\s+/, "").trim();
+      continue;
+    }
+    if (line.startsWith("**Q:**")) {
+      flush();
+      question = line.replace("**Q:**", "").trim();
+      continue;
+    }
+    if (line.startsWith("**A:**")) {
+      answerLines = [line.replace("**A:**", "").trim()];
+      continue;
+    }
+    if (answerLines.length > 0) {
+      answerLines.push(line.trim());
+    }
+  }
+
+  flush();
+  return entries;
+};
+
 type WasiPluginContext = "serve" | "build";
 
 interface KnowledgeDocument {
@@ -64,6 +137,19 @@ interface KnowledgePayload {
   version: number;
   generatedAt: string;
   documents: KnowledgeDocument[];
+}
+
+interface FaqEntry {
+  slug: string;
+  section: string;
+  question: string;
+  answer: string;
+  language: "ru";
+}
+
+interface KnowledgeDataset {
+  documents: KnowledgeDocument[];
+  faq: FaqEntry[];
 }
 
 function copyKolibriWasm(): Plugin {
@@ -410,6 +496,8 @@ function embedKolibriKnowledge(): Plugin {
   let knowledgeAvailable = false;
   let knowledgeError: Error | null = null;
   let ensureInFlight: Promise<void> | null = null;
+  let faqEntries: FaqEntry[] = [];
+  let faqGeneratedAt = "";
 
   const normaliseWhitespace = (value: string): string => value.replace(/[\t\r]+/g, " ").replace(/\u00A0/g, " ");
 
@@ -471,9 +559,10 @@ function embedKolibriKnowledge(): Plugin {
     }
   };
 
-  const collectDocuments = async (): Promise<KnowledgeDocument[]> => {
+  const collectDocuments = async (): Promise<KnowledgeDataset> => {
     const seenIds = new Set<string>();
     const documents: KnowledgeDocument[] = [];
+    const faq: FaqEntry[] = [];
 
     for (const root of knowledgeRoots) {
       const files = await collectFiles(root);
@@ -514,10 +603,14 @@ function embedKolibriKnowledge(): Plugin {
           content: summary,
           source: relPath,
         });
+
+        if (relPath.endsWith("docs/faq.md")) {
+          faq.push(...extractFaqEntries(raw));
+        }
       }
     }
 
-    return documents;
+    return { documents, faq };
   };
 
   const ensureKnowledge = async () => {
@@ -532,10 +625,11 @@ function embedKolibriKnowledge(): Plugin {
 
     ensureInFlight = (async () => {
       try {
-        const documents = await collectDocuments();
+        const { documents, faq } = await collectDocuments();
+        const generatedAt = new Date().toISOString();
         const payload: KnowledgePayload = {
           version: 1,
-          generatedAt: new Date().toISOString(),
+          generatedAt,
           documents,
         };
 
@@ -547,6 +641,8 @@ function embedKolibriKnowledge(): Plugin {
         knowledgePublicPath = resolvePublicPath(publicBase, knowledgePublicFile);
         knowledgeAvailable = documents.length > 0;
         knowledgeError = null;
+        faqEntries = faq;
+        faqGeneratedAt = generatedAt;
       } catch (error) {
         knowledgeBuffer = Buffer.from(
           JSON.stringify({ version: 1, generatedAt: new Date().toISOString(), documents: [] }),
@@ -558,6 +654,8 @@ function embedKolibriKnowledge(): Plugin {
         knowledgePublicPath = resolvePublicPath(publicBase, knowledgePublicFile);
         knowledgeAvailable = false;
         knowledgeError = error instanceof Error ? error : new Error(String(error));
+        faqEntries = [];
+        faqGeneratedAt = new Date().toISOString();
       } finally {
         ensureInFlight = null;
       }
@@ -577,6 +675,8 @@ function embedKolibriKnowledge(): Plugin {
         knowledgePublicFile = "kolibri-knowledge.json";
         knowledgeAvailable = false;
         knowledgeError = null;
+        faqEntries = [];
+        faqGeneratedAt = "";
       }
       knowledgePublicPath = resolvePublicPath(publicBase, knowledgePublicFile);
     },
@@ -597,6 +697,8 @@ function embedKolibriKnowledge(): Plugin {
         const normalised = filePath.replace(/\\/g, "/");
         if (normalisedRoots.some((root) => normalised.startsWith(root))) {
           knowledgeBuffer = null;
+          faqEntries = [];
+          faqGeneratedAt = "";
         }
       };
 
@@ -649,11 +751,17 @@ function embedKolibriKnowledge(): Plugin {
       const hashLiteral = JSON.stringify(knowledgeHash);
       const urlLiteral = JSON.stringify(knowledgePublicPath);
       const errorLiteral = JSON.stringify(knowledgeError?.message ?? "");
+      const faqLiteral = JSON.stringify(faqEntries);
+      const faqGeneratedAtLiteral = JSON.stringify(faqGeneratedAt);
+      const faqAvailability = faqEntries.length > 0 ? "true" : "false";
 
       return `export const knowledgeUrl = ${urlLiteral};
 export const knowledgeHash = ${hashLiteral};
 export const knowledgeAvailable = ${availability};
 export const knowledgeError = ${errorLiteral};
+export const faqEntries = ${faqLiteral};
+export const faqGeneratedAt = ${faqGeneratedAtLiteral};
+export const faqAvailable = ${faqAvailability};
 `;
     },
     generateBundle() {

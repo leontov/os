@@ -137,7 +137,9 @@ self.addEventListener("activate", (event) => {
 });
 
 const OFFLINE_URL = resolveBasePath("index.html");
-const PRECACHE_URLS = [BASE_PATH, OFFLINE_URL];
+const MANIFEST_URL = resolveBasePath("manifest.webmanifest");
+const ICON_URL = resolveBasePath("kolibri.svg");
+const PRECACHE_URLS = Array.from(new Set([BASE_PATH, OFFLINE_URL, MANIFEST_URL, ICON_URL]));
 
 const JSON_HEADERS = {
   "Content-Type": "application/json; charset=utf-8",

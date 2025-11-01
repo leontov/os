@@ -1,8 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ConversationListItem } from "../../components/layout/Sidebar";
 import type { MessageBlock } from "../../components/chat/Message";
+import type { Translate } from "../../app/i18n";
 
-export type ConversationStatus = "idle" | "loading" | "error";
+export type ConversationStatus =
+  | "idle"
+  | "loading"
+  | "error"
+  | "pending"
+  | "delivering"
+  | "failed";
 
 type ConversationSeed = ConversationListItem & { profileId: string };
 
@@ -97,6 +104,7 @@ export interface ConversationState {
   selectConversation: (id: string) => void;
   createConversation: () => void;
   appendMessage: (id: string, message: MessageBlock) => void;
+  updateMessage: (id: string, messageId: string, updater: (message: MessageBlock) => MessageBlock) => void;
   setStatus: (status: ConversationStatus) => void;
 }
 
@@ -196,6 +204,29 @@ export function useConversationState(
     [conversationProfiles, justNowLabel],
   );
 
+  const updateMessage = useCallback(
+    (conversationId: string, messageId: string, updater: (message: MessageBlock) => MessageBlock) => {
+      setMessages((current) => {
+        const thread = current[conversationId];
+        if (!thread || thread.length === 0) {
+          return current;
+        }
+        const index = thread.findIndex((message) => message.id === messageId);
+        if (index === -1) {
+          return current;
+        }
+        const updated = updater(thread[index]);
+        if (updated === thread[index]) {
+          return current;
+        }
+        const nextThread = [...thread];
+        nextThread[index] = updated;
+        return { ...current, [conversationId]: nextThread };
+      });
+    },
+    [],
+  );
+
   const value = useMemo(
     () => ({
       conversations,
@@ -207,6 +238,7 @@ export function useConversationState(
       selectConversation,
       createConversation,
       appendMessage,
+      updateMessage,
       setStatus,
     }),
     [
@@ -219,14 +251,13 @@ export function useConversationState(
       selectConversation,
       createConversation,
       appendMessage,
+      updateMessage,
       setStatus,
     ],
   );
 
   return value;
 }
-
-type Translate = (key: string) => string;
 
 export function getConversationMemoryEntries(t: Translate): readonly string[] {
   return [t("drawer.memory.notes"), t("drawer.memory.goals"), t("drawer.memory.retention")];

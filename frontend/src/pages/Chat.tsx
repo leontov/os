@@ -1,10 +1,8 @@
 import { Fragment, Suspense, lazy, useCallback, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { Menu, BarChart3, Database, SlidersHorizontal, PanelsTopLeft } from "lucide-react";
+import { Menu, BarChart3, Database, SlidersHorizontal, PanelsTopLeft, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Header } from "../components/layout/Header";
-import { Sidebar } from "../components/layout/Sidebar";
-import { RightDrawer } from "../components/layout/RightDrawer";
 import { MessageList } from "../components/chat/MessageList";
 import { Composer } from "../components/chat/Composer";
 import { Button } from "../components/ui/Button";
@@ -32,8 +30,70 @@ const CommandMenu = lazy(async () =>
   import("../components/layout/CommandMenu").then((module) => ({ default: module.CommandMenu })),
 );
 
+const Sidebar = lazy(async () =>
+  import("../components/layout/Sidebar").then((module) => ({ default: module.Sidebar })),
+);
+
+const RightDrawer = lazy(async () =>
+  import("../components/layout/RightDrawer").then((module) => ({ default: module.RightDrawer })),
+);
+
+function SidebarFallback() {
+  return (
+    <div className="flex h-full flex-col gap-4 px-3 py-4 animate-pulse">
+      <div className="flex items-center gap-2">
+        <div className="h-11 flex-1 rounded-xl bg-[rgba(255,255,255,0.06)]" data-loading />
+        <div className="h-11 w-11 rounded-xl bg-[rgba(255,255,255,0.06)]" data-loading />
+      </div>
+      <div className="h-10 rounded-lg bg-[rgba(255,255,255,0.04)]" data-loading />
+      <div className="space-y-2 overflow-hidden">
+        {Array.from({ length: 6 }).map((_, index) => (
+          <div key={index} className="h-14 rounded-xl bg-[rgba(255,255,255,0.04)]" data-loading />
+        ))}
+      </div>
+      <div className="mt-auto h-9 rounded-lg bg-[rgba(255,255,255,0.04)]" data-loading />
+    </div>
+  );
+}
+
+function DrawerFallback({ isOpen, title }: { isOpen: boolean; title: string }) {
+  return (
+    <>
+      <aside
+        className={`hidden h-full w-[26rem] flex-shrink-0 flex-col border-l border-[var(--border-subtle)] bg-[var(--bg-elev)] xl:flex ${
+          isOpen ? "" : "xl:hidden"
+        }`.trim()}
+        aria-label={title}
+      >
+        <div className="flex h-full flex-col animate-pulse">
+          <div className="border-b border-[var(--border-subtle)] px-4 py-3">
+            <div className="h-4 w-32 rounded bg-[rgba(255,255,255,0.06)]" data-loading />
+          </div>
+          <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div key={index} className="h-20 rounded-2xl border border-[var(--surface-border)] bg-[var(--surface-glass)]" data-loading />
+            ))}
+          </div>
+        </div>
+      </aside>
+      {isOpen ? (
+        <div className="xl:hidden">
+          <div className="border-t border-[var(--border-subtle)] bg-[var(--bg-elev)] p-4 animate-pulse">
+            <div className="space-y-3">
+              {Array.from({ length: 3 }).map((_, index) => (
+                <div key={index} className="h-16 rounded-2xl border border-[var(--surface-border)] bg-[var(--surface-glass)]" data-loading />
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
 function ChatPage() {
   const { t, locale } = useI18n();
+  const translate = useMemo<((key: string) => string)>(() => (key) => t(key as never), [t]);
   const { setTheme, theme, resolvedTheme } = useTheme();
   const { publish } = useToast();
   const { isOffline } = useOfflineQueue();
@@ -79,16 +139,25 @@ function ChatPage() {
   useResponsivePanels({ setDrawerOpen, setSidebarOpen });
   useCommandMenuShortcut(() => setCommandOpen(true));
 
-  const activeMessages = conversationState.activeConversation
-    ? conversationState.messages[conversationState.activeConversation] ?? []
-    : [];
+  const {
+    conversations,
+    activeConversation,
+    messages,
+    status,
+    selectConversation,
+    createConversation,
+    appendMessage,
+    setStatus,
+  } = conversationState;
+
+  const activeMessages = useMemo(
+    () => (activeConversation ? messages[activeConversation] ?? [] : []),
+    [activeConversation, messages],
+  );
 
   const activeConversationEntry = useMemo(
-    () =>
-      conversationState.conversations.find(
-        (conversation) => conversation.id === conversationState.activeConversation,
-      ) ?? null,
-    [conversationState.conversations, conversationState.activeConversation],
+    () => conversations.find((conversation) => conversation.id === activeConversation) ?? null,
+    [conversations, activeConversation],
   );
 
   const headerSubtitle = useMemo(() => {
@@ -102,20 +171,65 @@ function ChatPage() {
 
   const heroParticipants = useHeroParticipants(activeConversationEntry, t);
   const heroMetrics = useHeroMetrics(t);
-  const readMessages = useCallback(
-    (id: string) => conversationState.messages[id] ?? [],
-    [conversationState.messages],
+  const readMessages = useCallback((id: string) => messages[id] ?? [], [messages]);
+
+  const handleCreateFolder = useCallback(() => {
+    publish({ title: t("sidebar.folderCreated"), tone: "success" });
+  }, [publish, t]);
+
+  const handleOpenSettings = useCallback(() => {
+    navigate("/settings");
+  }, [navigate]);
+
+  const handleCloseDrawer = useCallback(() => {
+    setDrawerOpen(false);
+  }, [setDrawerOpen]);
+
+  const handleToggleSidebar = useCallback(() => {
+    setSidebarOpen(true);
+  }, [setSidebarOpen]);
+
+  const handleMobileCloseSidebar = useCallback(() => {
+    setSidebarOpen(false);
+  }, [setSidebarOpen]);
+
+  const handleMobileSelectConversation = useCallback(
+    (id: string) => {
+      selectConversation(id);
+      setSidebarOpen(false);
+    },
+    [selectConversation, setSidebarOpen],
   );
 
+  const handleMobileNewConversation = useCallback(() => {
+    createConversation();
+    setSidebarOpen(false);
+  }, [createConversation, setSidebarOpen]);
+
+  const handleMobileOpenSettings = useCallback(() => {
+    setSidebarOpen(false);
+    navigate("/settings");
+  }, [navigate, setSidebarOpen]);
+
+  const handleMobileCreateFolder = useCallback(() => {
+    handleCreateFolder();
+    setSidebarOpen(false);
+  }, [handleCreateFolder, setSidebarOpen]);
+
+  const handleCloseCommandMenu = useCallback(() => {
+    setCommandOpen(false);
+  }, [setCommandOpen]);
+
   const handleSend = useMessageComposer({
-    activeConversation: conversationState.activeConversation,
-    appendMessage: conversationState.appendMessage,
+    activeConversation,
+    appendMessage,
     authorLabel: "Вы",
     assistantLabel: "Колибри",
-    setStatus: conversationState.setStatus,
+    setStatus,
     getMessages: readMessages,
     mode,
     locale,
+    adaptiveMode: isAdaptiveMode,
   });
 
   return (
@@ -162,7 +276,7 @@ function ChatPage() {
         onOpenCommand={() => setCommandOpen(true)}
         onToggleTheme={() => setTheme(theme === "dark" ? "light" : "dark")}
         resolvedTheme={resolvedTheme}
-        onToggleSidebar={() => setSidebarOpen(true)}
+        onToggleSidebar={handleToggleSidebar}
         isOffline={isOffline}
         offlineLabel={t("header.offline")}
       />
@@ -201,14 +315,16 @@ function ChatPage() {
       ) : null}
       <div className="grid h-full w-full grid-cols-1 xl:grid-cols-[20rem_minmax(0,1fr)_26rem]">
         <aside className="hidden border-r border-[var(--border-subtle)] xl:flex">
-          <Sidebar
-            conversations={conversationState.conversations}
-            activeConversationId={conversationState.activeConversation}
-            onSelectConversation={conversationState.selectConversation}
-            onNewConversation={conversationState.createConversation}
-            onOpenSettings={() => navigate("/settings")}
-            onCreateFolder={() => publish({ title: t("sidebar.folderCreated"), tone: "success" })}
-          />
+          <Suspense fallback={<SidebarFallback />}>
+            <Sidebar
+              conversations={conversations}
+              activeConversationId={activeConversation}
+              onSelectConversation={selectConversation}
+              onNewConversation={createConversation}
+              onOpenSettings={handleOpenSettings}
+              onCreateFolder={handleCreateFolder}
+            />
+          </Suspense>
         </aside>
         <main
           id="chat-main"
@@ -229,7 +345,7 @@ function ChatPage() {
                   variant="ghost"
                   size="icon"
                   className="xl:hidden"
-                  onClick={() => setSidebarOpen(true)}
+                  onClick={handleToggleSidebar}
                   aria-label="Открыть список бесед"
                 >
                   <PanelsTopLeft aria-hidden />
@@ -260,17 +376,32 @@ function ChatPage() {
                   <span className="text-xs font-semibold uppercase tracking-[0.32em] text-[var(--muted)]">
                     {t("chat.timeline")}
                   </span>
-                  <Badge tone="neutral" className="bg-[rgba(255,255,255,0.06)] text-[var(--muted)]">
-                    {t("chat.modeLabel")}: {modeLabel}
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant={isAdaptiveMode ? "secondary" : "ghost"}
+                      size="sm"
+                      className="min-h-[2.5rem] px-3"
+                      onClick={() => setAdaptiveMode((value) => !value)}
+                      aria-pressed={isAdaptiveMode}
+                      aria-label={t("chat.strategyToggle.label")}
+                    >
+                      <Sparkles aria-hidden className="h-4 w-4" />
+                      <span className="text-xs font-semibold uppercase tracking-[0.18em]">
+                        {isAdaptiveMode ? t("chat.strategyToggle.on") : t("chat.strategyToggle.off")}
+                      </span>
+                    </Button>
+                    <Badge tone="neutral" className="bg-[rgba(255,255,255,0.06)] text-[var(--muted)]">
+                      {t("chat.modeLabel")}: {modeLabel}
+                    </Badge>
+                  </div>
                 </div>
                 <div className="flex-1 overflow-hidden p-2 sm:p-4">
                   <MessageList
                     messages={activeMessages}
-                    status={conversationState.status}
+                    status={status}
                     onRetry={() => {
-                      if (conversationState.activeConversation) {
-                        conversationState.selectConversation(conversationState.activeConversation);
+                      if (activeConversation) {
+                        selectConversation(activeConversation);
                       }
                     }}
                   />
@@ -279,24 +410,21 @@ function ChatPage() {
             </section>
           </div>
           <div className="sticky bottom-0 left-0 right-0 border-t border-[var(--border-subtle)] bg-[rgba(14,17,22,0.95)] px-4 pb-[calc(1.5rem+var(--safe-area-bottom))] pt-4 sm:px-8 lg:px-12">
-            <Composer
-              draft={draft}
-              onChange={setDraft}
-              onSend={handleSend}
-              disabled={conversationState.status === "loading"}
-            />
+            <Composer draft={draft} onChange={setDraft} onSend={handleSend} disabled={status === "loading"} />
           </div>
         </main>
-        <RightDrawer
-          sections={sections}
-          activeSection={activeTab}
-          onChangeSection={setActiveTab}
-          isOpen={isDrawerOpen}
-          onClose={() => setDrawerOpen(false)}
-          title={t("rightDrawer.title")}
-          menuLabel={t("rightDrawer.title")}
-          closeLabel={t("rightDrawer.close")}
-        />
+        <Suspense fallback={<DrawerFallback isOpen={isDrawerOpen} title={t("rightDrawer.title")} />}>
+          <RightDrawer
+            sections={sections}
+            activeSection={activeTab}
+            onChangeSection={setActiveTab}
+            isOpen={isDrawerOpen}
+            onClose={handleCloseDrawer}
+            title={t("rightDrawer.title")}
+            menuLabel={t("rightDrawer.title")}
+            closeLabel={t("rightDrawer.close")}
+          />
+        </Suspense>
       </div>
       <div className="lg:hidden">
         <nav className="flex items-center justify-around border-t border-[var(--border-subtle)] bg-[var(--bg-elev)] px-4 py-2 text-xs text-[var(--muted)]">
@@ -324,30 +452,23 @@ function ChatPage() {
         ) : null}
       </div>
       <Suspense fallback={null}>
-        <CommandMenu open={isCommandOpen} onClose={() => setCommandOpen(false)} />
+        <CommandMenu open={isCommandOpen} onClose={handleCloseCommandMenu} />
       </Suspense>
       {isSidebarOpen && typeof document !== "undefined"
         ? createPortal(
             <div className="fixed inset-0 z-50 flex items-stretch justify-start bg-[rgba(6,8,10,0.7)] px-4 py-8 xl:hidden">
-              <div className="absolute inset-0" onClick={() => setSidebarOpen(false)} aria-hidden />
+              <div className="absolute inset-0" onClick={handleMobileCloseSidebar} aria-hidden />
               <div className="relative mr-auto flex h-full w-full max-w-xs flex-col overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-overlay)]">
-                <Sidebar
-                  conversations={conversationState.conversations}
-                  activeConversationId={conversationState.activeConversation}
-                  onSelectConversation={(id) => {
-                    conversationState.selectConversation(id);
-                    setSidebarOpen(false);
-                  }}
-                  onNewConversation={() => {
-                    conversationState.createConversation();
-                    setSidebarOpen(false);
-                  }}
-                  onOpenSettings={() => {
-                    setSidebarOpen(false);
-                    navigate("/settings");
-                  }}
-                  onCreateFolder={() => publish({ title: t("sidebar.folderCreated"), tone: "success" })}
-                />
+                <Suspense fallback={<SidebarFallback />}>
+                  <Sidebar
+                    conversations={conversations}
+                    activeConversationId={activeConversation}
+                    onSelectConversation={handleMobileSelectConversation}
+                    onNewConversation={handleMobileNewConversation}
+                    onOpenSettings={handleMobileOpenSettings}
+                    onCreateFolder={handleMobileCreateFolder}
+                  />
+                </Suspense>
               </div>
             </div>,
             document.body,
