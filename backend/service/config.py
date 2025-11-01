@@ -54,6 +54,11 @@ class Settings:
     llm_timeout: float = 30.0
     llm_temperature_default: Optional[float] = None
     llm_max_tokens_default: Optional[int] = None
+    moderation_forbidden_topics: List[str] = field(default_factory=list)
+    moderation_tone_negative_threshold: float = 0.4
+    paraphraser_endpoint: Optional[str] = None
+    paraphraser_api_key: Optional[str] = None
+    paraphraser_timeout: float = 10.0
 
     sso_enabled: bool = True
     saml_entity_id: str = "urn:kolibri:enterprise"
@@ -109,6 +114,25 @@ class Settings:
         else:
             llm_max_tokens_default = None
 
+        forbidden_topics = _parse_list(os.getenv("KOLIBRI_MODERATION_FORBIDDEN_TOPICS"))
+        tone_threshold_raw = os.getenv("KOLIBRI_MODERATION_TONE_THRESHOLD", "0.4")
+        try:
+            tone_threshold = float(tone_threshold_raw)
+        except ValueError as exc:
+            raise RuntimeError("KOLIBRI_MODERATION_TONE_THRESHOLD must be numeric") from exc
+        if tone_threshold < 0.0:
+            raise RuntimeError("KOLIBRI_MODERATION_TONE_THRESHOLD must be non-negative")
+
+        paraphraser_endpoint = os.getenv("KOLIBRI_PARAPHRASER_ENDPOINT")
+        paraphraser_api_key = os.getenv("KOLIBRI_PARAPHRASER_API_KEY")
+        paraphraser_timeout_raw = os.getenv("KOLIBRI_PARAPHRASER_TIMEOUT", "10")
+        try:
+            paraphraser_timeout = float(paraphraser_timeout_raw)
+        except ValueError as exc:
+            raise RuntimeError("KOLIBRI_PARAPHRASER_TIMEOUT must be numeric") from exc
+        if paraphraser_timeout <= 0:
+            raise RuntimeError("KOLIBRI_PARAPHRASER_TIMEOUT must be positive")
+
         sso_enabled = _parse_bool(os.getenv("KOLIBRI_SSO_ENABLED"), default=True)
         saml_entity_id = os.getenv("KOLIBRI_SAML_ENTITY_ID", "urn:kolibri:enterprise").strip()
         saml_acs_url = os.getenv("KOLIBRI_SAML_ACS_URL")
@@ -150,6 +174,11 @@ class Settings:
             llm_timeout=llm_timeout,
             llm_temperature_default=llm_temperature_default,
             llm_max_tokens_default=llm_max_tokens_default,
+            moderation_forbidden_topics=forbidden_topics,
+            moderation_tone_negative_threshold=tone_threshold,
+            paraphraser_endpoint=paraphraser_endpoint,
+            paraphraser_api_key=paraphraser_api_key,
+            paraphraser_timeout=paraphraser_timeout,
             sso_enabled=sso_enabled,
             saml_entity_id=saml_entity_id,
             saml_acs_url=saml_acs_url,
