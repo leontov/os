@@ -23,4 +23,14 @@ declare module "virtual:kolibri-knowledge" {
   export const knowledgeHash: string;
   export const knowledgeAvailable: boolean;
   export const knowledgeError: string;
+  export interface KolibriFaqEntry {
+    slug: string;
+    section: string;
+    question: string;
+    answer: string;
+    language: "ru";
+  }
+  export const faqEntries: KolibriFaqEntry[];
+  export const faqGeneratedAt: string;
+  export const faqAvailable: boolean;
 }
