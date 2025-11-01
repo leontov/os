@@ -1,5 +1,4 @@
 import { useCallback, useMemo, useState } from "react";
-import type { MessageKey } from "../../app/i18n";
 import type { ConversationListItem } from "../../components/layout/Sidebar";
 import type { MessageBlock } from "../../components/chat/Message";
 import type { MessageKey } from "../../app/i18n";
