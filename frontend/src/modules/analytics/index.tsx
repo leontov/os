@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 import type { DrawerSection } from "../../components/layout/RightDrawer";
-
-type Translate = (key: string) => string;
+import type { Translate } from "../../app/i18n";
 
 type AnalyticsDependencies = {
   memoryEntries: readonly string[];

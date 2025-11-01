@@ -32,6 +32,10 @@ interface GenerationOptions {
 
 type Language = "ru" | "en";
 
+const DELIVERY_TIMEOUT_MS = 12000;
+const MAX_DELIVERY_ATTEMPTS = 3;
+const BASE_RETRY_DELAY_MS = 900;
+
 const STOP_WORDS = new Set([
   "and",
   "the",
@@ -142,6 +146,19 @@ export function useMessageComposer({
   locale,
   adaptiveMode,
 }: ComposerOptions) {
+  const deliveryQueue = useMemo(
+    () =>
+      new DeliveryQueue({
+        timeoutMs: DELIVERY_TIMEOUT_MS,
+        maxAttempts: MAX_DELIVERY_ATTEMPTS,
+        baseRetryDelayMs: BASE_RETRY_DELAY_MS,
+        onStatusChange: (status) => {
+          setStatus(status);
+        },
+      }),
+    [setStatus],
+  );
+
   return useCallback(
     async (content: string) => {
       if (!activeConversation) {

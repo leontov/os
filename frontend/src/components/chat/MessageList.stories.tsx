@@ -61,3 +61,27 @@ export const Empty: Story = {
     onRetry: () => undefined,
   },
 };
+
+export const Pending: Story = {
+  args: {
+    messages,
+    status: "pending",
+    onRetry: () => undefined,
+  },
+};
+
+export const Delivering: Story = {
+  args: {
+    messages,
+    status: "delivering",
+    onRetry: () => undefined,
+  },
+};
+
+export const Failed: Story = {
+  args: {
+    messages,
+    status: "failed",
+    onRetry: () => undefined,
+  },
+};
