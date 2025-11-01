@@ -21,6 +21,7 @@ export interface MessageBlock {
   content: string;
   createdAt: string;
   timestamp: number;
+  streaming?: boolean;
 }
 
 interface MessageProps {
@@ -44,6 +45,7 @@ export function Message({ message, compact }: MessageProps) {
   const contentId = useId();
 
   const icon = message.role === "assistant" ? <Bot aria-hidden /> : <User aria-hidden />;
+  const isStreaming = Boolean(message.streaming);
 
   const isCollapsible = message.content.length > MAX_VISIBLE_CHARACTERS;
   const visibleContent = expanded || !isCollapsible ? message.content : `${message.content.slice(0, MAX_VISIBLE_CHARACTERS)}…`;
@@ -142,6 +144,7 @@ export function Message({ message, compact }: MessageProps) {
         message.role === "assistant" ? "bg-[rgba(74,222,128,0.04)]" : "bg-transparent"
       }`}
       aria-labelledby={contentId}
+      aria-busy={isStreaming}
     >
       {!compact ? (
         <span
@@ -170,6 +173,13 @@ export function Message({ message, compact }: MessageProps) {
         ) : null}
         <div className="prose prose-invert max-w-none text-[var(--text)] prose-headings:text-[var(--text)] prose-code:text-[var(--text)]">
           {rendered}
+          {isStreaming ? (
+            <span
+              aria-hidden
+              className="ml-1 inline-block h-4 w-1 animate-pulse rounded-full bg-[var(--brand)] align-middle"
+            />
+          ) : null}
+          {isStreaming ? <span className="sr-only">{t("message.streaming")}</span> : null}
         </div>
         {isCollapsible ? (
           <button

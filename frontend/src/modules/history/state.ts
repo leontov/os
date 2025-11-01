@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import type { MessageKey } from "../../app/i18n";
 import type { ConversationListItem } from "../../components/layout/Sidebar";
 import type { MessageBlock } from "../../components/chat/Message";
-import type { Translate } from "../../app/i18n";
+import type { MessageKey } from "../../app/i18n";
 
 export type ConversationStatus =
   | "idle"
@@ -26,7 +26,7 @@ const bootstrapMessages: MessageBlock[] = [
     role: "assistant",
     authorLabel: "Колибри",
     content:
-      "Привет! Я помогу тебе собрать отчет о прогрессе. Расскажи, какие ключевые события произошли, и я подготовлю резюме.",
+      "Привет! Потоковый режим Kolibri активен — начинай с главного запроса, и я буду дополнять ответ по мере появления токенов.",
     createdAt: new Date(now - 6 * 60 * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     timestamp: now - 6 * 60 * 1000,
   },
@@ -34,7 +34,8 @@ const bootstrapMessages: MessageBlock[] = [
     id: "m2",
     role: "user",
     authorLabel: "Вы",
-    content: "Нам удалось завершить подготовку дизайн-системы и внедрить новую панель метрик.",
+    content:
+      "Подготовь план демо: сначала обновление продуктовых метрик, затем живое показательное сообщение с потоковой выдачей.",
     createdAt: new Date(now - 5 * 60 * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     timestamp: now - 5 * 60 * 1000,
   },
@@ -48,6 +49,7 @@ export interface ConversationState {
   selectConversation: (id: string) => void;
   createConversation: () => void;
   appendMessage: (id: string, message: MessageBlock) => void;
+  updateMessage: (id: string, messageId: string, updater: (message: MessageBlock) => MessageBlock) => void;
   setStatus: (status: ConversationStatus) => void;
 }
 
@@ -104,6 +106,29 @@ export function useConversationState(
     [justNowLabel],
   );
 
+  const updateMessage = useCallback(
+    (conversationId: string, messageId: string, updater: (message: MessageBlock) => MessageBlock) => {
+      setMessages((current) => {
+        const thread = current[conversationId];
+        if (!thread || thread.length === 0) {
+          return current;
+        }
+        const index = thread.findIndex((message) => message.id === messageId);
+        if (index === -1) {
+          return current;
+        }
+        const updated = updater(thread[index]);
+        if (updated === thread[index]) {
+          return current;
+        }
+        const nextThread = [...thread];
+        nextThread[index] = updated;
+        return { ...current, [conversationId]: nextThread };
+      });
+    },
+    [],
+  );
+
   const value = useMemo(
     () => ({
       conversations,
@@ -113,6 +138,7 @@ export function useConversationState(
       selectConversation,
       createConversation,
       appendMessage,
+      updateMessage,
       setStatus,
     }),
     [
@@ -123,6 +149,7 @@ export function useConversationState(
       selectConversation,
       createConversation,
       appendMessage,
+      updateMessage,
       setStatus,
     ],
   );

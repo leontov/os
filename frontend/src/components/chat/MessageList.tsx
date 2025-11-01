@@ -129,6 +129,16 @@ export function MessageList({ messages, status, onRetry }: MessageListProps) {
     previousMessageCountRef.current = messages.length;
   }, [messages.length, isAtBottom, scrollToIndex, items.length]);
 
+  useEffect(() => {
+    if (!isAtBottom) {
+      return;
+    }
+    const last = messages[messages.length - 1];
+    if (last?.streaming) {
+      scrollToIndex(items.length - 1);
+    }
+  }, [messages, isAtBottom, scrollToIndex, items.length]);
+
   const scrollToBottom = useCallback(() => {
     scrollToIndex(items.length - 1);
     const container = containerRef.current;

@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import type { MessageKey } from "../../app/i18n";
 import type { DrawerSection } from "../../components/layout/RightDrawer";
+import type { MessageKey } from "../../app/i18n";
 
 type Translate = (key: MessageKey) => string;
 
