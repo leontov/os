@@ -14,6 +14,8 @@ interface I18nContextValue {
   setLocale: (locale: Locale) => void;
 }
 
+export type Translate = I18nContextValue["t"];
+
 const catalogs: Record<Locale, Messages> = {
   en,
   ru,
