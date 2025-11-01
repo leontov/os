@@ -8,7 +8,7 @@ import { RightDrawer } from "../components/layout/RightDrawer";
 import { MessageList } from "../components/chat/MessageList";
 import { Composer } from "../components/chat/Composer";
 import { Button } from "../components/ui/Button";
-import { useI18n } from "../app/i18n";
+import { useI18n, type Translator } from "../app/i18n";
 import { useToast } from "../components/feedback/Toast";
 import { useTheme } from "../design/theme";
 import { useOfflineQueue } from "../shared/hooks/useOfflineQueue";
@@ -33,7 +33,7 @@ const CommandMenu = lazy(async () =>
 
 function ChatPage() {
   const { t, locale } = useI18n();
-  const translate = useMemo<((key: string) => string)>(() => (key) => t(key as never), [t]);
+  const translate = useMemo<Translator>(() => t, [t]);
   const { setTheme, theme, resolvedTheme } = useTheme();
   const { publish } = useToast();
   const { isOffline } = useOfflineQueue();
@@ -44,7 +44,7 @@ function ChatPage() {
   const [activeTab, setActiveTab] = useState("analytics");
   const [draft, setDraft] = useState("");
 
-  const conversationState = useConversationState(t("chat.newConversationTitle"), t("chat.updatedJustNow"));
+  const conversationState = useConversationState(translate("chat.newConversationTitle"), translate("chat.updatedJustNow"));
   const { mode, setMode, modeLabel, isAdaptiveMode, setAdaptiveMode } = useConversationMode(translate);
   const memoryEntries = useMemo(() => getConversationMemoryEntries(translate), [translate]);
   const parameterEntries = useMemo(() => getModelParameterEntries(translate), [translate]);

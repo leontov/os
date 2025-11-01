@@ -1,16 +1,13 @@
 import { useMemo } from "react";
-import type { MessageKey } from "../../app/i18n";
 import type { DrawerSection } from "../../components/layout/RightDrawer";
-import type { MessageKey } from "../../app/i18n";
-
-type Translate = (key: MessageKey) => string;
+import type { Translator } from "../../app/i18n";
 
 type AnalyticsDependencies = {
   memoryEntries: readonly string[];
   parameterEntries: readonly string[];
 };
 
-export function getAnalyticsEntries(t: Translate): readonly string[] {
+export function getAnalyticsEntries(t: Translator): readonly string[] {
   return [
     t("drawer.analytics.latency"),
     t("drawer.analytics.throughput"),
@@ -20,7 +17,7 @@ export function getAnalyticsEntries(t: Translate): readonly string[] {
 }
 
 export function useDrawerSections(
-  t: Translate,
+  t: Translator,
   { memoryEntries, parameterEntries }: AnalyticsDependencies,
 ): { sections: DrawerSection[]; analyticsEntries: readonly string[] } {
   const analyticsEntries = useMemo(() => getAnalyticsEntries(t), [t]);

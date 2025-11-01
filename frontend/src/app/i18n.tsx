@@ -8,13 +8,20 @@ type Messages = typeof en;
 
 export type MessageKey = keyof Messages;
 
+export type Translator = (key: MessageKey) => string;
+
+/**
+ * @deprecated Используйте тип {@link Translator}.
+ * Алиас сохранён для обратной совместимости с модулями,
+ * которые ещё не обновили импорт после переименования.
+ */
+export type Translate = Translator;
+
 interface I18nContextValue {
   locale: Locale;
-  t: (key: MessageKey) => string;
+  t: Translator;
   setLocale: (locale: Locale) => void;
 }
-
-export type Translate = I18nContextValue["t"];
 
 const catalogs: Record<Locale, Messages> = {
   en,
