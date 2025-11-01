@@ -2,15 +2,17 @@ import { createContext, useCallback, useContext, useMemo, useState, type ReactNo
 import en from "../i18n/en.json";
 import ru from "../i18n/ru.json";
 
-type Locale = "en" | "ru";
+export type Locale = "en" | "ru";
 
 type Messages = typeof en;
 
-type MessageKey = keyof Messages;
+export type MessageKey = keyof Messages;
+
+export type Translate = (key: MessageKey) => string;
 
 interface I18nContextValue {
   locale: Locale;
-  t: (key: MessageKey) => string;
+  t: Translate;
   setLocale: (locale: Locale) => void;
 }
 
