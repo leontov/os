@@ -21,6 +21,7 @@ import {
 import { useMessageComposer, useHeroParticipants, useHeroMetrics } from "../modules/chat";
 import { useConversationMode, getModelParameterEntries } from "../modules/models";
 import { useDrawerSections } from "../modules/analytics";
+import { useProfileState } from "../modules/profile";
 import {
   useInstallPromptBanner,
   useResponsivePanels,
@@ -43,11 +44,36 @@ function ChatPage() {
   const [activeTab, setActiveTab] = useState("analytics");
   const [draft, setDraft] = useState("");
 
-  const conversationState = useConversationState(t("chat.newConversationTitle"), t("chat.updatedJustNow"));
+  const profileState = useProfileState();
+  const conversationState = useConversationState(
+    t("chat.newConversationTitle"),
+    t("chat.updatedJustNow"),
+    profileState.activeProfileId,
+  );
   const { mode, setMode, modeLabel } = useConversationMode(t);
   const memoryEntries = useMemo(() => getConversationMemoryEntries(t), [t]);
   const parameterEntries = useMemo(() => getModelParameterEntries(t), [t]);
-  const { sections } = useDrawerSections(t, { memoryEntries, parameterEntries });
+  const fallbackProfile = profileState.profiles[0] ?? null;
+  const activeProfile = profileState.activeProfile ?? fallbackProfile;
+  const activeConversationCount =
+    conversationState.conversationCounts[profileState.activeProfileId] ?? conversationState.conversations.length;
+  const fallbackMetrics = fallbackProfile?.metrics ?? {
+    latencyMs: 0,
+    latencyTrend: "0%",
+    throughputPerMinute: 0,
+    throughputTrend: "0%",
+    nps: 0,
+    npsTrend: "0",
+    recommendation: "",
+  };
+  const { sections } = useDrawerSections(t, {
+    memoryEntries,
+    parameterEntries,
+    profileName: activeProfile?.name ?? t("drawer.analytics"),
+    profileMetrics: activeProfile?.metrics ?? fallbackMetrics,
+    languages: activeProfile?.languages ?? [],
+    conversationCount: activeConversationCount,
+  });
   const { promptEvent, clearPrompt, dismissPrompt, dismissed } = useInstallPromptBanner();
 
   useResponsivePanels({ setDrawerOpen, setSidebarOpen });
@@ -65,9 +91,14 @@ function ChatPage() {
     [conversationState.conversations, conversationState.activeConversation],
   );
 
-  const headerSubtitle = activeConversationEntry
-    ? `${activeConversationEntry.title} • ${activeConversationEntry.updatedAt}`
-    : t("chat.emptyConversation");
+  const headerSubtitle = useMemo(() => {
+    const profileName = activeProfile?.name ?? "";
+    if (activeConversationEntry) {
+      const parts = [profileName, activeConversationEntry.title, activeConversationEntry.updatedAt];
+      return parts.filter(Boolean).join(" • ");
+    }
+    return profileName || t("chat.emptyConversation");
+  }, [activeConversationEntry, activeProfile?.name, t]);
 
   const heroParticipants = useHeroParticipants(activeConversationEntry, t);
   const heroMetrics = useHeroMetrics(t);
@@ -99,12 +130,30 @@ function ChatPage() {
         title={t("app.title")}
         subtitle={headerSubtitle}
         context={
-          <span className="flex flex-wrap items-center gap-2 text-[var(--muted)]">
+          <div className="flex flex-wrap items-center gap-2 text-[var(--muted)]">
             <Badge tone="accent" className="bg-[rgba(74,222,128,0.16)] text-[var(--brand)]">
               {modeLabel}
             </Badge>
             <span>{t("hero.active")}</span>
-          </span>
+            <div className="flex flex-wrap items-center gap-1">
+              <span className="text-xs uppercase tracking-wide text-[var(--muted)]">
+                {t("profile.switcher.label")}
+              </span>
+              {profileState.profiles.map((profile) => {
+                const isActive = profile.id === profileState.activeProfileId;
+                return (
+                  <Button
+                    key={profile.id}
+                    variant={isActive ? "secondary" : "ghost"}
+                    size="sm"
+                    onClick={() => profileState.selectProfile(profile.id)}
+                  >
+                    {profile.name}
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
         }
         onSearch={() => publish({ title: t("header.actions.search"), tone: "success" })}
         onShare={() => publish({ title: t("header.actions.share"), tone: "success" })}

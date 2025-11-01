@@ -7,9 +7,10 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.service.actions import reset_actions_registry
-from backend.service.config import get_settings
 from backend.service.app import app, create_app
+from backend.service.config import get_settings
 from backend.service.security import AuthContext, issue_session_token
+from backend.service.profiles import reset_profile_store
 
 
 @pytest.fixture(autouse=True)
@@ -42,6 +43,7 @@ def clear_settings_cache(monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv(key, raising=False)
     get_settings.cache_clear()
     reset_actions_registry()
+    reset_profile_store()
 
 
 @pytest.fixture()
@@ -300,6 +302,100 @@ def test_macro_crud(monkeypatch: pytest.MonkeyPatch, client: TestClient) -> None
     list_after_delete = client.get("/api/v1/actions/macros")
     assert list_after_delete.status_code == 200
     assert not any(item["id"] == macro_id for item in list_after_delete.json()["items"])
+
+
+def test_profiles_bootstrap(monkeypatch: pytest.MonkeyPatch, client: TestClient) -> None:
+    monkeypatch.setenv("KOLIBRI_SSO_ENABLED", "false")
+    get_settings.cache_clear()
+    reset_profile_store()
+
+    response = client.get("/api/v1/profiles")
+    assert response.status_code == 200
+    payload = response.json()
+    items = payload["items"]
+    assert len(items) >= 1
+    for item in items:
+        assert isinstance(item["languages"], list)
+        default_language = item["settings"]["default_language"]
+        if default_language:
+            assert default_language in item["languages"]
+
+
+def test_profiles_crud(monkeypatch: pytest.MonkeyPatch, client: TestClient) -> None:
+    monkeypatch.setenv("KOLIBRI_SSO_ENABLED", "false")
+    get_settings.cache_clear()
+    reset_profile_store()
+
+    create_response = client.post(
+        "/api/v1/profiles",
+        json={
+            "name": "Design Studio",
+            "role": "Design lead",
+            "languages": ["EN", "ru", "En"],
+            "settings": {"timezone": "Europe/Berlin"},
+            "metrics": {"latency_ms": 1650.0, "throughput_trend": "+10%"},
+        },
+    )
+    assert create_response.status_code == 201
+    created = create_response.json()
+    profile_id = created["id"]
+    assert created["languages"] == ["en", "ru"]
+    assert created["settings"]["default_language"] == "en"
+    assert created["metrics"]["latency_ms"] == pytest.approx(1650.0)
+
+    update_response = client.put(
+        f"/api/v1/profiles/{profile_id}",
+        json={
+            "languages": ["ru"],
+            "settings": {"default_language": "ru", "notifications_enabled": False},
+            "metrics": {"throughput_per_minute": 88, "nps": 82},
+        },
+    )
+    assert update_response.status_code == 200
+    updated = update_response.json()
+    assert updated["languages"] == ["ru"]
+    assert updated["settings"]["default_language"] == "ru"
+    assert updated["settings"]["notifications_enabled"] is False
+    assert updated["metrics"]["throughput_per_minute"] == 88
+    assert updated["metrics"]["nps"] == 82
+
+    delete_response = client.delete(f"/api/v1/profiles/{profile_id}")
+    assert delete_response.status_code == 204
+    fetch_response = client.get(f"/api/v1/profiles/{profile_id}")
+    assert fetch_response.status_code == 404
+
+
+def test_profiles_language_endpoint(monkeypatch: pytest.MonkeyPatch, client: TestClient) -> None:
+    monkeypatch.setenv("KOLIBRI_SSO_ENABLED", "false")
+    get_settings.cache_clear()
+    reset_profile_store()
+
+    create_response = client.post(
+        "/api/v1/profiles",
+        json={
+            "name": "Growth Team",
+            "role": "Growth lead",
+            "languages": ["ru"],
+        },
+    )
+    assert create_response.status_code == 201
+    profile_id = create_response.json()["id"]
+
+    patch_response = client.patch(
+        f"/api/v1/profiles/{profile_id}/languages",
+        json={"languages": ["En", "ES", "es"]},
+    )
+    assert patch_response.status_code == 200
+
+    payload = patch_response.json()
+    assert payload["languages"] == ["en", "es"]
+    assert payload["settings"]["default_language"] == "en"
+
+    fetch_response = client.get(f"/api/v1/profiles/{profile_id}")
+    assert fetch_response.status_code == 200
+    fetched = fetch_response.json()
+    assert fetched["languages"] == ["en", "es"]
+    assert fetched["settings"]["default_language"] == "en"
 
 
 def test_metrics_capture_http_observability(client: TestClient) -> None:
