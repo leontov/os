@@ -43,6 +43,7 @@
   "message.timestamp": "Sent",
   "message.new": "New messages",
   "message.scrollToBottom": "Jump to latest",
+  "message.streaming": "Kolibri is composing a reply",
   "message.separator.today": "Today",
   "message.separator.yesterday": "Yesterday",
   "empty.title": "Start a new conversation",

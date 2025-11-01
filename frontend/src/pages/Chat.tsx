@@ -79,6 +79,7 @@ function ChatPage() {
   const handleSend = useMessageComposer({
     activeConversation: conversationState.activeConversation,
     appendMessage: conversationState.appendMessage,
+    updateMessage: conversationState.updateMessage,
     authorLabel: "Вы",
     assistantLabel: "Колибри",
     setStatus: conversationState.setStatus,

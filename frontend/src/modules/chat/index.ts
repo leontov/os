@@ -3,14 +3,14 @@ import type { ConversationListItem } from "../../components/layout/Sidebar";
 import type { MessageBlock } from "../../components/chat/Message";
 import type { ConversationMode } from "../../components/chat/ConversationHero";
 import type { ConversationStatus } from "../history";
+import type { Locale, MessageKey } from "../../app/i18n";
 
-type Translate = (key: string) => string;
-
-type Locale = "en" | "ru";
+type Translate = (key: MessageKey) => string;
 
 type ComposerOptions = {
   activeConversation: string | null;
   appendMessage: (id: string, message: MessageBlock) => void;
+  updateMessage: (id: string, messageId: string, updater: (message: MessageBlock) => MessageBlock) => void;
   authorLabel: string;
   assistantLabel: string;
   setStatus: (status: ConversationStatus) => void;
@@ -146,9 +146,22 @@ const CATEGORY_HINTS: Array<{ patterns: RegExp[]; ru: string; en: string }> = [
   },
 ];
 
+const STREAM_ENDPOINT = "/api/v1/infer/stream";
+
+type SSEEvent = {
+  event: string;
+  data: unknown;
+};
+
+type StreamCallbacks = {
+  onToken: (token: string) => void;
+  signal?: AbortSignal;
+};
+
 export function useMessageComposer({
   activeConversation,
   appendMessage,
+  updateMessage,
   authorLabel,
   assistantLabel,
   setStatus,
@@ -183,41 +196,75 @@ export function useMessageComposer({
       appendMessage(activeConversation, userMessage);
       setStatus("loading");
 
+      const assistantTimestamp = Date.now();
+      const assistantMessageId = crypto.randomUUID();
+      appendMessage(activeConversation, {
+        id: assistantMessageId,
+        role: "assistant",
+        authorLabel: assistantLabel,
+        content: "",
+        createdAt: new Date(assistantTimestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        timestamp: assistantTimestamp,
+        streaming: true,
+      });
+
+      let buffer = "";
       try {
-        const responseContent = await generateKolibriResponse({
-          prompt: trimmed,
-          history,
-          locale,
-          mode,
-        });
+        await streamKolibriCompletion(
+          { prompt: trimmed, mode },
+          {
+            onToken: (token) => {
+              buffer += token;
+              updateMessage(activeConversation, assistantMessageId, (message) => ({
+                ...message,
+                content: buffer,
+                streaming: true,
+              }));
+            },
+          },
+        );
 
-        const assistantTimestamp = Date.now();
-        const assistantMessage: MessageBlock = {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          authorLabel: assistantLabel,
-          content: responseContent,
-          createdAt: new Date(assistantTimestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-          timestamp: assistantTimestamp,
-        };
-
-        appendMessage(activeConversation, assistantMessage);
+        const finalContent = buffer.trimEnd();
+        const finalTimestamp = Date.now();
+        updateMessage(activeConversation, assistantMessageId, (message) => ({
+          ...message,
+          content: finalContent,
+          streaming: false,
+          createdAt: new Date(finalTimestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          timestamp: finalTimestamp,
+        }));
       } catch (error) {
         console.error("Kolibri generation failed", error);
         const assistantTimestamp = Date.now();
         const fallbackLanguage = detectLanguage(trimmed, locale, history);
-        const fallbackContent =
-          fallbackLanguage === "ru"
-            ? "Не получилось построить ответ. Попробуйте переформулировать запрос или добавить деталей."
-            : "I couldn't finish the response. Please rephrase your request or share a little more context.";
-        appendMessage(activeConversation, {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          authorLabel: assistantLabel,
+        let fallbackContent = buffer.trimEnd();
+        try {
+          if (!fallbackContent) {
+            fallbackContent = await generateFallbackResponse({
+              prompt: trimmed,
+              history,
+              locale,
+              mode,
+            });
+          }
+        } catch (fallbackError) {
+          console.error("Kolibri fallback generator failed", fallbackError);
+        }
+
+        if (!fallbackContent) {
+          fallbackContent =
+            fallbackLanguage === "ru"
+              ? "Не получилось построить ответ. Попробуйте переформулировать запрос или добавить деталей."
+              : "I couldn't finish the response. Please rephrase your request or share a little more context.";
+        }
+
+        updateMessage(activeConversation, assistantMessageId, (message) => ({
+          ...message,
           content: fallbackContent,
+          streaming: false,
           createdAt: new Date(assistantTimestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
           timestamp: assistantTimestamp,
-        });
+        }));
       } finally {
         setStatus("idle");
       }
@@ -225,6 +272,7 @@ export function useMessageComposer({
     [
       activeConversation,
       appendMessage,
+      updateMessage,
       authorLabel,
       assistantLabel,
       getMessages,
@@ -235,7 +283,112 @@ export function useMessageComposer({
   );
 }
 
-async function generateKolibriResponse({ prompt, history, locale, mode }: GenerationOptions): Promise<string> {
+function parseSSEEvent(rawEvent: string): SSEEvent | null {
+  const trimmed = rawEvent.trim();
+  if (!trimmed) {
+    return null;
+  }
+  const lines = trimmed.split(/\r?\n/);
+  let event = "message";
+  const dataLines: string[] = [];
+  for (const line of lines) {
+    if (!line) {
+      continue;
+    }
+    if (line.startsWith("event:")) {
+      event = line.slice(6).trim() || "message";
+    } else if (line.startsWith("data:")) {
+      dataLines.push(line.slice(5).trim());
+    }
+  }
+  let data: unknown = null;
+  if (dataLines.length > 0) {
+    const payload = dataLines.join("\n");
+    if (payload) {
+      try {
+        data = JSON.parse(payload);
+      } catch {
+        data = payload;
+      }
+    }
+  }
+  return { event, data };
+}
+
+async function streamKolibriCompletion(
+  request: { prompt: string; mode: ConversationMode },
+  { onToken, signal }: StreamCallbacks,
+): Promise<void> {
+  const response = await fetch(STREAM_ENDPOINT, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "text/event-stream",
+    },
+    body: JSON.stringify({ prompt: request.prompt, mode: request.mode }),
+    signal,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Streaming request failed with status ${response.status}`);
+  }
+
+  if (!response.body) {
+    throw new Error("Streaming response body is not available in this environment");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let completed = false;
+
+  const processBuffer = () => {
+    let boundary = buffer.indexOf("\n\n");
+    while (boundary !== -1) {
+      const rawEvent = buffer.slice(0, boundary);
+      buffer = buffer.slice(boundary + 2);
+      const parsed = parseSSEEvent(rawEvent);
+      if (parsed) {
+        if (parsed.event === "token") {
+          const token = (parsed.data as { token?: string })?.token;
+          if (typeof token === "string" && token) {
+            onToken(token);
+          }
+        } else if (parsed.event === "done") {
+          completed = true;
+        } else if (parsed.event === "error") {
+          const detail = (parsed.data as { detail?: string })?.detail;
+          throw new Error(detail || "Streaming failed");
+        }
+      }
+      boundary = buffer.indexOf("\n\n");
+    }
+  };
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        buffer += decoder.decode();
+        break;
+      }
+      buffer += decoder.decode(value, { stream: true });
+      processBuffer();
+    }
+
+    if (buffer.trim().length > 0) {
+      processBuffer();
+    }
+
+    if (!completed) {
+      throw new Error("Streaming response ended unexpectedly");
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+async function generateFallbackResponse({ prompt, history, locale, mode }: GenerationOptions): Promise<string> {
   const language = detectLanguage(prompt, locale, history);
   const trimmed = prompt.trim();
   const jitter = 240 + Math.floor(Math.random() * 240);
