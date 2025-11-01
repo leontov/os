@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import type { MessageKey } from "../../app/i18n";
 import type { ConversationMode } from "../../components/chat/ConversationHero";
 import type { Translate } from "../../app/i18n";
 
